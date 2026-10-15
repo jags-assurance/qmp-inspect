@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
+import { ViewHeader } from "@/components/domain/view-header";
 import { Badge } from "@/components/ui/badge";
 import {
   computeProjectKpis,
@@ -314,18 +315,14 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
   }
   const totalNcrs = NCR_SEVERITIES.reduce((sum, sev) => sum + ncrSeverityCounts[sev], 0);
 
-  const Heading = embedded ? "h2" : "h1";
   return (
     <div>
       <RealtimeRefresh table="inspection_records" filter={`project_id=eq.${projectId}`} />
-      {!embedded && (
-        <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          <T>← Back to Project</T>
-        </Link>
-      )}
-      <div className="mt-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink"><T>Quality performance</T></Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/projects/${projectId}`}
+        title={<T>Quality performance</T>}
+        guide={
           <PageGuide
             title={tl("Client KPIs — how this works")}
             points={[
@@ -335,17 +332,15 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
               "Reachable by any role with access to this project — no staff-only gate.",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · <span className="doc-id">{project.project_number}</span> {project.name}
-        </p>
-      </div>
+        }
+        subtitle={<>{project.organizations?.name} · <span className="doc-id">{project.project_number}</span> {project.name}</>}
+      />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <StatGrid max={3}>
         <KpiDrilldown
           records={kpis.firstAttemptRecords}
           trigger={
-            <StatCard
+            <StatTile
               label="First-time pass rate"
               caption="Share of checklist items whose first completed inspection passed. Drafts excluded. Click to see the records."
               value={formatPercent(kpis.firstTimePassRate)}
@@ -353,7 +348,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
             />
           }
         />
-        <StatCard
+        <StatTile
           label="Hold-point turnaround"
           href="/inspect/start-work"
           caption="Average time from Hold notification to sign-off. Click for the start-work list."
@@ -369,14 +364,14 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
             </span>
           }
         />
-        <StatCard
+        <StatTile
           label="NCR close-out time"
           href="/inspect/ncrs"
           caption="Average time from NCR raised to closed (closed NCRs only). Click for the NCR register."
           value={formatHours(kpis.ncrCloseOutHours)}
           icon={<KpiToneBadge tone={toneHoursLowerBetter(kpis.ncrCloseOutHours, { good: 72, ok: 168 })} />}
         />
-        <StatCard
+        <StatTile
           label="Data-book readiness"
           href={`/inspect/projects/${projectId}/data-book`}
           caption="Real readiness across all Data Book categories (open punch items must also be zero)."
@@ -392,21 +387,21 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
             </span>
           }
         />
-        <StatCard
+        <StatTile
           label="Inspections completed"
           href={`/inspect/inspections?project=${projectId}`}
           caption="Completed inspection records versus planned inspection items on approved ITPs."
           value={`${kpis.inspectionsCompleted} / ${kpis.inspectionsPlanned} (${formatPercent(kpis.inspectionsCompletionRate)})`}
           icon={<KpiToneBadge tone={tonePercent(kpis.inspectionsCompletionRate, { good: 90, ok: 60 })} />}
         />
-        <StatCard
+        <StatTile
           label="ITP completion"
           href={`/inspect/itps?project=${projectId}`}
           caption="ITPs accepted by the client as a share of all ITPs on this project."
           value={formatPercent(kpis.itpCompletionRate)}
           icon={<KpiToneBadge tone={tonePercent(kpis.itpCompletionRate, { good: 90, ok: 60 })} />}
         />
-      </div>
+      </StatGrid>
 
       {/* Real UX gap found live: these 5 list-style panels used to each be a full-width stacked
           card (mt-8 apart), forcing a long scroll to reach the charts below on any project with a

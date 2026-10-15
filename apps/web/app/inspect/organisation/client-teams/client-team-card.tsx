@@ -52,7 +52,7 @@ export function ClientTeamCard({
   const availableProjects = projects.filter((p) => !assignedIds.has(p.id));
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div className="flex items-baseline justify-between">
         <h2 className="font-medium text-ink">{team.name}</h2>
         {!team.canManage && <span className="text-xs text-muted"><Tx>View only</Tx></span>}

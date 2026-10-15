@@ -5,6 +5,8 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { lockBodyScroll } from "@/lib/hooks/use-scroll-lock";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -84,23 +86,18 @@ export function SidePanel({
     requestCloseRef.current = requestClose;
   }, [requestClose]);
 
+  useEscapeLayer(open, () => requestCloseRef.current());
   useEffect(() => {
     if (!open) return;
     dirtyRef.current = false;
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
 
     const panel = panelRef.current;
     const focusables = () => (panel ? Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)) : []);
     (focusables()[0] ?? panel)?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        requestCloseRef.current();
-        return;
-      }
       if (e.key !== "Tab") return;
       const items = focusables();
       if (items.length === 0) {
@@ -121,7 +118,7 @@ export function SidePanel({
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       // After a server refresh the opener may have been replaced; fall back to the page's main region.
       const opener = openerRef.current;
       if (opener && opener.isConnected) opener.focus?.();

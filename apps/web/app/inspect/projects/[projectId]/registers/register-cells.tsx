@@ -16,6 +16,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 /** Formats a plain YYYY-MM-DD date as dd/mm/yyyy without the timezone shift `new Date("YYYY-MM-DD")` causes west of UTC. */
 export function formatRegisterDate(date: string | null | undefined): string {
@@ -333,11 +334,7 @@ export function RegisterRowActions({
 /** Every non-essential field of a register row behind one small "Details" toggle (same look as the ITP activity details). */
 export function RegisterDetails({ items }: { items: { label: string; value: React.ReactNode }[] }) {
   return (
-    <details className="group">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-        <Tx>Details</Tx>
-      </summary>
+    <Disclosure variant="pill" summary={<><Tx>Details</Tx></>}>
       <dl className="mt-1.5 max-w-prose space-y-1 text-xs text-muted">
         {items.map(({ label, value }) => (
           <div key={label}>
@@ -346,6 +343,6 @@ export function RegisterDetails({ items }: { items: { label: string; value: Reac
           </div>
         ))}
       </dl>
-    </details>
+</Disclosure>
   );
 }

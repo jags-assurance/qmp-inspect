@@ -5,6 +5,7 @@ import { requestCorrectionAction, resolveCorrectionRequestAction, type Correctio
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: CorrectionRequestState = { error: null };
 
@@ -13,8 +14,7 @@ export function RequestCorrectionForm({ inspectionRecordId }: { inspectionRecord
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(requestCorrectionAction, initialState);
   return (
-    <details className="text-sm">
-      <summary className="cursor-pointer font-medium text-burgundy"><Tx>Request correction…</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Request correction…</Tx></>} className="text-sm">
       <form action={formAction} className="mt-2 space-y-2">
         <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
         <p className="text-xs text-muted">
@@ -33,7 +33,7 @@ export function RequestCorrectionForm({ inspectionRecordId }: { inspectionRecord
         {state.ok && <p className="text-sm text-success"><Tx>Request sent. Staff have been notified.</Tx></p>}
         {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       </form>
-    </details>
+</Disclosure>
   );
 }
 

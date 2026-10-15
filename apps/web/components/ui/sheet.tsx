@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
+import { useScrollLock } from "@/lib/hooks/use-scroll-lock";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 /**
@@ -36,14 +37,7 @@ export function Sheet({
   const titleId = useId();
   useFocusTrap(ref, open, onClose);
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
+  useScrollLock(open);
 
   if (!open || typeof document === "undefined") return null;
   // Portalled to <body>: the opener often lives in the sticky header (a z-20 stacking context), which would cap z-50.

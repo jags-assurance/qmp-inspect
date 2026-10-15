@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { addSignatureAction, type AddSignatureState } from "@/lib/standalone/actions";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
@@ -8,6 +8,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { SignaturePad as SharedPad } from "@/components/domain/signature-pad";
 
 const initialState: AddSignatureState = { error: null };
 
@@ -15,54 +16,10 @@ const initialState: AddSignatureState = { error: null };
 export function SignaturePad({ assignmentId }: { assignmentId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addSignatureAction, initialState);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const drawingRef = useRef(false);
   const [signatureData, setSignatureData] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [queued, setQueued] = useState(false);
-
-  function pointerPos(e: PointerEvent<HTMLCanvasElement>) {
-    const canvas = e.currentTarget;
-    const rect = canvas.getBoundingClientRect();
-    // The canvas is CSS-scaled (w-full) so map screen pixels to canvas pixels.
-    const sx = rect.width ? canvas.width / rect.width : 1;
-    const sy = rect.height ? canvas.height / rect.height : 1;
-    return { x: (e.clientX - rect.left) * sx, y: (e.clientY - rect.top) * sy };
-  }
-
-  function handlePointerDown(e: PointerEvent<HTMLCanvasElement>) {
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    drawingRef.current = true;
-    try {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    } catch {
-      // not supported / pointer already released
-    }
-    const { x, y } = pointerPos(e);
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }
-
-  function handlePointerMove(e: PointerEvent<HTMLCanvasElement>) {
-    if (!drawingRef.current) return;
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
-    const { x, y } = pointerPos(e);
-    ctx.strokeStyle = "#1f1a17";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    setHasDrawn(true);
-  }
-
-  function handlePointerUp() {
-    if (!drawingRef.current) return;
-    drawingRef.current = false;
-    const canvas = canvasRef.current;
-    if (canvas) setSignatureData(canvas.toDataURL("image/png"));
-  }
+  const [padKey, setPadKey] = useState(0);
 
   // Clear the pad after a successful save so the same signature cannot be double-submitted.
   const wasPending = useRef(false);
@@ -77,9 +34,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
   }, [pending]);
 
   function handleClear() {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (canvas && ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setPadKey((k) => k + 1);
     setSignatureData("");
     setHasDrawn(false);
   }
@@ -104,14 +59,14 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <input type="hidden" name="signature_data" value={signatureData} />
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <FormField label="Role">
             <input
             name="role"
             required
             placeholder={tl("e.g. Client witness")}
-            className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
           />
           </FormField>
         </div>
@@ -120,7 +75,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
             <input
             name="signatory_name"
             required
-            className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
           />
           </FormField>
         </div>
@@ -128,19 +83,15 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
 
       <div>
         <label className="block text-xs text-muted"><Tx>Signature</Tx></label>
-        <canvas
-          ref={canvasRef}
-          width={400}
-          height={120}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="mt-1 w-full touch-none rounded-md border border-border bg-off-white"
-        />
-        <button type="button" onClick={handleClear} className="mt-1 text-xs text-muted hover:text-ink">
-          <Tx>Clear</Tx>
-        </button>
+        <div className="mt-1">
+          <SharedPad
+            key={padKey}
+            onChange={(d) => {
+              setSignatureData(d ?? "");
+              setHasDrawn(!!d);
+            }}
+          />
+        </div>
       </div>
 
       {queued && <p className="text-sm text-muted"><Tx>Saved on this device — it will be sent when you&apos;re back online.</Tx></p>}
@@ -149,7 +100,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
       <Button
         type="submit"
         disabled={pending || !hasDrawn}
-        variant="outline" size="sm"
+        variant="primary" size="lg" className="w-full sm:w-auto"
       >
         {pending ? "Saving…" : "+ Add signature"}
       </Button>

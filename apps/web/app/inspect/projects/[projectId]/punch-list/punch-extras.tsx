@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const input = "rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy";
 
@@ -18,8 +19,7 @@ export function WithdrawPunchItemForm({ projectId, punchItemId }: { projectId: s
   const tl = useTranslate();
   const [state, action, pending] = useActionState(withdrawPunchItemAction, { error: null } as WithdrawPunchState);
   return (
-    <details className="text-xs">
-      <summary className="cursor-pointer font-medium text-muted hover:text-ink"><Tx>Withdraw (raised in error / duplicate)</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Withdraw (raised in error / duplicate)</Tx></>} className="text-xs">
       <form action={action} className="mt-2 flex flex-col gap-2">
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="punch_item_id" value={punchItemId} />
@@ -29,7 +29,7 @@ export function WithdrawPunchItemForm({ projectId, punchItemId }: { projectId: s
           {pending ? "Withdrawing…" : "Withdraw item"}
         </Button>
       </form>
-    </details>
+</Disclosure>
   );
 }
 

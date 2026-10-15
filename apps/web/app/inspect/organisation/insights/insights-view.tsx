@@ -133,7 +133,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       <SettingsBackLink embedded={embedded} />
         <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2">
-            <Heading className="text-2xl font-semibold text-ink"><T>Portfolio Insights</T></Heading>
+            <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Portfolio Insights</T></Heading>
             <PageGuide title={tl("Portfolio Insights — how this works")} points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
           </div>
           <PortfolioSummaryPdfButton latest={latestPortfolioSummaryPdf} />
@@ -368,7 +368,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Heading className="text-2xl font-semibold text-ink"><T>Portfolio Insights</T></Heading>
+            <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Portfolio Insights</T></Heading>
             <PageGuide title={tl("Portfolio Insights — how this works")} points={PORTFOLIO_INSIGHTS_GUIDE_POINTS} />
           </div>
           <p className="mt-1 text-sm text-muted">

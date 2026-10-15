@@ -130,7 +130,7 @@ export function BrandingForm({
                   type="button"
                   onClick={() => setExtras((prev) => prev.filter((e) => e.key !== extra.key))}
                   aria-label={`Remove color ${index + 3}`}
-                  className="mb-1 h-9 rounded-md border border-border bg-surface px-2 text-sm text-muted hover:bg-off-white hover:text-danger"
+                  className="mb-1 h-9 rounded-md border border-border bg-surface px-2 text-sm text-muted hover:bg-surface-subtle hover:text-danger"
                 >
                   ×
                 </button>
@@ -141,7 +141,7 @@ export function BrandingForm({
               <button
                 type="button"
                 onClick={() => setExtras((prev) => [...prev, { key: extraColorKeySeq++, color: "" }])}
-                className="h-9 rounded-md border border-dashed border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white"
+                className="h-9 rounded-md border border-dashed border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-surface-subtle"
               >
                 <Tx>+ Add color</Tx>
               </button>

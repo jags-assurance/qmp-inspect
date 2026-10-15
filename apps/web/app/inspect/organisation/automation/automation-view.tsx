@@ -78,7 +78,7 @@ export async function AutomationRulesView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Automation rules</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Automation rules</T></Heading>
         <PageGuide
           title={tl("Automation rules — how this works")}
           points={[

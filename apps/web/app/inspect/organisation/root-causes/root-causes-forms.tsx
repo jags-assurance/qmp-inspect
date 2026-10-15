@@ -35,7 +35,7 @@ export function AddCategoryForm({ organizationId }: { organizationId: string }) 
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addRootCauseCategoryAction, initial);
   return (
-    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <FormField label="New category">

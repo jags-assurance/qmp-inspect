@@ -13,6 +13,11 @@ import { GlobalProjectSelector, type ProjectSelectorOption } from "./global-proj
  *  - below lg: ONE 44px button (icon on phones, icon + current project on tablets) that opens a
  *    bottom sheet holding the same fields at full width. The header therefore never grows.
  */
+/** Same footprint as the context control while it streams in (no header jump). */
+export function HeaderContextSkeleton() {
+  return <div aria-hidden="true" className="h-11 w-11 animate-pulse rounded-md bg-surface-sunken sm:w-24 lg:h-9 lg:w-64" />;
+}
+
 export function HeaderContext({
   orgSwitcher,
   projectSelector,
@@ -49,7 +54,8 @@ export function HeaderContext({
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-label={`${tl("Organisation and project")}: ${active ? `${active.number} — ${active.name}` : tl("All projects")}`}
-        className="flex h-11 min-w-11 items-center justify-center gap-2 rounded-md border border-border bg-surface px-2.5 text-sm text-ink hover:bg-surface-subtle sm:px-3 lg:hidden"
+        title={active ? `${active.number} — ${active.name}` : label}
+        className="flex h-11 min-w-11 items-center justify-center gap-2 rounded-md border border-control-border bg-surface px-2.5 text-sm text-ink hover:bg-surface-subtle sm:px-3 lg:hidden"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 shrink-0 text-muted">
           <path d="M2.5 6.5A1.5 1.5 0 014 5h3.2c.4 0 .8.2 1.1.5L9.4 7H16a1.5 1.5 0 011.5 1.5v6A1.5 1.5 0 0116 16H4a1.5 1.5 0 01-1.5-1.5v-8z" />

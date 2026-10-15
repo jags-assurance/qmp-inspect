@@ -93,7 +93,7 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Brand colors &amp; logo</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Brand colors &amp; logo</T></Heading>
         <PageGuide
           title={tl("Brand colors & logo — how this works")}
           points={[
@@ -118,7 +118,7 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
 
       {selectedOrg && (
         <div className="mt-8 space-y-6">
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
             <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}</h2>
             <p className="mt-1 text-xs text-muted">
               <T>Engagement mode:</T> <span className="font-medium text-ink">{ENGAGEMENT_MODE_LABEL[selectedOrg.engagement_mode] ?? selectedOrg.engagement_mode}</span>
@@ -137,7 +137,7 @@ export async function BrandingSettingsView({ searchParams, embedded }: {
             </div>
           </div>
 
-          <div className="rounded-lg border border-border bg-surface p-4">
+          <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
             <h2 className="text-sm font-semibold text-ink"><T>Logo</T></h2>
             <MoreDetails className="mt-1">
               <p><T>Shown in the app header/sidebar and generated PDF reports for co-branded and white-label engagements (see above). No logo means the JAGS-only branding you see today, unchanged.</T></p>

@@ -49,7 +49,7 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
     <div className="max-w-3xl">
       <SettingsBackLink />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Data requests</T></h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Data requests</T></h1>
         <PageGuide
           title={tl("Data requests — how this works")}
           points={[
@@ -87,7 +87,7 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
         {matches.map((u) => {
           const anonymised = isAnonymisedEmail(u.email);
           return (
-            <li key={u.id} className="rounded-lg border border-border bg-surface p-4">
+            <li key={u.id} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold text-ink">{u.full_name}</p>
                 {u.is_jags_staff && <Badge tone="info">{tl(u.staff_role === "inspector" ? "Inspector" : "Admin")}</Badge>}

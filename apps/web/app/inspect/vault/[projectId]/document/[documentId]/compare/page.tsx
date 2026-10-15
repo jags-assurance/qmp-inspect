@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
@@ -113,25 +114,23 @@ export default async function VaultRevisionComparePage({
 
   return (
     <div>
-      <Link href={`/inspect/vault/${projectId}/document/${documentId}`} className="text-sm text-burgundy hover:underline">
-        <T>← Back to</T> {document.title}
-      </Link>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Compare revisions</T></h1>
-        <PageGuide
+      <PageHeader
+        backHref={`/inspect/vault/${projectId}/document/${documentId}`}
+        backLabel={document.title}
+        title={<T>Compare revisions</T>}
+        guide={
+          <PageGuide
           title={tl("Compare revisions — how this works")}
           points={[
             "Groups every revision that shares this document's revision key (document_reference) — the same superseded-not-overwritten chain the vault folder page already tracks, not a new revision model.",
             "A document uploaded without a revision key has no siblings to compare against — pick one from the folder's revision-key column instead, or supersede it with a new upload first.",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {document.document_number ?? document.title} · {revisions.length} <T>revision</T>{revisions.length === 1 ? "" : "s"} <T>on record</T>
-      </p>
+        }
+        subtitle={<>{document.document_number ?? document.title} · {revisions.length} <T>revision</T>{revisions.length === 1 ? "" : "s"} <T>on record</T></>}
+      />
 
-      <div className="mt-6">
+      <div>
         <RevisionCompare revisions={revisions} initialRightId={document.id} />
       </div>
     </div>

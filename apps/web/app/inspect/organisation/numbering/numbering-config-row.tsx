@@ -68,103 +68,105 @@ export function NumberingConfigRow({
   return (
     <form
       action={formAction}
-      className="grid grid-cols-2 items-end gap-2 border-b border-border py-3 last:border-0 sm:grid-cols-4 xl:grid-cols-[120px_1fr_100px_80px_90px_90px_100px_auto]"
+      className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5"
     >
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="doc_type" value={docType} />
 
-      <span className="pb-2 text-sm font-medium text-ink">{DOC_TYPE_LABELS[docType]}</span>
-
-      <div>
-        <FormField label="Client code">
-          <input
-          name="client_code"
-          required
-          value={clientCode}
-          onChange={(e) => setClientCode(e.target.value)}
-          placeholder={tl("e.g. project number")}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
-        </FormField>
-        <Button
-          type="button"
-          disabled={checking || !clientCode.trim()}
-          onClick={() => {
-            setCodeCheck(null);
-            startChecking(async () => setCodeCheck(await checkClientCodeAction(organizationId, docType, clientCode)));
-          }}
-          variant="link" size="sm" className="mt-1"
-        >
-          {checking ? "Checking…" : "Check code for duplicates"}
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <h3 className="text-sm font-semibold text-ink">{DOC_TYPE_LABELS[docType]}</h3>
+        <p className="min-w-0 text-xs text-muted">
+          <Tx>Sample:</Tx>{" "}
+          <span className="doc-id inline-block max-w-full break-all rounded-md bg-surface-subtle px-2 py-1 align-middle text-sm font-medium text-ink">{sample}</span>
+        </p>
       </div>
 
-      <div>
+      <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="sm:col-span-2">
+          <FormField label="Client code">
+            <input
+              name="client_code"
+              required
+              value={clientCode}
+              onChange={(e) => setClientCode(e.target.value)}
+              placeholder={tl("e.g. project number")}
+              className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:min-h-10 sm:text-sm"
+            />
+          </FormField>
+          <Button
+            type="button"
+            disabled={checking || !clientCode.trim()}
+            onClick={() => {
+              setCodeCheck(null);
+              startChecking(async () => setCodeCheck(await checkClientCodeAction(organizationId, docType, clientCode)));
+            }}
+            variant="link" size="sm" className="mt-1"
+          >
+            {checking ? "Checking…" : "Check code for duplicates"}
+          </Button>
+        </div>
+
         <FormField label="Originator">
           <input
-          name="originator_code"
-          value={originatorCode}
-          onChange={(e) => setOriginatorCode(e.target.value)}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
+            name="originator_code"
+            value={originatorCode}
+            onChange={(e) => setOriginatorCode(e.target.value)}
+            className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:min-h-10 sm:text-sm"
+          />
         </FormField>
-      </div>
 
-      <div>
         <FormField label="Separator">
           <input
-          name="separator"
-          value={separator}
-          onChange={(e) => setSeparator(e.target.value)}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
+            name="separator"
+            value={separator}
+            onChange={(e) => setSeparator(e.target.value)}
+            className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:min-h-10 sm:text-sm"
+          />
         </FormField>
-      </div>
 
-      <div>
         <FormField label="Padding">
           <input
-          name="sequence_padding"
-          type="number"
-          min={1}
-          max={6}
-          value={sequencePadding}
-          onChange={(e) => setSequencePadding(Number(e.target.value))}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-        />
+            name="sequence_padding"
+            type="number"
+            min={1}
+            max={6}
+            value={sequencePadding}
+            onChange={(e) => setSequencePadding(Number(e.target.value))}
+            className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:min-h-10 sm:text-sm"
+          />
         </FormField>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:col-span-2 lg:col-span-3 lg:self-end">
+          <label className="inline-flex min-h-11 items-center gap-2 text-sm text-ink">
+            <input type="checkbox" className="h-5 w-5" name="include_year" checked={includeYear} onChange={(e) => setIncludeYear(e.target.checked)} />
+            <Tx>Year</Tx>
+          </label>
+          <label
+            className="inline-flex min-h-11 items-center gap-2 text-sm text-ink"
+            title={tl("Inserts this document's discipline code right after the doc-type segment, when one is resolvable — omitted otherwise, never a blank placeholder.")}
+          >
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              name="include_discipline"
+              checked={includeDiscipline}
+              onChange={(e) => setIncludeDiscipline(e.target.checked)}
+            />
+            <Tx>Discipline</Tx>
+          </label>
+        </div>
       </div>
 
-      <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
-        <input type="checkbox" name="include_year" checked={includeYear} onChange={(e) => setIncludeYear(e.target.checked)} />
-        <Tx>Year</Tx>
-      </label>
-
-      <label
-        className="flex items-center gap-1.5 pb-2 text-xs text-muted"
-        title={tl("Inserts this document's discipline code right after the doc-type segment, when one is resolvable — omitted otherwise, never a blank placeholder.")}
-      >
-        <input
-          type="checkbox"
-          name="include_discipline"
-          checked={includeDiscipline}
-          onChange={(e) => setIncludeDiscipline(e.target.checked)}
-        />
-        <Tx>Discipline</Tx>
-      </label>
-
-      <Button type="submit" disabled={pending} className="col-span-full justify-self-end whitespace-nowrap xl:col-span-1 xl:justify-self-stretch">
-        {pending ? "Saving…" : "Save"}
-      </Button>
-
-      <p className="col-span-full text-xs text-muted">
-        <Tx>Sample:</Tx> <span className="doc-id font-medium text-ink">{sample}</span>
-      </p>
+      <div className="mt-4 flex justify-end">
+        <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+          {pending ? "Saving…" : "Save"}
+        </Button>
+      </div>
 
       {codeCheck && (
         <div
           role="status"
-          className={`col-span-full rounded-md border px-3 py-2 text-sm ${
+          className={`mt-3 rounded-md border px-3 py-2 text-sm ${
             codeCheck.status === "ok"
               ? "border-success/30 bg-success/5 text-success"
               : codeCheck.status === "warning"
@@ -194,7 +196,7 @@ export function NumberingConfigRow({
         </div>
       )}
 
-      <FormMessage error={state.error} success={pending ? null : state.message} className="col-span-full" />
+      <FormMessage error={state.error} success={pending ? null : state.message} className="mt-3" />
     </form>
   );
 }

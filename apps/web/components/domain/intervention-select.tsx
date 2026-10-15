@@ -120,7 +120,7 @@ export function InterventionSelect({
         onChange={handleChange}
         title={value ? labelOf(value) : "No intervention"}
         aria-label={tl("Intervention level")}
-        className="h-7 w-14 rounded border border-border bg-surface text-center text-xs font-semibold text-muted outline-none focus:border-burgundy"
+        className="h-8 w-14 rounded border border-control-border bg-surface text-center text-xs font-semibold text-muted [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-16"
       >
         <option value="">—</option>
         {levels.map((level) => (

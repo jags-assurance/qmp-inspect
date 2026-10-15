@@ -88,7 +88,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Staff access</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Staff access</T></Heading>
         <PageGuide
           title={tl("Staff access — how this works")}
           points={[
@@ -133,7 +133,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
 
       <div className="mt-8 space-y-4">
         {(staff ?? []).map((s) => (
-          <div key={s.id} className="rounded-lg border border-border bg-surface p-4">
+          <div key={s.id} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
             <div className="flex items-baseline justify-between">
               <div>
                 <p className="text-sm font-medium text-ink">{s.full_name}</p>

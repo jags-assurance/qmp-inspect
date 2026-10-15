@@ -10,7 +10,7 @@ export function ScanSearchInput({ defaultValue }: { defaultValue: string }) {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement | null>(null);
   return (
-    <div className="flex flex-wrap items-start gap-2 sm:min-w-72 sm:flex-1">
+    <div className="flex w-full items-start gap-2">
       <input
         ref={inputRef}
         type="search"
@@ -18,7 +18,7 @@ export function ScanSearchInput({ defaultValue }: { defaultValue: string }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={tl("Search activity, ITP or checklist")}
-        className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+        className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm"
       />
       <BarcodeScanButton
         label="Scan"

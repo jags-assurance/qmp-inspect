@@ -1,5 +1,6 @@
 "use client";
 
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { useActionState, useRef, useState, type FormEvent } from "react";
 import { acknowledgeHandoverAction, type AcknowledgeHandoverState } from "@/lib/handover/actions";
 import { ACK_EVIDENCE_MAX_BYTES, buildAckEvidencePath, isAckSignatureRequired, validateAckEvidenceFile } from "@/lib/handover/helpers";
@@ -108,7 +109,7 @@ export function AcknowledgeForm({
 
   if (!expanded) {
     return (
-      <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(true)}>
+      <Button type="button" size="lg" variant="outline" onClick={() => setExpanded(true)}>
         {onBehalf ? "Acknowledge on behalf of client" : "Acknowledge receipt"}
       </Button>
     );
@@ -146,7 +147,7 @@ export function AcknowledgeForm({
           name="received_by_name"
           required
           maxLength={120}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy sm:w-40"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11 sm:w-56"
         />
       </div>
       <div className="w-full sm:w-auto">
@@ -157,7 +158,7 @@ export function AcknowledgeForm({
           id={companyId}
           name="received_by_company"
           maxLength={120}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy sm:w-40"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11 sm:w-56"
         />
       </div>
 
@@ -167,7 +168,7 @@ export function AcknowledgeForm({
         <label htmlFor={`ack_comment_${certificateId}`} className="block text-xs font-medium text-ink">
           <Tx>Comment</Tx>
         </label>
-        <textarea id={`ack_comment_${certificateId}`} name="ack_comment" rows={2} maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+        <textarea id={`ack_comment_${certificateId}`} name="ack_comment" rows={2} maxLength={2000} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11" />
       </div>
         </MoreDetails>
       </div>
@@ -176,7 +177,7 @@ export function AcknowledgeForm({
           <label htmlFor={`ack_basis_${certificateId}`} className="block text-xs font-medium text-ink">
             <Tx>How did the client confirm? (email, signed document reference)</Tx>
           </label>
-          <input id={`ack_basis_${certificateId}`} name="on_behalf_basis" required minLength={5} maxLength={1000} className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+          <input id={`ack_basis_${certificateId}`} name="on_behalf_basis" required minLength={5} maxLength={1000} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11" />
         </div>
       )}
 
@@ -208,17 +209,19 @@ export function AcknowledgeForm({
         </div>
       )}
 
-      <label htmlFor={confirmId} className="flex w-full items-start gap-2 text-sm text-ink">
-        <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4" />
+      <label htmlFor={confirmId} className="flex min-h-11 w-full items-start gap-3 text-sm text-ink">
+        <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-5 w-5" />
         <span>
           <Tx>I confirm the handover package was received and that this is a formal acceptance</Tx>
           {onBehalf ? " recorded on behalf of the client" : ""}<Tx>. It cannot be undone.</Tx>
         </span>
       </label>
 
-      <Button type="submit" size="sm" disabled={pending || !!uploadStatus || !confirmed}>
+<StickyActionBar className="w-full">
+      <Button type="submit" size="lg" disabled={pending || !!uploadStatus || !confirmed}>
         {uploadStatus ?? (pending ? "Confirming…" : "Confirm acceptance")}
       </Button>
+      </StickyActionBar>
 
       {(localError || state.error) && (
         <p className="w-full text-sm text-danger" role="alert">

@@ -2,7 +2,10 @@ import Link from "next/link";
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatTile, StatGrid } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
+import { FilterBar } from "@/components/ui/toolbar";
 import { AgingChart } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "../ncrs/ncrs-table";
@@ -114,74 +117,85 @@ export default async function ObservationsPage({
   const { total, open, closed, overdue } = stats;
   const agingCounts = stats.aging;
 
+  const filtersActive = Boolean(disciplineId || projectId || ownerNone || q);
+
   return (
-    <div>
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>Observation Register</T></h1>
-            <PageGuide
-              title={tl("Observation Register — how this works")}
-              points={[
-                "Observations are raised on the same NCR form and stored in the same ncrs table as minor/major NCRs — severity \"Observation\" is what routes a record here instead of to the NCR Register, so the two registers never double-list the same rows.",
-                "Anyone with project access can raise one via \"+ Raise Observation\". An observation does not create a punch-list item and does not count in readiness or the open-NCR exceptions; if JAGS staff grade it up to a minor or major NCR, a punch-list item is created then.",
-                "Closing one follows the same flow as an NCR: root cause, corrective and preventive action, verification notes and evidence, then Send for verification; a JAGS admin (or close NCR permission holder) who did not raise it verifies and closes it.",
-                "The discipline filter only matches observations raised against a specific ITP item — a standalone one has no discipline and stays visible unfiltered.",
-              ]}
-            />
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
-              <T>See NCRs →</T>
-            </Link>
-          </p>
-        </div>
-        <RaiseObservationPanel />
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        title={<T>Observation Register</T>}
+        guide={
+          <PageGuide
+            title={tl("Observation Register — how this works")}
+            points={[
+              "Observations are raised on the same NCR form and stored in the same ncrs table as minor/major NCRs — severity \"Observation\" is what routes a record here instead of to the NCR Register, so the two registers never double-list the same rows.",
+              "Anyone with project access can raise one via \"+ Raise Observation\". An observation does not create a punch-list item and does not count in readiness or the open-NCR exceptions; if JAGS staff grade it up to a minor or major NCR, a punch-list item is created then.",
+              "Closing one follows the same flow as an NCR: root cause, corrective and preventive action, verification notes and evidence, then Send for verification; a JAGS admin (or close NCR permission holder) who did not raise it verifies and closes it.",
+              "The discipline filter only matches observations raised against a specific ITP item — a standalone one has no discipline and stays visible unfiltered.",
+            ]}
+          />
+        }
+        meta={
+          <Link href="/inspect/ncrs" className="inline-flex min-h-9 items-center text-brand hover:underline">
+            <T>See NCRs →</T>
+          </Link>
+        }
+        primaryAction={<RaiseObservationPanel />}
+      />
 
       {ownerNone && (
-        <p className="mt-3 text-sm text-muted">
+        <p className="text-sm text-muted">
           <T>Showing observations without an owner.</T>{" "}
-          <Link href={projectId ? `/inspect/observations?project=${projectId}` : "/inspect/observations"} className="text-burgundy hover:underline">
+          <Link href={projectId ? `/inspect/observations?project=${projectId}` : "/inspect/observations"} className="font-medium text-brand hover:underline">
             <T>Clear filter</T>
           </Link>
         </p>
       )}
 
       {projectId && (
-        <p className="mt-3 text-sm text-muted">
+        <p className="text-sm text-muted">
           <T>Filtered to one project.</T>{" "}
-          <Link href="/inspect/observations" className="text-burgundy hover:underline">
+          <Link href="/inspect/observations" className="font-medium text-brand hover:underline">
             <T>Clear filter</T>
           </Link>
         </p>
       )}
 
-      <div className="mt-6">
-        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
-      </div>
-
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total" value={total} />
-        <StatCard label="Open" value={open} />
-        <StatCard label="Overdue" value={overdue} />
-        <StatCard label="Closed" value={closed} />
-      </div>
-
-      <div className="mt-6">
-        <AgingChart counts={agingCounts} />
-      </div>
-
-      <div className="mt-6">
-        <NcrsTable
-          rows={rows}
-          totalCount={totalCount ?? 0}
-          gradeAction={session.isJagsStaff}
-          idColumnHeader="Observation No."
-          searchPlaceholder="Search observations…"
-          emptyMessage="No observations raised yet."
+      <StatGrid max={4}>
+        <StatTile label="Total" value={total} />
+        <StatTile label="Open" value={open} />
+        <StatTile
+          label="Overdue"
+          value={overdue}
+          tone={overdue > 0 ? "danger" : undefined}
+          icon={overdue > 0 ? (
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10 6v4.5l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          ) : undefined}
         />
-      </div>
+        <StatTile label="Closed" value={closed} />
+      </StatGrid>
+
+      <FilterBar
+        activeCount={disciplineId ? 1 : 0}
+        clearHref={disciplineId ? "/inspect/observations" : undefined}
+        filters={<DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />}
+      />
+
+      <Section title={<T>Ageing of open observations</T>} collapsible defaultOpen={false}>
+        <AgingChart counts={agingCounts} bare />
+      </Section>
+
+      <NcrsTable
+        rows={rows}
+        totalCount={totalCount ?? 0}
+        gradeAction={session.isJagsStaff}
+        idColumnHeader="Observation No."
+        searchPlaceholder="Search observations…"
+        emptyMessage={filtersActive ? "No observations match these filters. Clear the filters to see the full register." : "No observations raised yet."}
+      />
       <NcrPanel />
     </div>
   );

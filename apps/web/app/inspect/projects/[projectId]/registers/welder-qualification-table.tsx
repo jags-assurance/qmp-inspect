@@ -101,6 +101,7 @@ export function WelderQualificationTable({ rows, projectId, canManage, editableI
   return (
     <DataTable
       mobileCards
+      breakpoint="md"
       caption="Welder qualification register"
       columns={columns}
       rows={rows}

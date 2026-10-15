@@ -1,4 +1,5 @@
 import { ItpChecklistPreview } from "@/components/domain/itp-checklist-preview";
+import { ViewHeader } from "@/components/domain/view-header";
 import { loadItpChecklistPreview } from "@/lib/checklists/preview";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -210,22 +211,14 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
     },
   ];
 
-  const Heading = embedded ? "h2" : "h1";
   return (
     <div>
-      {!embedded && (
-        <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        <T>← Back to ITP</T>
-      </Link>
-      )}
-      <div className={embedded ? "" : "mt-2"}>
-        <p className="text-sm text-muted">
-          {itp.projects?.organizations?.name} · {itp.projects?.name}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">
-            <T>Checklists</T> <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
-          </Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/itps/${itp.id}`}
+        backLabel="Back to ITP"
+        title={<><T>Checklists</T> <span className="doc-id text-muted">{itp.itp_number}</span></>}
+        guide={
           <PageGuide
             title={tl("ITP checklists — how this works")}
             points={[
@@ -235,9 +228,9 @@ export async function ChecklistsView({ id, embedded = false, archiveFilter = "ac
               "Status reflects the most recent inspection_records row for that checklist: no row = not started, a row with no result yet = in progress, a result set = complete (pass/fail/partial).",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">{itp.title}</p>
-      </div>
+        }
+        subtitle={<>{itp.title} · {itp.projects?.organizations?.name} · {itp.projects?.name}</>}
+      />
 
       {itp.status !== "approved" && itp.status !== "client_accepted" && (
         <>

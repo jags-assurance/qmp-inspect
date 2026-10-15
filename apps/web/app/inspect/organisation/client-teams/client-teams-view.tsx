@@ -87,7 +87,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
-        <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Client Teams</T></Heading>
         <p className="mt-1 text-sm text-muted"><T>This organisation&rsquo;s teams, leads and projects.</T></p>
         <MoreDetails className="mt-1">
           <p><T>No organisation found.</T></p>
@@ -99,7 +99,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
   if (!admin && !(await isModuleLicensed(supabase, organizationId, "client_teams"))) {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
-        <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Client Teams</T></Heading>
         <p className="mt-1 text-sm text-muted"><T>This module isn&apos;t included in your organisation&apos;s plan. Ask a JAGS Admin to enable it.</T></p>
       </div>
     );
@@ -198,7 +198,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Client Teams</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Client Teams</T></Heading>
         <PageGuide
           title={tl("Client Teams — how this works")}
           points={[

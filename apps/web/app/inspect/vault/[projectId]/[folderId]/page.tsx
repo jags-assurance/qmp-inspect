@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/page-header";
 import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
@@ -235,13 +236,12 @@ export default async function VaultFolderPage({
   return (
     <div>
       <RealtimeRefresh table="vault_documents" filter={`folder_id=eq.${folderId}`} />
-      <Link href={`/inspect/vault?project=${projectId}`} className="text-sm text-burgundy hover:underline">
-        <T>← Back to Document Vault</T>
-      </Link>
-
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">{folder.name}</h1>
-        <PageGuide
+      <PageHeader
+        backHref={`/inspect/vault?project=${projectId}`}
+        backLabel="Back to Document Vault"
+        title={folder.name}
+        guide={
+          <PageGuide
           title={tl("Vault folder — how this works")}
           points={[
             "Every revision of a document uploaded to this folder stays visible — a new upload matching an existing document reference marks the old one \"superseded\", it's never deleted or replaced.",
@@ -249,21 +249,18 @@ export default async function VaultFolderPage({
             "Uploading is open to anyone with access to this project — approval is the gated step, not the upload itself.",
           ]}
         />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-sm">
-        <Link
-          href={`/inspect/vault/${projectId}/pending`}
-          className={buttonVariants({ variant: "outline" })}
-        >
-          <T>My pending approvals</T>
-        </Link>
-        <a
-          href="#vault-upload"
-          className={buttonVariants({ variant: "outline" })}
-        >
-          <T>Upload</T>
-        </a>
-      </div>
+        }
+        primaryAction={
+          <a href="#vault-upload" className={buttonVariants({ variant: "primary" })}>
+            <T>Upload</T>
+          </a>
+        }
+        secondaryActions={
+          <Link href={`/inspect/vault/${projectId}/pending`} className={buttonVariants({ variant: "outline" })}>
+            <T>My pending approvals</T>
+          </Link>
+        }
+      />
 
       {/* Master-detail: with ?doc= the document viewer opens beside the list (desktop/tablet) or in
           place of it (phone, with a way back) — no navigation to a separate viewer page. */}
@@ -273,7 +270,7 @@ export default async function VaultFolderPage({
         defaultListWidth={460}
         list={
           <>
-          <div className="mt-6">
+          <div>
             <VaultDocumentsTable rows={rows} canApprove={canApprove} viewerId={session.userId} isAdmin={isAdminStaff(session)} />
             <LoadMore
               window={docWindow}

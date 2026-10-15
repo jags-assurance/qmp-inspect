@@ -1,10 +1,12 @@
 import { Suspense, type ReactNode } from "react";
+import { cookies } from "next/headers";
 import { signOutAction } from "@/lib/auth/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { listRecentNotifications, RECENT_NOTIFICATIONS_LIMIT } from "@/lib/notifications/helpers";
 import { needsUnreadCountQuery, unreadInList } from "@/lib/notifications/unread";
 import { NOTIFICATIONS_TABLE } from "@/lib/notifications/types";
 import { SidebarShell } from "./sidebar-shell";
+import { SIDEBAR_PREF_KEY } from "@/lib/ui/sidebar-pref";
 import { OfflineBanner } from "./offline-banner";
 import { NotificationsBell } from "./notifications-bell";
 import { SidebarMobileProvider } from "./sidebar-mobile-context";
@@ -17,7 +19,7 @@ import { BreadcrumbProvider } from "./breadcrumb-context";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
-import { HeaderContext } from "./header-context";
+import { HeaderContext, HeaderContextSkeleton } from "./header-context";
 import type { ProjectSelectorOption } from "./global-project-selector";
 import { setActiveProjectAction } from "@/lib/projects/active-project-actions";
 import { setActiveOrganisationAction } from "@/lib/organizations/active-org-actions";
@@ -93,6 +95,9 @@ export async function AppShell({
   projectSelector?: { options: ProjectSelectorOption[]; activeId: string | null } | null;
   children: ReactNode;
 }) {
+  // Sidebar rail preference lives in a cookie so the first paint already matches (no expand-then-snap on laptops).
+  const railCookie = (await cookies()).get(SIDEBAR_PREF_KEY)?.value;
+  const initialRailPref = railCookie === "0" || railCookie === "1" ? railCookie : null;
   return (
     <BreadcrumbProvider>
     <SidebarMobileProvider>
@@ -106,6 +111,7 @@ export async function AppShell({
           userRole={userRole}
           signOutAction={signOutAction}
           orgBranding={orgBranding}
+          initialRailPref={initialRailPref}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           {/* ONE compact 56px row: menu (< lg) - breadcrumb - context - search - bell - avatar. The only sticky element. */}
@@ -116,7 +122,7 @@ export async function AppShell({
                 <HeaderBreadcrumb root={breadcrumb} navItems={navItems} />
               </div>
               <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-                <Suspense fallback={null}>
+                <Suspense fallback={<HeaderContextSkeleton />}>
                   <HeaderContext
                     orgSwitcher={orgSwitcher}
                     projectSelector={projectSelector}

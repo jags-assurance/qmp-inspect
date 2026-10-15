@@ -7,6 +7,7 @@ import type { CsvRegisterKind } from "@/lib/registers/csv-columns";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: ImportRegisterCsvState = { error: null, lineErrors: [], imported: null, duplicates: 0 };
 
@@ -15,8 +16,7 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
   const tl = useTranslate();
   const [state, action, pending] = useActionState(importRegisterCsvAction, initialState);
   return (
-    <details className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
-      <summary className="cursor-pointer text-xs font-medium text-ink"><Tx>Import / export CSV</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Import / export CSV</Tx></>} className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
       <div className="mt-2 flex flex-wrap gap-3 text-xs">
         <a className="text-burgundy hover:underline" href={`/api/registers/export?kind=${kind}&project_id=${projectId}`}>
           <Tx>Export this register (CSV)</Tx>
@@ -56,6 +56,6 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
           </Button>
         </form>
       )}
-    </details>
+</Disclosure>
   );
 }

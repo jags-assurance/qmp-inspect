@@ -71,7 +71,7 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Module licensing</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Module licensing</T></Heading>
         <PageGuide
           title={tl("Module licensing — how this works")}
           points={[
@@ -91,7 +91,7 @@ export async function ModuleLicensingSettingsView({ searchParams, embedded }: {
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 
       {selectedOrg && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}<T>&rsquo;s modules</T></h2>
             <Badge tone={offCount === 0 ? "success" : "warning"}>

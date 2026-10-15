@@ -459,13 +459,13 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
           <Card id="gates" title={tl("Ready to generate?")} hint="Fix each red item to unlock a final book.">
             <ul className="divide-y divide-border rounded-md border border-border">
               {gates.map((g) => (
-                <li key={g.label} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                <li key={g.label} className={cn("flex min-h-12 flex-wrap items-center gap-3 px-3 py-2.5 text-sm", !g.ok && "bg-danger/5")}>
                   <Tick ok={g.ok} />
                   <span className="sr-only">{g.ok ? "Passed:" : "Not met:"}</span>
                   <span className="min-w-0 flex-1 text-ink">{g.label}</span>
-                  <span className={cn("text-xs", g.ok ? "text-success" : "text-danger")}>{g.detail}</span>
+                  <span className={cn("text-xs font-medium", g.ok ? "text-success" : "text-danger")}>{g.ok ? "✓ " : "✕ "}{g.detail}</span>
                   {!g.ok && (
-                    <Link href={g.href} className="text-xs font-medium text-burgundy hover:underline">
+                    <Link href={g.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
                       <T>Fix →</T>
                     </Link>
                   )}
@@ -474,7 +474,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               ))}
             </ul>
             <details className="mt-3">
-              <summary className="cursor-pointer text-sm text-burgundy focus:outline-none focus:ring-2 focus:ring-burgundy"><T>Category detail</T></summary>
+              <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-medium text-burgundy"><T>Category detail</T></summary>
               <div className="mt-2">
                 <ReadinessPanel readiness={readiness} />
               </div>

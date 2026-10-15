@@ -46,7 +46,7 @@ function PdfViewerDialog({ url, title, onClose }: { url: string; title: string; 
               ref={closeRef}
               type="button"
               onClick={onClose}
-              variant="outline" size="sm"
+              variant="outline" size="md"
             >
               <Tx>Close</Tx>
             </Button>
@@ -104,7 +104,7 @@ export function DataBookPdfButton({
     <div className="flex flex-col items-start gap-1.5">
       <div className="flex flex-wrap gap-2">
         {ready && liveStatus.pdfUrl && (
-          <Button type="button" size="sm" onClick={() => setViewing(true)}>
+          <Button type="button" size="md" onClick={() => setViewing(true)}>
             <Tx>View</Tx>
           </Button>
         )}
@@ -121,7 +121,7 @@ export function DataBookPdfButton({
             <input type="hidden" name="data_book_id" value={dataBookId} />
             <input type="hidden" name="project_id" value={projectId} />
             {issuedLocked && <input type="hidden" name="regenerate" value="true" />}
-            <Button type="submit" size="sm" variant="outline" onClick={beginGenerate} disabled={pending || polling}>
+            <Button type="submit" size="md" variant="outline" onClick={beginGenerate} disabled={pending || polling}>
               {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : idleLabel}
             </Button>
           </form>

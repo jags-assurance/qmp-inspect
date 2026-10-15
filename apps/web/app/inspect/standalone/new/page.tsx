@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NewAssignmentForm } from "./new-assignment-form";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
+import { PageHeader } from "@/components/ui/page-header";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -64,12 +64,12 @@ export default async function NewStandaloneAssignmentPage() {
 
   return (
     <div className="max-w-2xl">
-      <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
-        <T>← Back to Assignments</T>
-      </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>New assignment</T></h1>
-        <PageGuide
+      <PageHeader
+        backHref="/inspect/standalone"
+        backLabel="Back to Assignments"
+        title={<T>New assignment</T>}
+        guide={
+          <PageGuide
           title={tl("New assignment — how this works")}
           points={[
             "Only JAGS staff can reach this page by default — booking/running a standalone FAT, witness inspection, specific test or pre-shipment check is JAGS staff's job, same boundary as ITP creation — unless your organisation is Full Client-Managed and you hold the run_standalone_assignment custom permission, or you're an active subcontractor/main-contractor party on a project that's specifically opted into contractor-run assignments.",
@@ -78,10 +78,10 @@ export default async function NewStandaloneAssignmentPage() {
             "This only creates the assignment shell; measurements, photos, punch items and signatures are then added from the assignment's own detail page, gated the same way as this page.",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Set up a one-off assignment. The number is created when you save.</T>
-      </p>
+        }
+        subtitle={<T>Set up a one-off assignment. The number is created when you save.</T>}
+      />
+
       <NewAssignmentForm projects={projects ?? []} disciplines={disciplines ?? []} presetsByProject={presetsByProject} />
     </div>
   );

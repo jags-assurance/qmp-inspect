@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { addWelderQualificationEntryAction, type AddWelderQualificationEntryState } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 import { FormField } from "@/components/ui/form-field";
@@ -39,7 +40,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
   }, [pending, state]);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={formAction} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="w-40">
@@ -54,7 +55,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
         </FormField>
       </div>
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Qualified WPS">
           <input name="qualified_wps" required className={inputClass} />
         </FormField>
@@ -72,7 +73,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
         </FormField>
       </div>
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Ranges">
           <input name="qualified_ranges" className={inputClass} />
         </FormField>
@@ -84,7 +85,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
         </FormField>
       </div>
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Notes">
           <input name="notes" className={inputClass} />
         </FormField>
@@ -92,9 +93,11 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
 
       <CertificateUpload key={formKey} projectId={projectId} kind="welder" />
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <StickyActionBar className="md:col-span-2">
+        <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add welder"}
       </Button>
+      </StickyActionBar>
 
       {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
       <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />

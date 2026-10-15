@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { requireSession } from "@/lib/auth/session";
 import { T } from "@/components/domain/t";
+import { PageHeader } from "@/components/ui/page-header";
+import { buttonVariants } from "@/components/ui/button";
 
 const MODULES = [
   { key: "inspect", name: "QMP Inspect", active: true, href: "/inspect" },
@@ -28,22 +30,22 @@ export default async function PlatformHomePage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink"><T>Welcome back,</T> {firstName}</h1>
-      <p className="mt-1 text-sm text-muted">
-        <T>Your modules. Greyed ones are not enabled for your organisation.</T>
-      </p>
+      <PageHeader
+        title={<><T>Welcome back,</T> {firstName}</>}
+        subtitle={<T>Your modules. Greyed ones are not enabled for your organisation.</T>}
+      />
 
-      {/* Phone: the orbit diagram is laid out in fixed pixels and cannot fit a 390px screen, so the same
-          modules show as a card list instead (tablet and up keep the orbit). */}
-      <ul className="mt-4 grid gap-3 md:hidden">
+      {/* Phone and tablet: the orbit diagram is laid out in fixed pixels, so below 1024px the same
+          modules show as a card grid instead (laptop and up keep the orbit). */}
+      <ul className="grid gap-3 sm:grid-cols-2 lg:hidden">
         {MODULES.map((mod) => (
-          <li key={mod.key} className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+          <li key={mod.key} className="flex min-h-16 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-xs">
             <div className="min-w-0">
               <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{mod.name}</p>
               <div className="mt-1">{mod.active ? <Badge tone="gold"><T>Active</T></Badge> : <Badge tone="neutral"><T>Not enabled</T></Badge>}</div>
             </div>
             {mod.active && mod.href && (
-              <Link href={mod.href} className="inline-flex min-h-11 shrink-0 items-center text-sm font-medium text-burgundy hover:underline">
+              <Link href={mod.href} className={buttonVariants({ variant: "outline", size: "sm", className: "shrink-0" })}>
                 <T>Open →</T>
               </Link>
             )}
@@ -51,7 +53,7 @@ export default async function PlatformHomePage() {
         ))}
       </ul>
 
-      <div className={`relative mx-auto mt-4 hidden md:flex ${RING_SIZE} w-full max-w-2xl items-center justify-center`}>
+      <div className={`relative mx-auto mt-4 hidden lg:flex ${RING_SIZE} w-full max-w-2xl items-center justify-center`}>
         {/* Guide ring */}
         <div
           className="pointer-events-none absolute rounded-full border border-border"
@@ -73,7 +75,7 @@ export default async function PlatformHomePage() {
                 "flex h-12 w-12 items-center justify-center rounded-full border-2 text-center shadow-sm " +
                 (mod.active
                   ? "border-gold bg-burgundy text-white"
-                  : "border-border bg-surface text-muted")
+                  : "border-control-border bg-surface text-muted")
               }
             >
               {mod.active ? (
@@ -114,7 +116,7 @@ export default async function PlatformHomePage() {
               {mod.active && mod.href && (
                 <Link
                   href={mod.href}
-                  className="text-xs font-medium text-burgundy hover:underline"
+                  className="inline-flex min-h-9 items-center text-xs font-medium text-burgundy hover:underline"
                 >
                   <T>Open module →</T>
                 </Link>
@@ -124,7 +126,7 @@ export default async function PlatformHomePage() {
         })}
       </div>
 
-      <div className="mx-auto mt-2 hidden max-w-2xl items-center justify-center gap-6 text-xs text-muted md:flex">
+      <div className="mx-auto mt-2 hidden max-w-2xl items-center justify-center gap-6 text-xs text-muted lg:flex">
         <span className="flex items-center gap-1.5">
           <span className="h-3 w-3 rounded-full border-2 border-gold bg-burgundy" /> <T>Active module</T>
         </span>

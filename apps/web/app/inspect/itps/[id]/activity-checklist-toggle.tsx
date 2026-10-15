@@ -28,7 +28,7 @@ export function ActivityChecklistToggle({ label, checklist }: { label: string; c
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         title={open ? "Hide this activity's checklist" : "Show this activity's checklist"}
-        className="inline-flex items-center gap-1 rounded-full border border-burgundy/30 bg-off-white px-2.5 py-0.5 text-xs font-medium text-burgundy hover:bg-burgundy/5"
+        className="inline-flex min-h-8 items-center gap-1 rounded-full border border-control-border bg-surface px-3 py-0.5 text-xs font-medium text-burgundy hover:bg-brand-soft [@media(pointer:coarse)]:min-h-11"
       >
         {label}
         <span aria-hidden="true">{open ? "▴" : "▾"}</span>

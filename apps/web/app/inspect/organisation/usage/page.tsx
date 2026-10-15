@@ -345,7 +345,7 @@ export default async function UsageAndCostPage({
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>Usage &amp; Cost</T></h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Usage &amp; Cost</T></h1>
             <PageGuide
               title={tl("Usage & Cost — how this works")}
               points={[
@@ -376,78 +376,58 @@ export default async function UsageAndCostPage({
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-border bg-surface p-5">
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <h2 className="font-medium text-ink"><T>AI cost by model</T></h2>
           <MoreDetails className="mt-1"><p><T>Real token counts × Google&apos;s published Gemini API pricing.</T></p></MoreDetails>
           {costByModel.size === 0 ? (
             <p className="mt-3 text-sm text-muted"><T>No AI calls in this window.</T></p>
           ) : (
-            <div className="overflow-x-auto">
-            <table className="mt-3 w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-start text-xs uppercase text-muted">
-                  <th className="py-2 pe-2"><T>Model</T></th>
-                  <th className="py-2 pe-2 text-end"><T>Calls</T></th>
-                  <th className="py-2 pe-2 text-end"><T>Tokens in / out</T></th>
-                  <th className="py-2 text-end"><T>Est. cost</T></th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...costByModel.entries()]
-                  .sort((a, b) => b[1].costUsd - a[1].costUsd)
-                  .map(([model, entry]) => (
-                    <tr key={model} className="border-b border-border last:border-0">
-                      <td className="py-2 pe-2 font-mono text-xs text-ink">{model}</td>
-                      <td className="py-2 pe-2 text-end tabular-nums text-ink">{entry.calls}</td>
-                      <td className="py-2 pe-2 text-end tabular-nums text-muted">
-                        {formatTokens(entry.inputTokens)} / {formatTokens(entry.outputTokens)}
-                      </td>
-                      <td className="py-2 text-end tabular-nums text-ink">
-                        {entry.costKnown ? formatUsd(entry.costUsd) : "—"}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+            <div className="mt-3">
+              <ResponsiveTable
+                breakpoint="md"
+                caption="AI cost by model"
+                rows={[...costByModel.entries()].sort((a, b) => b[1].costUsd - a[1].costUsd)}
+                rowKey={([model]) => model}
+                headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
+                thClassName="py-2 pe-2"
+                tdClassName="py-2 pe-2"
+                columns={[
+                  { key: "model", header: "Model", cardLabel: null, className: "font-mono text-xs text-ink", render: ([model]) => <span title={model} className="break-all">{model}</span> },
+                  { key: "calls", header: "Calls", className: "text-end tabular-nums text-ink", render: ([, entry]) => entry.calls },
+                  { key: "tokens", header: "Tokens in / out", className: "text-end tabular-nums text-muted", render: ([, entry]) => `${formatTokens(entry.inputTokens)} / ${formatTokens(entry.outputTokens)}` },
+                  { key: "cost", header: "Est. cost", className: "text-end tabular-nums text-ink", render: ([, entry]) => (entry.costKnown ? formatUsd(entry.costUsd) : "—") },
+                ]}
+              />
             </div>
           )}
         </div>
 
-        <div className="rounded-lg border border-border bg-surface p-5">
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <h2 className="font-medium text-ink"><T>AI cost by category</T></h2>
           {costByCategory.size === 0 ? (
             <p className="mt-3 text-sm text-muted"><T>No AI calls in this window.</T></p>
           ) : (
-            <div className="overflow-x-auto">
-            <table className="mt-3 w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-start text-xs uppercase text-muted">
-                  <th className="py-2 pe-2"><T>Category</T></th>
-                  <th className="py-2 pe-2 text-end"><T>Calls</T></th>
-                  <th className="py-2 text-end"><T>Est. cost</T></th>
-                </tr>
-              </thead>
-              <tbody>
-                {CATEGORY_ORDER.filter((c) => costByCategory.has(c)).map((category) => {
-                  const entry = costByCategory.get(category)!;
-                  return (
-                    <tr key={category} className="border-b border-border last:border-0">
-                      <td className="py-2 pe-2 text-ink">{category}</td>
-                      <td className="py-2 pe-2 text-end tabular-nums text-ink">{entry.calls}</td>
-                      <td className="py-2 text-end tabular-nums text-ink">
-                        {entry.costKnown ? formatUsd(entry.costUsd) : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="mt-3">
+              <ResponsiveTable
+                breakpoint="md"
+                caption="AI cost by category"
+                rows={CATEGORY_ORDER.filter((c) => costByCategory.has(c)).map((category) => ({ category, entry: costByCategory.get(category)! }))}
+                rowKey={(row) => row.category}
+                headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
+                thClassName="py-2 pe-2"
+                tdClassName="py-2 pe-2"
+                columns={[
+                  { key: "category", header: "Category", cardLabel: null, className: "text-ink", render: (row) => row.category },
+                  { key: "calls", header: "Calls", className: "text-end tabular-nums text-ink", render: (row) => row.entry.calls },
+                  { key: "cost", header: "Est. cost", className: "text-end tabular-nums text-ink", render: (row) => (row.entry.costKnown ? formatUsd(row.entry.costUsd) : "—") },
+                ]}
+              />
             </div>
           )}
         </div>
       </div>
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-5">
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-medium text-ink">
             {selectedProjectId ? "Project cost detail" : "Cost by project — highest first"}
@@ -467,6 +447,7 @@ export default async function UsageAndCostPage({
               rows={filteredProjectRows}
               rowKey={(row) => row.projectId}
               caption="AI and render cost by project"
+              breakpoint="md"
               wrapperClassName="overflow-x-auto"
               headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
               thClassName="py-2"
@@ -500,7 +481,7 @@ export default async function UsageAndCostPage({
       </div>
 
       {!selectedProjectId && (orgWideAiCalls > 0 || portfolioWideJobTotal > 0) && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-5">
+        <div className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <h2 className="font-medium text-ink"><T>Org-wide / portfolio-wide</T></h2>
           <MoreDetails className="mt-1"><p><T>AI calls and render jobs with no single project to attribute to (e.g. a report-pack summary, or the one-click portfolio summary PDF).</T></p></MoreDetails>
           <p className="mt-2 text-sm text-ink">

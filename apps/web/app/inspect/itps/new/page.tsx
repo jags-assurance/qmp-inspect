@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
@@ -15,6 +14,7 @@ import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { isAiConfigured } from "@/lib/ai/gate";
 import { aiEntryPointVisible } from "@/lib/ai/gate-decision";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
+import { PageHeader } from "@/components/ui/page-header";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -143,12 +143,12 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
   if (clientEligibleProjectIds) {
     return (
       <div className="max-w-3xl">
-        <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-          <T>← Back to ITP Register</T>
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink"><T>New ITP</T></h1>
-          <PageGuide
+        <PageHeader
+          backHref="/inspect/itps"
+          backLabel="Back to ITP Register"
+          title={<T>New ITP</T>}
+          guide={
+            <PageGuide
             title={tl("New ITP — how this works")}
             points={[
               "You're seeing this because your login is linked to an eligible client/contractor party on at least one project that's opted into ITP creation, or your organisation is Self-Managed/\"Hybrid\" or Full Client-Managed (both grant a client party org-wide eligibility).",
@@ -159,10 +159,10 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
               "Once created, the ITP stays a draft you (or JAGS staff) can keep editing until it's submitted for review — JAGS approval authority is unaffected by who created it.",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          <T>Creates a draft ITP. JAGS reviews and approves it once you submit it.</T>
-        </p>
+          }
+          subtitle={<T>Creates a draft ITP. JAGS reviews and approves it once you submit it.</T>}
+        />
+
         <ItpCreationTabs manual={<NewItpForm projects={projects} />} fromAi={fromAi} />
       </div>
     );
@@ -170,12 +170,12 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="max-w-3xl">
-      <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-        <T>← Back to ITP Register</T>
-      </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>New ITP</T></h1>
-        <PageGuide
+      <PageHeader
+        backHref="/inspect/itps"
+        backLabel="Back to ITP Register"
+        title={<T>New ITP</T>}
+        guide={
+          <PageGuide
           title={tl("New ITP — how this works")}
           points={[
             "Staff-only creation flow — build manually with the four standard sections (fully editable afterwards), start from a JAGS master template and customize it for this project, or generate a first draft from vault documents.",
@@ -186,10 +186,10 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
             "Whichever flow you use, the ITP is created as a draft — content stays editable until it's submitted for review and approved.",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Creates a draft ITP, from scratch or from a master template.</T>
-      </p>
+        }
+        subtitle={<T>Creates a draft ITP, from scratch or from a master template.</T>}
+      />
+
       <ItpCreationTabs
         initialTab={initialTab}
         manual={<NewItpForm projects={projects} />}

@@ -1,7 +1,7 @@
 import { cache } from "react";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import { Watchlist } from "@/components/ui/watchlist";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -59,17 +59,15 @@ export const getOverdueHoldPoints = cache(async (): Promise<OverdueHoldPointItem
 });
 
 const CLOCK_ICON = (
-  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-    <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M10 6v4.5l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  </span>
+  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+    <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M10 6v4.5l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
 );
 
 export async function OverdueHoldsTile() {
   const items = await getOverdueHoldPoints();
-  return <StatCard label="Overdue hold points" value={items.length} href="#overdue-holds" icon={CLOCK_ICON} />;
+  return <StatTile label="Overdue hold points" value={items.length} href="#overdue-holds" tone="danger" icon={CLOCK_ICON} />;
 }
 
 export async function OverdueHoldsCard() {
@@ -86,9 +84,9 @@ export async function OverdueHoldsCard() {
       renderItem={(item) => (
         <Link
           href={item.itpId ? `/inspect/itps?itp=${item.itpId}` : "/inspect/itps"}
-          className="block rounded-md px-1.5 py-1 hover:bg-off-white"
+          className="block min-h-11 rounded-md px-1.5 py-1 hover:bg-surface-subtle"
         >
-          <span className="block text-ink">{item.activity}</span>
+          <span className="block text-ink [overflow-wrap:anywhere]">{item.activity}</span>
           <span className="mt-0.5 flex items-center justify-between gap-3 text-xs">
             <span className="min-w-0 truncate text-muted" title={`${item.itpNumber} · ${item.projectLabel}`}>
               {item.projectLabel}

@@ -15,7 +15,7 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
 
   if (!open) {
     return (
-      <Button type="button" onClick={() => setOpen(true)} variant="link" size="sm">
+      <Button type="button" onClick={() => setOpen(true)} variant="link" size="md">
         <Tx>Withdraw to draft…</Tx>
       </Button>
     );
@@ -36,13 +36,13 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
         rows={2}
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
+        className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy"
       />
       <div className="flex gap-2">
-        <Button type="submit" size="sm" variant="outline" disabled={pending || reason.trim().length < 10}>
+        <Button type="submit" size="md" variant="outline" disabled={pending || reason.trim().length < 10}>
           {pending ? "Withdrawing…" : "Withdraw to draft"}
         </Button>
-        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="md">
           <Tx>Cancel</Tx>
         </Button>
       </div>

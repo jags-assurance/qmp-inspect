@@ -49,7 +49,7 @@ export async function SystemHealthView({ embedded = false }: { embedded?: boolea
 
   return (
     <div>
-      {!embedded && <h1 className="text-2xl font-semibold text-ink"><T>System health</T></h1>}
+      {!embedded && <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>System health</T></h1>}
       <p className="mt-1 text-sm text-muted"><T>Which features are configured. Values are never shown.</T></p>
       <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
         {features.map((f) => (

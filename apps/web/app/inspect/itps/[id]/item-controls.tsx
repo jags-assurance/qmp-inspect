@@ -15,6 +15,7 @@ import {
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { CellMenu } from "@/components/domain/cell-menu";
 
 const initialState: EditItemState = { error: null };
 const initialDeleteState: DeleteItemState = { error: null };
@@ -65,6 +66,9 @@ export function ItemControls({
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteItpItemAction, initialDeleteState);
   const { gateSubmit, dialog } = useConfirm();
   const hasSubmittedRef = useRef(false);
+  const upRef = useRef<HTMLFormElement>(null);
+  const downRef = useRef<HTMLFormElement>(null);
+  const deleteRef = useRef<HTMLFormElement>(null);
 
   // Close the edit form once a save actually succeeds (state flips to no-error after a real
   // submission) — a plain `state.error === null` check alone would also fire on first mount, since
@@ -116,19 +120,20 @@ export function ItemControls({
             <Tx>Edit</Tx>
           </Button>
           {(["up", "down"] as const).map((direction) => (
-            <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={gateSubmit(revisionOpts, "revision_reason")}>
+            <form key={direction} ref={direction === "up" ? upRef : downRef} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={gateSubmit(revisionOpts, "revision_reason")}>
               <input type="hidden" name="item_id" value={itemId} />
               <input type="hidden" name="revision_reason" />
               <Button
                 type="submit"
                 aria-label={direction === "up" ? "Move activity up" : "Move activity down"}
                 variant="outline" size="sm"
+                className="max-sm:hidden"
               >
                 {direction === "up" ? "↑" : "↓"}
               </Button>
             </form>
           ))}
-          <form action={deleteFormAction} onSubmit={gateSubmit(deleteOpts, "revision_reason")}>
+          <form ref={deleteRef} action={deleteFormAction} onSubmit={gateSubmit(deleteOpts, "revision_reason")}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="item_id" value={itemId} />
             <input type="hidden" name="revision_reason" />
@@ -136,10 +141,21 @@ export function ItemControls({
               type="submit"
               disabled={deletePending}
               variant="danger-outline" size="sm"
+              className="max-sm:hidden"
             >
               {deletePending ? "Deleting…" : "Delete"}
             </Button>
           </form>
+          <div className="sm:hidden">
+            <CellMenu
+              ariaLabel={tl("More activity actions")}
+              items={[
+                { key: "up", label: <Tx>Move activity up</Tx>, onSelect: () => upRef.current?.requestSubmit() },
+                { key: "down", label: <Tx>Move activity down</Tx>, onSelect: () => downRef.current?.requestSubmit() },
+                { key: "delete", label: <span className="text-danger"><Tx>Delete</Tx></span>, disabled: deletePending, onSelect: () => deleteRef.current?.requestSubmit() },
+              ]}
+            />
+          </div>
         </div>
         {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
       </div>

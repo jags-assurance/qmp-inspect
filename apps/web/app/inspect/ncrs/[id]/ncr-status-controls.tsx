@@ -50,7 +50,6 @@ export function NcrStatusButton({
       <Button
         type="submit"
         disabled={pending || blocked}
-        variant="outline"
       >
         {pending ? "Working…" : NEXT_STATUS_LABEL[status]}
       </Button>

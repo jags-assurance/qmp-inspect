@@ -3,7 +3,12 @@ import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { PageGuide } from "@/components/domain/page-guide";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterBar, FilterField } from "@/components/ui/toolbar";
+import { FilterChips, type FilterChip } from "@/components/ui/filter-chips";
+import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatusLegend } from "@/components/ui/status-legend";
 import { IRNS_TABLE } from "@/lib/checklists/db-types";
 import { InspectionsTable, type InspectionListRow } from "./inspections-table";
@@ -182,13 +187,30 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
   });
 
   const hasFilters = !!(sp.project || sp.result || sp.irn || sp.from || sp.to || sp.q);
-  const inputCls = "rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:border-burgundy";
+  const activeFilterCount = [sp.project, sp.result, sp.irn, sp.from, sp.to].filter(Boolean).length;
+
+  // Result quick filters keep every other filter (project, IRN, dates, search) and reset paging.
+  const chipHref = (result: string | null) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(sp)) if (v && k !== "result" && k !== "page") qs.set(k, v);
+    if (result) qs.set("result", result);
+    const str = qs.toString();
+    return str ? `/inspect/inspections?${str}` : "/inspect/inspections";
+  };
+  const resultChips: FilterChip[] = [
+    { key: "all", label: tl("All"), href: chipHref(null), active: !sp.result },
+    { key: "in_progress", label: tl("In progress"), href: chipHref("in_progress"), active: sp.result === "in_progress" },
+    { key: "pass", label: tl("Pass"), href: chipHref("pass"), active: sp.result === "pass" },
+    { key: "partial", label: tl("Conditional"), href: chipHref("partial"), active: sp.result === "partial" },
+    { key: "fail", label: tl("Fail"), href: chipHref("fail"), active: sp.result === "fail" },
+  ];
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink"><T>Inspections</T></h1>
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        title={<T>Inspections</T>}
+        guide={
           <PageGuide
             title={tl("Inspections — how this works")}
             points={[
@@ -199,55 +221,72 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
               "Start a new inspection from Start work.",
             ]}
           />
-        </div>
-        <Link href="/inspect/start-work">
-          <Button><T>Start work</T></Button>
-        </Link>
-      </div>
+        }
+        primaryAction={
+          <Link href="/inspect/start-work" className={buttonVariants()}>
+            <T>Start work</T>
+          </Link>
+        }
+      />
 
-      <form method="get" className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <select name="project" defaultValue={sp.project ?? ""} className={inputCls} aria-label={tl("Project")}>
-          <option value=""><T>All projects</T></option>
-          {(projects ?? []).map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-        <select name="result" defaultValue={sp.result ?? ""} className={inputCls} aria-label={tl("Result")}>
-          <option value=""><T>Any result</T></option>
-          <option value="pass"><T>Pass</T></option>
-          <option value="fail"><T>Fail</T></option>
-          <option value="partial"><T>Conditional</T></option>
-          <option value="in_progress"><T>In progress</T></option>
-        </select>
-        <select name="irn" defaultValue={sp.irn ?? ""} className={inputCls} aria-label={tl("IRN status")}>
-          <option value=""><T>Any IRN status</T></option>
-          <option value="issued"><T>IRN issued</T></option>
-          <option value="none"><T>No IRN</T></option>
-          <option value="void"><T>IRN void</T></option>
-        </select>
-        <input type="date" name="from" defaultValue={sp.from ?? ""} className={inputCls} aria-label={tl("From date")} />
-        <input type="date" name="to" defaultValue={sp.to ?? ""} className={inputCls} aria-label={tl("To date")} />
-        <div className="flex gap-2">
-          <Button type="submit"><T>Apply</T></Button>
-          {hasFilters && (
-            <Link href="/inspect/inspections" className="inline-flex items-center text-sm text-burgundy hover:underline">
-              <T>Clear</T>
-            </Link>
-          )}
-        </div>
-        {sp.q && <input type="hidden" name="q" value={sp.q} />}
-      </form>
+      <FilterChips label={tl("Filter by result")} items={resultChips} />
 
-      <div className="mt-6">
+      <FilterBar
+        activeCount={activeFilterCount}
+        clearHref={hasFilters ? "/inspect/inspections" : undefined}
+        filters={
+          <form method="get" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
+            <FilterField label={<T>Project</T>}>
+              <select name="project" defaultValue={sp.project ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>All projects</T></option>
+                {(projects ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label={<T>Result</T>}>
+              <select name="result" defaultValue={sp.result ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>Any result</T></option>
+                <option value="pass"><T>Pass</T></option>
+                <option value="fail"><T>Fail</T></option>
+                <option value="partial"><T>Conditional</T></option>
+                <option value="in_progress"><T>In progress</T></option>
+              </select>
+            </FilterField>
+            <FilterField label={<T>IRN status</T>}>
+              <select name="irn" defaultValue={sp.irn ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>Any IRN status</T></option>
+                <option value="issued"><T>IRN issued</T></option>
+                <option value="none"><T>No IRN</T></option>
+                <option value="void"><T>IRN void</T></option>
+              </select>
+            </FilterField>
+            <FilterField label={<T>From date</T>}>
+              <input type="date" name="from" defaultValue={sp.from ?? ""} className={FILTER_CONTROL_CLASS} />
+            </FilterField>
+            <FilterField label={<T>To date</T>}>
+              <input type="date" name="to" defaultValue={sp.to ?? ""} className={FILTER_CONTROL_CLASS} />
+            </FilterField>
+            {sp.q && <input type="hidden" name="q" value={sp.q} />}
+            <Button type="submit" variant="outline"><T>Apply</T></Button>
+          </form>
+        }
+      />
+
+      <div>
         {rows.length === 0 && !hasFilters ? (
-          <div className="rounded-lg border border-border bg-surface p-8 text-center text-sm text-muted">
-            <T>No inspections recorded yet.</T>{" "}
-            <Link href="/inspect/start-work" className="text-burgundy hover:underline">
-              <T>Start work</T>
-            </Link>{" "}
-            <T>to begin one.</T>
+          <div className="rounded-lg border border-border bg-surface shadow-xs">
+            <EmptyState
+              title={<T>No inspections recorded yet.</T>}
+              description={<T>Inspections appear here once a checklist is started from Start work.</T>}
+              action={
+                <Link href="/inspect/start-work" className={buttonVariants({ size: "sm" })}>
+                  <T>Start work</T>
+                </Link>
+              }
+            />
           </div>
         ) : (
           <>

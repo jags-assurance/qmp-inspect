@@ -1,10 +1,10 @@
 import { BreadcrumbTail } from "@/components/domain/breadcrumb-context";
-import Link from "next/link";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { ProjectStatusControl } from "./project-status-control";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { ProjectOverviewView } from "./project-overview-view";
@@ -21,7 +21,6 @@ import { ItpsTabView, NcrsTabView } from "./workspace/project-record-lists";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { countOpenNcrs, countPunchByStatus } from "@/lib/projects/open-counts";
 import { WorkspaceSkeleton, WorkspaceTabs, type WorkspaceTab, type WorkspaceTabKey } from "./workspace/workspace-tabs";
-import { T } from "@/components/domain/t";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -113,16 +112,9 @@ export default async function ProjectWorkspacePage({
   const active: WorkspaceTabKey = tabs.some((t) => t.key === tabParam) ? (tabParam as WorkspaceTabKey) : "overview";
   const tabBar = <WorkspaceTabs projectId={projectId} tabs={tabs} active={active} />;
 
-  const backLink = (
-    <Link href="/inspect/projects" className="inline-flex min-h-9 items-center text-sm text-burgundy hover:underline">
-      <T>← Back to Projects</T>
-    </Link>
-  );
-
   if (active === "overview") {
     return (
       <div>
-        {backLink}
         <ProjectOverviewView
           projectId={projectId}
           tabBar={tabBar}
@@ -134,24 +126,24 @@ export default async function ProjectWorkspacePage({
 
   return (
     <div>
-      {backLink}
-      <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="doc-id text-sm text-muted">{project.project_number}</p>
-          <BreadcrumbTail label={project.project_number} />
-          <h1 className="text-xl font-semibold text-ink sm:text-2xl [overflow-wrap:anywhere]">{project.name}</h1>
-          <p className="mt-0.5 text-sm text-muted">
+      <PageHeader
+        backHref="/inspect/projects"
+        backLabel="Back to Projects"
+        className="mb-4 sm:mb-4"
+        title={<span className="[overflow-wrap:anywhere]">{project.name}</span>}
+        subtitle={
+          <>
+            <span className="doc-id">{project.project_number}</span>
+            <BreadcrumbTail label={project.project_number} />
+            {" · "}
             {project.organizations?.name ?? "—"}
             {project.site_location && ` · ${project.site_location}`}
             {project.country && `, ${project.country}`}
-          </p>
-        </div>
-        {isAdminStaff(session) ? (
-          <ProjectStatusControl projectId={project.id} status={project.status} />
-        ) : (
-          <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
-        )}
-      </div>
+          </>
+        }
+        badges={isAdminStaff(session) ? undefined : <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>}
+        primaryAction={isAdminStaff(session) ? <ProjectStatusControl projectId={project.id} status={project.status} /> : undefined}
+      />
 
       {tabBar}
 

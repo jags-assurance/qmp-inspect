@@ -40,12 +40,23 @@ const CONCLUSION_TONE: Record<AssignmentConclusion, "success" | "warning" | "dan
   fail: "danger",
 };
 
+function StatusBadge({ row }: { row: StandaloneAssignmentListRow }) {
+  return row.status === "draft" ? (
+    <Badge tone="neutral" showIcon><Tx>Draft</Tx></Badge>
+  ) : (
+    <Badge tone={row.conclusion ? CONCLUSION_TONE[row.conclusion] : "neutral"} showIcon>
+      {row.conclusion ? CONCLUSION_LABEL[row.conclusion] : "Completed"}
+      {row.status === "conditional_open" ? " — awaiting clearance" : ""}
+    </Badge>
+  );
+}
+
 const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
   {
     key: "assignment_number",
     header: "Assignment No.",
     render: (row) => (
-      <Link href={`/inspect/standalone/${row.id}`} className="doc-id text-burgundy hover:underline">
+      <Link href={`/inspect/standalone/${row.id}`} className="doc-id inline-flex min-h-11 items-center text-burgundy hover:underline">
         {row.assignment_number}
       </Link>
     ),
@@ -55,7 +66,15 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
     header: "Type",
     render: (row) => <Badge tone="neutral">{TYPE_LABEL[row.assignment_type]}</Badge>,
   },
-  { key: "equipment_description", header: "Equipment", render: (row) => row.equipment_description },
+  {
+    key: "equipment_description",
+    header: "Equipment",
+    render: (row) => (
+      <span className="line-clamp-1 max-w-xs [overflow-wrap:anywhere]" title={row.equipment_description}>
+        {row.equipment_description}
+      </span>
+    ),
+  },
   { key: "project", header: "Project", render: (row) => row.projects?.name ?? "—" },
   {
     key: "discipline",
@@ -71,15 +90,7 @@ const COLUMNS: DataTableColumn<StandaloneAssignmentListRow>[] = [
   {
     key: "status",
     header: "Status",
-    render: (row) =>
-      row.status === "draft" ? (
-        <Badge tone="neutral"><Tx>Draft</Tx></Badge>
-      ) : (
-        <Badge tone={row.conclusion ? CONCLUSION_TONE[row.conclusion] : "neutral"}>
-          {row.conclusion ? CONCLUSION_LABEL[row.conclusion] : "Completed"}
-          {row.status === "conditional_open" ? " — awaiting clearance" : ""}
-        </Badge>
-      ),
+    render: (row) => <StatusBadge row={row} />,
   },
 ];
 
@@ -97,6 +108,25 @@ export function StandaloneTable({ rows, totalCount }: { rows: StandaloneAssignme
   return (
     <DataTable
       mobileCards
+      breakpoint="md"
+      renderCard={(row) => (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <Link href={`/inspect/standalone/${row.id}`} className="doc-id inline-flex min-h-11 items-center text-base font-semibold text-burgundy hover:underline">
+              {row.assignment_number}
+            </Link>
+            <Badge tone="neutral">{TYPE_LABEL[row.assignment_type]}</Badge>
+          </div>
+          <p className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{row.equipment_description}</p>
+          <StatusBadge row={row} />
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+            <span className="min-w-0 truncate" title={row.projects?.name ?? ""}>{row.projects?.name ?? "—"}</span>
+            <span aria-hidden="true">·</span>
+            <span className="whitespace-nowrap">{row.assignment_date ?? "—"}</span>
+            {row.master_disciplines && <Badge tone="neutral" showIcon={false}>{row.master_disciplines.code}</Badge>}
+          </p>
+        </div>
+      )}
       caption="Standalone assignments"
       columns={COLUMNS}
       rows={rows}

@@ -24,7 +24,7 @@ export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId
           name="book_number"
           required
           placeholder={tl("e.g. DB-001")}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy"
         />
         </FormField>
       </div>
@@ -35,7 +35,7 @@ export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId
           name="title"
           required
           placeholder={tl("e.g. Final Quality Data Book")}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy"
         />
         </FormField>
       </div>
@@ -50,13 +50,13 @@ export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId
             maxLength={1000}
             rows={2}
             placeholder={tl("What changed since the issued book (it will be recorded and the earlier certificate superseded when this is issued)")}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy"
           />
           </FormField>
         </div>
       )}
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button type="submit" size="md" disabled={pending}>
         {pending ? "Creating…" : "+ New Data Book"}
       </Button>
 

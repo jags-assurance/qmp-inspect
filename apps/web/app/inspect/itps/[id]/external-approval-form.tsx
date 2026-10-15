@@ -5,6 +5,7 @@ import { recordExternalApprovalAction, type RecordExternalApprovalState } from "
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: RecordExternalApprovalState = { error: null };
 
@@ -29,8 +30,7 @@ export function ExternalApprovalForm({
   const [state, formAction, pending] = useActionState(recordExternalApprovalAction, initialState);
 
   return (
-    <details className="group mt-6" open={!!reference}>
-      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><Tx>External approval reference</Tx></summary>
+    <Disclosure variant="pill" summary={<><Tx>External approval reference</Tx></>} className="mt-6" defaultOpen={!!reference}>
       <div className="mt-2 rounded-lg border border-border bg-surface p-4">
       <p className="text-xs text-muted">
         <Tx>Use this if the client approved the ITP in their own system.</Tx>
@@ -68,6 +68,6 @@ export function ExternalApprovalForm({
       </form>
       {state.error && <p role="alert" className="mt-1 text-xs text-danger">{state.error}</p>}
       </div>
-    </details>
+</Disclosure>
   );
 }

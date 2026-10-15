@@ -1,5 +1,6 @@
 "use client";
 
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { useActionState, useState } from "react";
 import {
   rejectHandoverAction,
@@ -21,7 +22,7 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
 
   if (!expanded) {
     return (
-      <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(true)}>
+      <Button type="button" size="lg" variant="outline" onClick={() => setExpanded(true)}>
         <Tx>Reject package</Tx>
       </Button>
     );
@@ -48,19 +49,21 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
           rows={3}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
         />
       </div>
-      <label htmlFor={confirmId} className="flex w-full items-start gap-2 text-sm text-ink">
-        <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-4 w-4" />
+      <label htmlFor={confirmId} className="flex min-h-11 w-full items-start gap-3 text-sm text-ink">
+        <input id={confirmId} name="confirm" type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 h-5 w-5" />
         <span><Tx>I confirm I am rejecting this handover package on behalf of the client.</Tx></span>
       </label>
-      <Button type="submit" size="sm" variant="primary" disabled={pending || !confirmed || reason.trim().length < MIN_REJECT_REASON_LENGTH}>
+<StickyActionBar className="w-full">
+      <Button type="submit" size="lg" variant="primary" disabled={pending || !confirmed || reason.trim().length < MIN_REJECT_REASON_LENGTH}>
         {pending ? "Rejecting…" : "Reject package"}
       </Button>
-      <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(false)} disabled={pending}>
+      <Button type="button" size="lg" variant="outline" onClick={() => setExpanded(false)} disabled={pending}>
         <Tx>Cancel</Tx>
       </Button>
+      </StickyActionBar>
       {state.error && (
         <p className="w-full text-sm text-danger" role="alert">
           {state.error}
@@ -77,7 +80,7 @@ export function ReopenRejectionForm({ certificateId }: { certificateId: string }
 
   if (!expanded) {
     return (
-      <Button type="button" size="sm" variant="outline" onClick={() => setExpanded(true)}>
+      <Button type="button" size="lg" variant="outline" onClick={() => setExpanded(true)}>
         <Tx>Reopen (rejected in error)</Tx>
       </Button>
     );
@@ -96,12 +99,14 @@ export function ReopenRejectionForm({ certificateId }: { certificateId: string }
           required
           minLength={MIN_REJECT_REASON_LENGTH}
           maxLength={1000}
-          className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
         />
       </div>
-      <Button type="submit" size="sm" disabled={pending}>
+<StickyActionBar className="w-full">
+      <Button type="submit" size="lg" disabled={pending}>
         {pending ? "Reopening…" : "Reopen"}
       </Button>
+      </StickyActionBar>
       {state.error && (
         <p className="w-full text-sm text-danger" role="alert">
           {state.error}

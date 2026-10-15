@@ -23,7 +23,7 @@ export function RetentionSettingsForm({
 }) {
   const [state, formAction, pending] = useActionState(saveRetentionSettingsAction, initialState);
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <label className="flex items-center gap-2 text-sm text-ink">
         <input type="checkbox" name="enabled" defaultChecked={enabled} className="h-4 w-4" />
@@ -129,7 +129,7 @@ const initialLimitState: VaultUploadLimitState = { error: null };
 export function VaultUploadLimitForm({ organizationId, maxUploadMb }: { organizationId: string; maxUploadMb: number }) {
   const [state, formAction, pending] = useActionState(saveVaultUploadLimitAction, initialLimitState);
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <label htmlFor={`max_upload_mb_${organizationId}`} className="block text-xs font-medium text-ink">

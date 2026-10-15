@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { NewProjectForm } from "./new-project-form";
+import { PageHeader } from "@/components/ui/page-header";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -63,13 +63,13 @@ export default async function NewProjectPage() {
   }
 
   return (
-    <div className="max-w-xl">
-      <Link href="/inspect/projects" className="text-sm text-burgundy hover:underline">
-        <T>← Back to Projects</T>
-      </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>New project</T></h1>
-        <PageGuide
+    <div className="max-w-2xl">
+      <PageHeader
+        backHref="/inspect/projects"
+        backLabel="Back to Projects"
+        title={<T>New project</T>}
+        guide={
+          <PageGuide
           title={tl("New project — how this works")}
           points={[
             "Normally Admin-only — client onboarding and commercial scope are set up by JAGS.",
@@ -77,8 +77,10 @@ export default async function NewProjectPage() {
             "An Admin can also create a brand-new client organisation from this form; a self-managed or client-managed user can only create projects under organisations they already have access to.",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted"><T>Set up a new project for a client organisation.</T></p>
+        }
+        subtitle={<T>Set up a new project for a client organisation.</T>}
+      />
+
       <NewProjectForm organizations={organizations} allowCreateOrg={isAdminStaff(session)} staffUsers={staffUsers} existingNumbersByOrg={existingNumbersByOrg} />
     </div>
   );

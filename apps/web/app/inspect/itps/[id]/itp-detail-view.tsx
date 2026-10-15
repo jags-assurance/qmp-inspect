@@ -90,6 +90,9 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { Disclosure } from "@/components/ui/disclosure";
+import { Card } from "@/components/ui/section";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -121,6 +124,15 @@ function statusStepIndex(status: string): number {
   if (status === "client_accepted") return 2;
   return STATUS_STEPS.findIndex((s) => s.key === status);
 }
+
+const GUIDE_POINTS = [
+  "The H/W/R/S grid records which party intervenes at what level on each activity (Hold/Witness/Review/Surveillance, or a custom level your org configures) — a blocking level (e.g. Hold) stops the next step until that party signs off.",
+  "A party can only sign off their own intervention point: staff can always countersign, but an external login can only sign for the project party their account is linked to, and only while that party is active.",
+  "Editing content (sections/items/the grid) is allowed on a 'draft' ITP for JAGS staff, or for the client/contractor party that originated it if their project opted them into ITP creation — approving is JAGS-only for a Full-Service or Self-Managed (\"Hybrid\") client, but on a Full Client-Managed client a person who specifically holds the approve_itp permission can approve it themselves too.",
+  "Once the ITP is approved or client-accepted, adding items/sections counts as an edit-after-issue and bumps the revision, with a frozen snapshot kept in revision history.",
+  "Checklists → and Completion roadmap → are separate pages: this page is where content, sign-offs and evidence are actually recorded; those summarise status without duplicating the forms.",
+  "Recording evidence (checklist answers, measurements, or linking a document) follows the same rule as sign-off: staff can always do it, the party actually assigned to that activity can self-execute it (client only if your project opted them in), and a TPI/lab party never can — it can only sign off its own witness/review cells.",
+];
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -708,6 +720,70 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       ])
   );
 
+  const pdfButton = (
+    <ItpPdfButton
+      itpId={itp.id}
+      latest={latestPdf}
+      extraActions={
+        <>
+          {/* R41: export the ITP's current content as an editable .xlsx; offline-revision-form.tsx is the re-upload half. */}
+          <DropdownMenuItem>
+            <ExportLink href={`/api/itps/${itp.id}/export-xlsx`} pendingLabel="Preparing…">
+              <T>Download for offline editing</T>
+            </ExportLink>
+          </DropdownMenuItem>
+          {/* R107: plain Word copy stamped "UNCONTROLLED COPY". */}
+          <DropdownMenuItem>
+            <ExportLink href={`/api/itps/${itp.id}/export-docx`} pendingLabel="Preparing…">
+              <T>Word</T>
+            </ExportLink>
+          </DropdownMenuItem>
+        </>
+      }
+    />
+  );
+  const aiEnabled = await isAiEnabledForOrg(supabase, itp.projects?.organization_id);
+  const signoffPct = signoffTotal > 0 ? Math.round((signoffComplete / signoffTotal) * 100) : 0;
+  const showNextStep =
+    canSubmitForReview ||
+    (canApproveItp && itp.status === "under_review" && !hasActiveReviewChain) ||
+    (itp.status === "under_review" && (canApproveItp || session.isJagsStaff)) ||
+    (session.isJagsStaff && hasPendingSignoffs) ||
+    canAccept ||
+    canPropose;
+  const contextLine = (
+    <>
+      {itp.projects?.organizations?.name} · {itp.projects?.name}
+      {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
+    </>
+  );
+  const guideNode = (
+    <PageGuide
+      title={tl("ITP detail — how this works")}
+      points={GUIDE_POINTS}
+    />
+  );
+  const badgesNode = (
+    <>
+      <Badge tone={STATUS_TONE[itp.status]}>{STATUS_LABEL[itp.status]}</Badge>
+      {/* R23: real lifecycle phase, derived from status + sign-off completion — never set directly. */}
+      <Badge tone={ITP_PHASE_TONE[normalizeItpPhase(itp.phase)]}>{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</Badge>
+      <span className="text-sm text-muted"><T>Rev</T> {itp.revision}</span>
+      {aiDraftReview && (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-xs font-medium text-[color:var(--color-burgundy-dark)]"
+          title={
+            aiDraftReview.reviewed_at
+              ? `Reviewed by ${aiDraftReview.users?.full_name ?? "a reviewer"} on ${new Date(aiDraftReview.reviewed_at).toLocaleDateString("en-GB")}`
+              : undefined
+          }
+        >
+          <T>✨ AI-drafted</T>{aiDraftReview.users?.full_name ? ` · reviewed by ${aiDraftReview.users.full_name}` : ""}
+        </span>
+      )}
+    </>
+  );
+
   return (
     <div>
       {/* Live cross-party updates: another party's sign-off, or a status/section change, refreshes
@@ -716,19 +792,140 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           Supabase Realtime filters only support simple equality, and this page's relevant rows span
           several itp_item_ids with no single column to filter on cheaply). */}
       <RealtimeRefresh table="activity_signoff_progress" also={[{ table: "itps", filter: `id=eq.${id}` }]} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {embedded ? <span /> : (
-          <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
-          <T>← Back to ITP Register</T>
+      {embedded ? (
+        <div className="mb-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Heading className="doc-id text-xl font-semibold text-text-strong">{itp.itp_number}</Heading>
+            {guideNode}
+            <div className="flex flex-wrap items-center gap-1.5">{badgesNode}</div>
+          </div>
+          <p className="mt-1 text-base text-ink">{itp.title}</p>
+          <p className="mt-1 text-sm text-muted">{contextLine}</p>
+        </div>
+      ) : (
+        <PageHeader
+          backHref="/inspect/itps"
+          backLabel="Back to ITP Register"
+          title={<span className="doc-id">{itp.itp_number}</span>}
+          guide={guideNode}
+          badges={badgesNode}
+          subtitle={<span className="text-base text-ink">{itp.title}</span>}
+          meta={contextLine}
+        />
+      )}
+      {embedded && <div className="mb-4">{pdfButton}</div>}
+      {!embedded && (
+        // Sub-pages of this ITP, one calm row of outline links under the header (they used to sit
+        // next to the PDF actions, five equal-weight buttons in a row).
+        <nav aria-label={tl("ITP pages")} className="no-print -mt-2 mb-4 flex flex-wrap items-center gap-2">
+          <Link href={`/inspect/itps/${itp.id}/checklists`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <T>Checklists →</T>
           </Link>
+          <Link href={`/inspect/itps/${itp.id}/status`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <T>Completion roadmap →</T>
+          </Link>
+          <Link href={`/inspect/itps/${itp.id}/approval-roadmap`} className={buttonVariants({ variant: "outline", size: "sm" })}>
+            <T>Approval roadmap →</T>
+          </Link>
+          <Link href={`/inspect/projects/${itp.projects?.id}/guide`} className={buttonVariants({ variant: "link-muted", size: "sm" })}>
+            <T>? Project Guide</T>
+          </Link>
+          <div className="sm:ms-auto">{pdfButton}</div>
+        </nav>
+      )}
+
+      <ItpStalePdfToast isStale={isPdfStale} changedAt={latestChangeAt} />
+
+      <Card className="mb-4 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+          <div className="min-w-0 flex-1 basis-72">
+            {signoffTotal > 0 ? (
+              <>
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-sm font-medium text-ink">
+                    {activityComplete} <T>of</T> {activityTotal} <T>activities fully signed off</T>
+                  </p>
+                  <span className="text-sm font-semibold tabular-nums text-text-strong">{signoffPct}%</span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={signoffPct}
+                  aria-label={tl("Party sign-offs complete")}
+                  className="mt-2 h-2 overflow-hidden rounded-full bg-surface-sunken"
+                >
+                  <div className="h-full rounded-full bg-success" style={{ width: `${signoffPct}%` }} />
+                </div>
+                <p className="mt-1.5 text-xs text-muted">
+                  {signoffComplete} <T>of</T> {signoffTotal} <T>party sign-offs, one per party on each activity</T>
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted"><T>No sign-offs are required yet.</T></p>
+            )}
+          </div>
+          <ol className="flex flex-wrap items-center gap-2" aria-label={tl("Approval status")}>
+            {STATUS_STEPS.map((step, i) => {
+              const current = statusStepIndex(itp.status);
+              const done = i <= current;
+              return (
+                <li key={step.key} className="flex items-center gap-2" aria-current={i === current ? "step" : undefined}>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      done ? "bg-brand-soft text-brand" : "bg-surface-sunken text-muted"
+                    }`}
+                  >
+                    <span aria-hidden="true" className="leading-none">{done ? "✓" : "○"}</span>
+                    {step.label}
+                    <span className="sr-only">{done ? tl("(done)") : tl("(not yet)")}</span>
+                  </span>
+                  {i < STATUS_STEPS.length - 1 && <span className="h-px w-4 bg-border-strong" aria-hidden />}
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+        {(aiEnabled || session.isJagsStaff) && (
+          <div className="flex flex-col gap-3 border-t border-border pt-4">
+            {aiEnabled && <TranslateContentPanel itpId={itp.id} revision={itp.revision} stored={parseItpTranslations(itp.translations)} />}
+            {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
+          </div>
         )}
-        <Link
-          href={`/inspect/projects/${itp.projects?.id}/guide`}
-          className={buttonVariants({ variant: "outline", size: "sm" })}
-        >
-          <T>? Project Guide</T>
-        </Link>
-      </div>
+      </Card>
+
+      {showNextStep && (
+        <section aria-label={tl("Next step")} className="mb-4 rounded-lg border border-brand/30 bg-brand-soft/50 p-4 shadow-xs sm:p-5">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-brand"><T>Next step</T></h2>
+          <div className="mt-3 flex flex-wrap items-start gap-2 [&_button]:max-sm:w-full [&_form]:max-sm:w-full">
+          {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
+            {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
+            <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
+          )}
+            {approverHint && <p role="status" className="max-w-sm text-xs text-amber-700">{approverHint}</p>}
+            {itp.status === "under_review" && (canApproveItp || session.isJagsStaff) && <ReturnItpForm itpId={itp.id} />}
+            {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
+              activity_signoff_progress row for this ITP in one click. Stays staff-only even on a
+              client-created draft ITP, since notifying sign-off parties is a JAGS orchestration
+              action, not part of "build the ITP" content editing (canEditContent). */}
+            {session.isJagsStaff && hasPendingSignoffs && (
+            <form action={notifyAllPendingForItpAction}>
+              <input type="hidden" name="itp_id" value={itp.id} />
+              <Button type="submit" variant="outline">
+                <T>Notify all pending</T>
+              </Button>
+            </form>
+          )}
+            {canAccept && <AcceptItpForm itpId={itp.id} requiresChecklistReview={requiresChecklistReview} />}
+            {/* Added for the "propose to master library" action (Reqs R31) — only shown once the ITP
+              has reached approved/client_accepted, matching this file's existing status gating. */}
+            {canPropose && (
+            <ProposeToMasterForm itpId={itp.id} itpTitle={itp.title} masterTemplates={masterTemplates ?? []} />
+          )}
+          </div>
+        </section>
+      )}
+
       {itp.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
         <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
           <p className="font-medium"><T>Revision</T> {itp.revision} <T>is awaiting approval</T></p>
@@ -782,170 +979,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           )}
         </div>
       )}
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Heading className="doc-id text-2xl font-semibold text-ink">{itp.itp_number}</Heading>
-            <PageGuide
-              title={tl("ITP detail — how this works")}
-              points={[
-                "The H/W/R/S grid records which party intervenes at what level on each activity (Hold/Witness/Review/Surveillance, or a custom level your org configures) — a blocking level (e.g. Hold) stops the next step until that party signs off.",
-                "A party can only sign off their own intervention point: staff can always countersign, but an external login can only sign for the project party their account is linked to, and only while that party is active.",
-                "Editing content (sections/items/the grid) is allowed on a 'draft' ITP for JAGS staff, or for the client/contractor party that originated it if their project opted them into ITP creation — approving is JAGS-only for a Full-Service or Self-Managed (\"Hybrid\") client, but on a Full Client-Managed client a person who specifically holds the approve_itp permission can approve it themselves too.",
-                "Once the ITP is approved or client-accepted, adding items/sections counts as an edit-after-issue and bumps the revision, with a frozen snapshot kept in revision history.",
-                "Checklists → and Completion roadmap → are separate pages: this page is where content, sign-offs and evidence are actually recorded; those summarise status without duplicating the forms.",
-                "Recording evidence (checklist answers, measurements, or linking a document) follows the same rule as sign-off: staff can always do it, the party actually assigned to that activity can self-execute it (client only if your project opted them in), and a TPI/lab party never can — it can only sign off its own witness/review cells.",
-              ]}
-            />
-            <Badge tone={STATUS_TONE[itp.status]}>{STATUS_LABEL[itp.status]}</Badge>
-            {/* R23: real lifecycle phase, derived from status + sign-off completion — never set
-                directly by this page or any action (see lib/itps/phase.ts). */}
-            <Badge tone={ITP_PHASE_TONE[normalizeItpPhase(itp.phase)]}>{ITP_PHASE_LABEL[normalizeItpPhase(itp.phase)]}</Badge>
-            <span className="text-sm text-muted"><T>Rev</T> {itp.revision}</span>
-            {aiDraftReview && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-xs font-medium text-[color:var(--color-burgundy-dark)]"
-                title={
-                  aiDraftReview.reviewed_at
-                    ? `Reviewed by ${aiDraftReview.users?.full_name ?? "a reviewer"} on ${new Date(aiDraftReview.reviewed_at).toLocaleDateString("en-GB")}`
-                    : undefined
-                }
-              >
-                <T>✨ AI-drafted</T>{aiDraftReview.users?.full_name ? ` · reviewed by ${aiDraftReview.users.full_name}` : ""}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-lg text-ink">{itp.title}</p>
-          <p className="mt-1 text-sm text-muted">
-            {itp.projects?.organizations?.name} · {itp.projects?.name}
-            {itp.applicable_standard ? ` · ${itp.applicable_standard}` : ""}
-          </p>
-          {(await isAiEnabledForOrg(supabase, itp.projects?.organization_id)) && <TranslateContentPanel itpId={itp.id} revision={itp.revision} stored={parseItpTranslations(itp.translations)} />}
-          {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
-          {signoffTotal > 0 && (
-            <p className="mt-1 text-sm text-muted">
-              {activityComplete} <T>of</T> {activityTotal} <T>activities fully signed off</T>
-              <span className="ms-1 text-xs">
-                ({signoffComplete} <T>of</T> {signoffTotal} <T>party sign-offs, one per party on each activity</T>)
-              </span>
-            </p>
-          )}
 
-          <ol className="mt-3 flex items-center gap-2">
-            {STATUS_STEPS.map((step, i) => {
-              const current = statusStepIndex(itp.status);
-              const done = i <= current;
-              return (
-                <li key={step.key} className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-                      done ? "bg-burgundy/10 text-burgundy" : "bg-muted/10 text-muted"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${done ? "bg-burgundy" : "bg-muted/40"}`}
-                      aria-hidden
-                    />
-                    {step.label}
-                  </span>
-                  {i < STATUS_STEPS.length - 1 && <span className="h-px w-4 bg-border" aria-hidden />}
-                </li>
-              );
-            })}
-          </ol>
-        </div>
-
-        <ItpStalePdfToast isStale={isPdfStale} changedAt={latestChangeAt} />
-
-        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border bg-surface p-3 sm:p-4">
-          <div className="flex flex-wrap items-center gap-2">
-          <ItpPdfButton
-            itpId={itp.id}
-            latest={latestPdf}
-            extraActions={
-              <>
-                {/* R41: export the ITP's current content as an editable .xlsx —
-                    offline-revision-form.tsx below is the matching re-upload half of this round
-                    trip. Available to anyone who can view the ITP; the re-upload side is
-                    staff-only. */}
-                <DropdownMenuItem>
-                  <ExportLink href={`/api/itps/${itp.id}/export-xlsx`} pendingLabel="Preparing…">
-                    <T>Download for offline editing</T>
-                  </ExportLink>
-                </DropdownMenuItem>
-                {/* R107: a plain Word copy of the controlled ITP (sections/items + intervention
-                    grid), stamped "UNCONTROLLED COPY" — see
-                    app/api/itps/[id]/export-docx/route.ts. */}
-                <DropdownMenuItem>
-                  <ExportLink href={`/api/itps/${itp.id}/export-docx`} pendingLabel="Preparing…">
-                    <T>Word</T>
-                  </ExportLink>
-                </DropdownMenuItem>
-              </>
-            }
-          />
-          {!embedded && (
-            <>
-              {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
-              <Link
-                href={`/inspect/itps/${itp.id}/checklists`}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                <T>Checklists →</T>
-              </Link>
-              <Link
-                href={`/inspect/itps/${itp.id}/status`}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                <T>Completion roadmap →</T>
-              </Link>
-              <Link
-                href={`/inspect/itps/${itp.id}/approval-roadmap`}
-                className={buttonVariants({ variant: "outline" })}
-              >
-                <T>Approval roadmap →</T>
-              </Link>
-            </>
-          )}
-          </div>
-          {(canSubmitForReview ||
-            (canApproveItp && itp.status === "under_review" && !hasActiveReviewChain) ||
-            (itp.status === "under_review" && (canApproveItp || session.isJagsStaff)) ||
-            (session.isJagsStaff && hasPendingSignoffs) ||
-            canAccept ||
-            canPropose) && (
-            <div className="border-t border-border pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted"><T>Next step</T></p>
-              <div className="mt-2 flex flex-wrap items-start gap-2">
-          {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
-          {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
-            <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
-          )}
-          {approverHint && <p role="status" className="max-w-sm text-xs text-amber-700">{approverHint}</p>}
-          {itp.status === "under_review" && (canApproveItp || session.isJagsStaff) && <ReturnItpForm itpId={itp.id} />}
-          {/* Bulk twin of the per-row Notify button in SignoffCell — notifies every still-pending
-              activity_signoff_progress row for this ITP in one click. Stays staff-only even on a
-              client-created draft ITP, since notifying sign-off parties is a JAGS orchestration
-              action, not part of "build the ITP" content editing (canEditContent). */}
-          {session.isJagsStaff && hasPendingSignoffs && (
-            <form action={notifyAllPendingForItpAction}>
-              <input type="hidden" name="itp_id" value={itp.id} />
-              <Button type="submit" variant="outline">
-                <T>Notify all pending</T>
-              </Button>
-            </form>
-          )}
-          {canAccept && <AcceptItpForm itpId={itp.id} requiresChecklistReview={requiresChecklistReview} />}
-          {/* Added for the "propose to master library" action (Reqs R31) — only shown once the ITP
-              has reached approved/client_accepted, matching this file's existing status gating. */}
-          {canPropose && (
-            <ProposeToMasterForm itpId={itp.id} itpTitle={itp.title} masterTemplates={masterTemplates ?? []} />
-          )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Moved out of the wrapping header row and given its own full-width line right below the
           header (redesign target, plan Phase 4): while an ITP is under review this is the single
@@ -960,13 +994,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
           organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S
           list, so a custom level an admin adds shows up here too. */}
-      <details className="group mt-4">
-        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Sign-off level legend</T>
-        </summary>
+      <Disclosure variant="pill" summary={<T>Sign-off level legend</T>} className="mt-4">
         <InterventionLegend levels={levels} />
-      </details>
+      </Disclosure>
 
       {canRecordExternalApproval && (
         <ExternalApprovalForm
@@ -987,7 +1017,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
 
       {(sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
-        <p className="mt-6 text-sm text-muted">
+        <p className="mt-6 hidden text-sm text-muted md:block">
           <T>Each row is one activity. Each party column shows what that party must do on it (H Hold, W Witness, R Review, S Surveillance) and whether they have signed off. An empty cell means that party has no part in the activity.</T>
         </p>
       )}
@@ -998,14 +1028,14 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       {(sections ?? []).length > 1 && (
         <nav
           aria-label={tl("Jump to section")}
-          className="sticky top-0 z-10 mt-8 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-surface/80"
+          className="no-print sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 mt-8 flex items-center gap-2 overflow-x-auto rounded-lg border border-border bg-surface/95 px-3 py-2 shadow-xs backdrop-blur [scrollbar-width:thin] supports-[backdrop-filter]:bg-surface/80"
         >
-          <span className="text-xs font-medium text-muted"><T>Jump to:</T></span>
+          <span className="shrink-0 text-xs font-medium text-muted"><T>Jump to:</T></span>
           {(sections ?? []).map((section) => (
             <a
               key={section.id}
               href={`#section-${section.section_number}`}
-              className="rounded-full bg-burgundy/10 px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-burgundy/20"
+              className="inline-flex min-h-8 shrink-0 items-center whitespace-nowrap rounded-full border border-control-border bg-surface px-3 text-xs font-medium text-brand hover:bg-brand-soft [@media(pointer:coarse)]:min-h-11"
             >
               {section.section_number}. {section.title}
             </a>
@@ -1016,22 +1046,23 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       {/* The checklist is part of the ITP, not a separate thing: whoever reviews/approves/accepts this
           ITP can open it right here (real checklists once approved; before that, what each activity's
           checklist will start from). Open by default while the ITP is waiting on a decision. */}
-      <details className="mt-6 rounded-lg border border-border bg-surface px-4 py-2" open={itp.status === "under_review" || itp.status === "approved"}>
-        <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-ink">
-          <T>Checklists that go with this ITP</T>
-        </summary>
-        <div className="pb-3">
-          <ItpChecklistPreview
-            items={checklistPreview}
-            approved={itp.status === "approved" || itp.status === "client_accepted"}
-          />
-        </div>
-      </details>
+      <Disclosure
+        variant="card"
+        summary={<T>Checklists that go with this ITP</T>}
+        defaultOpen={itp.status === "under_review" || itp.status === "approved"}
+        className="mt-6"
+        bodyClassName="border-t border-border p-4"
+      >
+        <ItpChecklistPreview
+          items={checklistPreview}
+          approved={itp.status === "approved" || itp.status === "client_accepted"}
+        />
+      </Disclosure>
 
       <div className="mt-8 space-y-8">
         {(sections ?? []).map((section, sectionIndex) => (
-          <div key={section.id} id={`section-${section.section_number}`} className="rounded-lg border border-border bg-surface scroll-mt-20">
-            <div className="border-b border-border px-4 py-3">
+          <div key={section.id} id={`section-${section.section_number}`} className="scroll-mt-[calc(var(--header-h)+5rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xs">
+            <div className="border-b border-border bg-surface-subtle px-4 py-3">
               {canEditContent ? (
                 <SectionControls
                   itpId={itp.id}

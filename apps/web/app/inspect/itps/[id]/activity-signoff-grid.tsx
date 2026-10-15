@@ -9,6 +9,8 @@ import type { SignoffStatus } from "@/lib/signoff/db-types";
 import type { InterventionLevel } from "@jags/shared-types";
 import { cn } from "@/lib/cn";
 import { T } from "@/components/domain/t";
+import type { CSSProperties } from "react";
+import { ScrollRegion } from "./scroll-region";
 
 export interface PartySignoffCell {
   party: { id: string; name: string; user_id: string | null };
@@ -56,9 +58,14 @@ export interface GridRow {
 // InterventionSelect/blank already renders is what actually communicates "empty" here).
 function cellToneClass(intervention: InterventionLevel | null, isBlocking: boolean): string {
   if (intervention && isBlocking) return "bg-burgundy/5";
-  if (intervention) return "bg-off-white/60";
+  if (intervention) return "bg-surface-subtle/60";
   return "bg-transparent";
 }
+
+// Column geometry shared by the header row and every activity row (>= md). The activity column flexes,
+// each party column has a floor so its status chip, primary action and "..." menu always fit.
+const ACTIVITY_COL_PX = 260;
+const PARTY_COL_PX = 156;
 
 /**
  * One section's H/W/R/S sign-off grid: rows = activities, columns = project parties, matching the
@@ -67,9 +74,14 @@ function cellToneClass(intervention: InterventionLevel | null, isBlocking: boole
  * business rule InterventionSelect and SignoffCell enforce is unchanged, this only changes how they
  * are composed (a real <table> instead of a wrapped flex row of cards).
  *
- * Deliberately wide: `overflow-x-auto` here (not on the whole page) lets a project with several
- * parties scroll horizontally without breaking this app's documented no-page-scroll-at-phone-width
- * convention elsewhere — see components/ui/data-table.tsx for the same pattern.
+ * Responsive (one DOM, CSS only, so every cell exists once and keeps its own state):
+ *  - >= 1280 (xl): compact grid. Activity column sticks at the start, one column per party; each cell is
+ *    level badge + status icon/text + ONE primary action with the rest in a "..." menu.
+ *  - 768-1279 (md): the same grid in a horizontally scrolling, keyboard-focusable region with the activity
+ *    column pinned, a right-edge fade and a hint line so the scroll is discoverable.
+ *  - < 768: each activity is a card: title and details first, then one block per party (name, level,
+ *    status icon + text, primary action + menu). Parties with no level on the activity are omitted from the
+ *    card for read-only viewers only ("no part in this activity" carries no information on a phone).
  */
 export function ActivitySignoffGrid({
   itpId,
@@ -110,81 +122,107 @@ export function ActivitySignoffGrid({
     return <p className="px-3 py-6 text-center text-muted"><T>No project parties configured for this project yet.</T></p>;
   }
 
+  const labelId = `grid-label-${rows[0].itemId}`;
+  const gridVars = {
+    "--grid-cols": `minmax(${ACTIVITY_COL_PX}px,1.6fr) repeat(${parties.length}, minmax(${PARTY_COL_PX}px,1fr))`,
+    "--grid-min": `${ACTIVITY_COL_PX + PARTY_COL_PX * parties.length}px`,
+  } as CSSProperties;
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-max border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-border bg-off-white/60 text-start text-xs text-muted">
-            <th className="sticky start-0 z-10 min-w-[240px] bg-off-white px-4 py-2 font-medium"><T>Activity</T></th>
+    <div className="relative">
+      <span id={labelId} className="sr-only"><T>Activities and party sign-offs</T></span>
+      {parties.length >= 3 && (
+        <p className="hidden items-center gap-1.5 px-4 pb-2 text-xs text-muted md:flex xl:hidden">
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 rtl:-scale-x-100">
+            <path d="M4 10h12M12 6l4 4-4 4" />
+          </svg>
+          <T>Scroll sideways to see every party. The activity column stays in place.</T>
+        </p>
+      )}
+      <ScrollRegion labelledBy={labelId} fade={parties.length >= 3}>
+        <div role="table" aria-labelledby={labelId} style={gridVars} className="text-sm md:min-w-[var(--grid-min)]">
+          <div role="row" className="hidden border-y border-border bg-surface-subtle text-xs text-muted md:grid md:[grid-template-columns:var(--grid-cols)]">
+            <div role="columnheader" className="sticky start-0 z-10 bg-surface-subtle px-4 py-2 font-medium"><T>Activity</T></div>
             {parties.map((party) => (
-              <th key={party.id} className="min-w-28 px-3 py-2 text-center font-medium">
-                <span className="block max-w-32 truncate" title={party.name}>
+              <div key={party.id} role="columnheader" className="border-s border-border/60 px-3 py-2 font-medium">
+                <span className="block truncate" title={party.name}>
                   {party.name}
                 </span>
-              </th>
+              </div>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.itemId} className="border-b border-border align-top last:border-0">
-              <td className="sticky start-0 z-10 bg-surface px-4 py-3">
-                {canEditContent ? (
-                  <ItemControls
-                    itpId={itpId}
-                    itemId={row.itemId}
-                    itemNumber={row.itemNumber}
-                    activity={row.activity}
-                    acceptanceCriteria={row.acceptanceCriteria}
-                    referenceSpec={row.referenceSpec ?? null}
-                    method={row.method ?? null}
-                    frequency={row.frequency ?? null}
-                    evidenceType={row.evidenceType}
-                    disciplineId={row.disciplineId}
-                    noticeHoursOverride={row.noticeHoursOverride}
-                    plannedDate={row.plannedDate ?? null}
-                    requiredRegisters={row.requiredRegisters ?? []}
-                    disciplines={disciplines}
-                    isIssued={isIssued}
-                  />
-                ) : (
-                  <p className="text-sm text-ink">
-                    <span className="doc-id me-1.5 text-muted">{row.itemNumber}</span>
-                    {row.activity}
-                  </p>
-                )}
-                {!canEditContent && (
-                  <ActivityDetails acceptanceCriteria={row.acceptanceCriteria} referenceSpec={row.referenceSpec} method={row.method} frequency={row.frequency} />
-                )}
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
-                  {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}
-                  {row.plannedDate && <Badge tone="neutral"><T>Planned:</T> {row.plannedDate}</Badge>}
-                  {row.noticeHoursOverride != null && (
-                    <Badge tone="neutral"><T>Notice:</T> {row.noticeHoursOverride}<T>h</T></Badge>
-                  )}
-                </div>
-              </td>
-              {row.partyCells.map(({ party, intervention, signoff, canSignOff }) => (
-                <td
-                  key={party.id}
-                  className={cn(
-                    "border-s border-border/60 px-3 py-3 text-center",
-                    cellToneClass(intervention, !!intervention && blockingCodes.has(intervention))
-                  )}
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <InterventionSelect
+          </div>
+          <div role="rowgroup" className="max-md:space-y-3 max-md:px-3 max-md:pb-3">
+            {rows.map((row) => (
+              <div
+                key={row.itemId}
+                role="row"
+                className="max-md:overflow-hidden max-md:rounded-lg max-md:border max-md:border-border max-md:bg-surface md:grid md:[grid-template-columns:var(--grid-cols)] md:border-b md:border-border md:last:border-0"
+              >
+                <div role="cell" className="min-w-0 bg-surface px-4 py-3 md:sticky md:start-0 md:z-10">
+                  {canEditContent ? (
+                    <ItemControls
                       itpId={itpId}
-                      itpItemId={row.itemId}
-                      projectPartyId={party.id}
-                      value={intervention}
-                      editable={canEditContent}
-                      levels={levels}
+                      itemId={row.itemId}
+                      itemNumber={row.itemNumber}
+                      activity={row.activity}
+                      acceptanceCriteria={row.acceptanceCriteria}
+                      referenceSpec={row.referenceSpec ?? null}
+                      method={row.method ?? null}
+                      frequency={row.frequency ?? null}
+                      evidenceType={row.evidenceType}
+                      disciplineId={row.disciplineId}
+                      noticeHoursOverride={row.noticeHoursOverride}
+                      plannedDate={row.plannedDate ?? null}
+                      requiredRegisters={row.requiredRegisters ?? []}
+                      disciplines={disciplines}
                       isIssued={isIssued}
                     />
+                  ) : (
+                    <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">
+                      <span className="doc-id me-1.5 text-muted">{row.itemNumber}</span>
+                      {row.activity}
+                    </p>
+                  )}
+                  {!canEditContent && (
+                    <ActivityDetails acceptanceCriteria={row.acceptanceCriteria} referenceSpec={row.referenceSpec} method={row.method} frequency={row.frequency} />
+                  )}
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <ActivityChecklistToggle label={row.evidenceLabel} checklist={row.checklist} />
+                    {row.disciplineCode && <Badge tone="neutral">{row.disciplineCode}</Badge>}
+                    {row.plannedDate && <Badge tone="neutral"><T>Planned:</T> {row.plannedDate}</Badge>}
+                    {row.noticeHoursOverride != null && (
+                      <Badge tone="neutral"><T>Notice:</T> {row.noticeHoursOverride}<T>h</T></Badge>
+                    )}
+                  </div>
+                </div>
+                {row.partyCells.map(({ party, intervention, signoff, canSignOff }) => (
+                  <div
+                    key={party.id}
+                    role="cell"
+                    className={cn(
+                      "min-w-0 space-y-2 px-4 py-3 md:border-s md:border-border/60 md:px-3",
+                      "max-md:border-t max-md:border-border",
+                      cellToneClass(intervention, !!intervention && blockingCodes.has(intervention)),
+                      !intervention && !canEditContent && "max-md:hidden"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2 md:justify-start">
+                      <span className="min-w-0 truncate text-sm font-medium text-ink md:hidden" title={party.name}>
+                        {party.name}
+                      </span>
+                      <InterventionSelect
+                        itpId={itpId}
+                        itpItemId={row.itemId}
+                        projectPartyId={party.id}
+                        value={intervention}
+                        editable={canEditContent}
+                        levels={levels}
+                        isIssued={isIssued}
+                      />
+                    </div>
                     {intervention && signoff && (
                       <SignoffCell
+                        layout="compact"
                         progressId={signoff.id}
                         isBlocking={blockingCodes.has(intervention)}
                         status={signoff.status}
@@ -205,12 +243,12 @@ export function ActivitySignoffGrid({
                       />
                     )}
                   </div>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </ScrollRegion>
     </div>
   );
 }

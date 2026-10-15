@@ -1,15 +1,17 @@
 import { T } from "@/components/domain/t";
+import { PageHeaderSkeleton, Skeleton } from "@/components/ui/skeletons";
+
 export default function Loading() {
   return (
     <div aria-busy="true" role="status" aria-label="Loading">
-      <div className="h-7 w-64 max-w-full animate-pulse rounded bg-off-white" />
-      <div className="mt-6 flex gap-3">
-        <div className="h-10 w-full max-w-xs animate-pulse rounded-md bg-off-white" />
-        <div className="h-10 w-28 animate-pulse rounded-md bg-off-white" />
+      <PageHeaderSkeleton />
+      <div className="mb-3 flex flex-wrap gap-2">
+        <Skeleton className="h-10 w-full max-w-xs rounded-md" />
+        <Skeleton className="h-10 w-28 rounded-md" />
       </div>
-      <div className="mt-4 overflow-hidden rounded-lg border border-border">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">
         {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="h-12 animate-pulse border-b border-border bg-off-white/60" />
+          <Skeleton key={i} className="h-14 rounded-none border-b border-border" />
         ))}
       </div>
       <span className="sr-only"><T>Loading</T></span>

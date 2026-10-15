@@ -5,6 +5,7 @@ import { discardInspectionDraftAction, type DiscardDraftState } from "@/lib/chec
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: DiscardDraftState = { error: null };
 
@@ -13,8 +14,7 @@ export function DiscardDraftForm({ inspectionRecordId }: { inspectionRecordId: s
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(discardInspectionDraftAction, initialState);
   return (
-    <details className="text-sm">
-      <summary className="cursor-pointer font-medium text-danger"><Tx>Discard this draft…</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Discard this draft…</Tx></>} className="text-sm">
       <form
         action={formAction}
         className="mt-2 space-y-2"
@@ -39,6 +39,6 @@ export function DiscardDraftForm({ inspectionRecordId }: { inspectionRecordId: s
         </Button>
         {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       </form>
-    </details>
+</Disclosure>
   );
 }

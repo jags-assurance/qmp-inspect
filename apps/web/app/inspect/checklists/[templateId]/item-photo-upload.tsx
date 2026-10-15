@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhotoThumbnail } from "@/components/domain/photo-thumbnail";
 import { uploadOrQueuePhoto, PhotoRejectedError } from "@/lib/checklists/photo-upload-helpers";
-import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
+import { useTranslate } from "@/lib/i18n/locale-context";
 import { Tx } from "@/components/domain/tx";
 
 interface Photo {
@@ -41,6 +42,8 @@ export function ItemPhotoUpload({
   const [error, setError] = useState<string | null>(null);
   const [queuedPreviews, setQueuedPreviews] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const tl = useTranslate();
   const router = useRouter();
 
   useEffect(() => {
@@ -86,6 +89,7 @@ export function ItemPhotoUpload({
     setUploading(false);
     setProgress("");
     if (inputRef.current) inputRef.current.value = "";
+    if (cameraRef.current) cameraRef.current.value = "";
   }
 
   return (
@@ -93,12 +97,12 @@ export function ItemPhotoUpload({
       {hasPhotos && (
         <div className="flex flex-wrap gap-1.5">
           {photos.map((photo) => (
-            <div key={photo.id} className="h-11 w-11 overflow-hidden rounded">
+            <div key={photo.id} className="h-14 w-14 overflow-hidden rounded-md">
               <PhotoThumbnail url={photo.url} caption={photo.caption} photoId={photo.id} editable={!readOnly} />
             </div>
           ))}
           {queuedPreviews.map((url, i) => (
-            <div key={url} className="relative h-10 w-10 overflow-hidden rounded">
+            <div key={url} className="relative h-14 w-14 overflow-hidden rounded-md">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt={`Queued photo ${i + 1}`} className="h-full w-full object-cover opacity-70" />
               <span className="absolute inset-x-0 bottom-0 bg-warning/90 text-center text-xs font-medium leading-tight text-white">
@@ -120,20 +124,37 @@ export function ItemPhotoUpload({
             className="hidden"
             id={`item-photo-input-${checklistItemId}`}
           />
-          <button
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+            id={`item-photo-camera-${checklistItemId}`}
+          />
+          <Button
             type="button"
+            variant="outline"
+            size="lg"
             disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-            title={hasPhotos ? "Add another photo to this item" : "Attach a photo to this item"}
-            aria-label={hasPhotos ? "Add another photo to this item" : "Attach a photo to this item"}
-            className={cn(
-              "inline-flex min-h-11 items-center gap-1 rounded-md border border-border px-3 text-sm font-medium text-muted transition-colors hover:bg-off-white disabled:opacity-60",
-              hasPhotos && "border-dashed"
-            )}
+            onClick={() => cameraRef.current?.click()}
+            aria-label={tl("Take a photo for this item")}
           >
             <span aria-hidden="true">📷</span>
-            {uploading ? `Uploading ${progress}…` : hasPhotos ? "+ Add" : "+ Photo"}
-          </button>
+            {uploading ? `${tl("Uploading")} ${progress}…` : tl("Take photo")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={uploading}
+            onClick={() => inputRef.current?.click()}
+            aria-label={tl("Choose photos from the gallery for this item")}
+          >
+            <span aria-hidden="true">🖼</span>
+            {tl("From gallery")}
+          </Button>
         </>
       )}
       {error && <p role="alert" className="w-full text-xs text-danger">{error}</p>}

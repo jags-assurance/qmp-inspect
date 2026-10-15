@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { createItpAction, type CreateItpState } from "@/lib/itps/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { FormMessage } from "@/components/ui/form-message";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -22,7 +24,7 @@ export function NewItpForm({
   useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
-    <form action={formAction} className="mt-6 space-y-4">
+    <form action={formAction} className="mt-6 space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div>
         <FormField label="Project" error={state.fieldErrors?.project_id}>
           <select
@@ -91,11 +93,13 @@ export function NewItpForm({
         </FormField>
       </div>
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} />
 
-      <Button type="submit" disabled={pending}>
+      <StickyActionBar>
+        <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create ITP"}
       </Button>
+      </StickyActionBar>
     </form>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -9,6 +9,7 @@ import type { NotificationRow } from "@/lib/notifications/types";
 import { safeSitePath } from "@/lib/notifications/render";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { PopoverPanel } from "@/components/ui/popover-panel";
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -41,7 +42,8 @@ export function NotificationsBell({
   const router = useRouter();
   const [notifications, setNotifications] = useState(initialNotifications);
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const closePanel = useCallback(() => setOpen(false), []);
 
   const [unreadCount, setUnreadCount] = useState(
     initialUnreadCount ?? initialNotifications.filter((n) => !n.is_read).length
@@ -105,15 +107,6 @@ export function NotificationsBell({
     };
   }, [userId, router]);
 
-  useEffect(() => {
-    if (!open) return;
-    function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
-
   async function handleClick(n: NotificationRow) {
     if (!n.is_read) {
       setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)));
@@ -132,10 +125,13 @@ export function NotificationsBell({
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink hover:bg-surface-subtle sm:h-10 sm:w-10 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
       >
@@ -155,8 +151,9 @@ export function NotificationsBell({
         )}
       </button>
 
-      {open && (
-        <div className="fixed inset-x-2 top-[calc(3.5rem+env(safe-area-inset-top)+0.25rem)] z-30 rounded-lg border border-border bg-surface shadow-lg sm:absolute sm:inset-x-auto sm:end-0 sm:top-12 sm:w-96">
+      {/* Portalled to <body> (PopoverPanel): the header is a z-20 stacking context, so an in-place z-30 panel sat under notices. */}
+      <PopoverPanel open={open} onClose={closePanel} anchorRef={buttonRef} role="dialog" aria-label="Notifications" className="sm:w-96">
+        <div>
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-sm font-semibold text-ink"><Tx>Notifications</Tx></span>
             {unreadCount > 0 && (
@@ -175,15 +172,15 @@ export function NotificationsBell({
                 type="button"
                 onClick={() => handleClick(n)}
                 className={
-                  "block w-full border-b border-border px-3 py-2.5 text-start text-sm last:border-0 hover:bg-off-white " +
+                  "block w-full border-b border-border px-3 py-2.5 text-start text-sm last:border-0 hover:bg-surface-subtle " +
                   (n.is_read ? "" : "bg-burgundy/5")
                 }
               >
                 <div className="flex items-start gap-2">
                   {!n.is_read && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-burgundy" />}
                   <div className="min-w-0 flex-1">
-                    <p className={"truncate " + (n.is_read ? "text-ink" : "font-semibold text-ink")}>{n.title}</p>
-                    {n.body && <p className="truncate text-xs text-muted">{n.body}</p>}
+                    <p title={n.title} className={"truncate " + (n.is_read ? "text-ink" : "font-semibold text-ink")}>{n.title}</p>
+                    {n.body && <p title={n.body} className="truncate text-xs text-muted">{n.body}</p>}
                     <p className="mt-0.5 text-xs text-muted">{timeAgo(n.created_at)}</p>
                   </div>
                 </div>
@@ -191,12 +188,12 @@ export function NotificationsBell({
             ))}
           </div>
           <div className="border-t border-border px-3 py-2 text-center">
-            <Link href="/inspect/notifications" onClick={() => setOpen(false)} className="text-xs font-medium text-burgundy hover:underline">
+            <Link href="/inspect/notifications" onClick={() => setOpen(false)} className="inline-flex min-h-8 items-center rounded-sm text-xs font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
               <Tx>View all notifications</Tx>
             </Link>
           </div>
         </div>
-      )}
+      </PopoverPanel>
     </div>
   );
 }

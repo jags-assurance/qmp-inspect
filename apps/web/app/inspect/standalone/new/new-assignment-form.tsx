@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { createAssignmentAction, type CreateAssignmentState, type AssignmentType } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/ui/form-message";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { cn } from "@/lib/cn";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
@@ -89,8 +91,8 @@ export function NewAssignmentForm({
 
   return (
     <form action={formAction} className="mt-6 space-y-6">
-      <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted"><Tx>Project &amp; type</Tx></legend>
+      <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <legend className="px-1 text-sm font-semibold text-ink"><Tx>Project &amp; type</Tx></legend>
         <div>
           <FormField label="Project">
             <select
@@ -101,7 +103,7 @@ export function NewAssignmentForm({
               setProjectId(e.target.value);
               setLocation((l) => (/^-?\d/.test(l) ? l : ""));
             }}
-            className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
             <option value=""><Tx>Select…</Tx></option>
             {projects.map((p) => (
@@ -120,8 +122,8 @@ export function NewAssignmentForm({
               <label
                 key={type.value}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-0.5 rounded-md border border-border bg-off-white px-3 py-2",
-                  "has-[:checked]:border-burgundy has-[:checked]:bg-burgundy/5"
+                  "flex min-h-11 cursor-pointer flex-col gap-0.5 rounded-md border border-control-border bg-surface px-3 py-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus",
+                  "has-[:checked]:border-burgundy has-[:checked]:bg-brand-soft"
                 )}
               >
                 <input
@@ -141,8 +143,8 @@ export function NewAssignmentForm({
         </div>
       </fieldset>
 
-      <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted"><Tx>Equipment</Tx></legend>
+      <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <legend className="px-1 text-sm font-semibold text-ink"><Tx>Equipment</Tx></legend>
         <p className="text-xs text-muted">{selected.equipmentNote}</p>
 
         <div>
@@ -152,18 +154,18 @@ export function NewAssignmentForm({
             required
             maxLength={300}
             placeholder={tl("e.g. Jaw crusher C120")}
-            className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           </FormField>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <FormField label="Manufacturer">
               <input
               name="manufacturer"
               placeholder={tl("e.g. Metso")}
-              className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
           </div>
@@ -172,13 +174,13 @@ export function NewAssignmentForm({
               <input
               name="model"
               placeholder="e.g. C120"
-              className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <FormField label={<><Tx>Serial / tag no.</Tx>{(selectedType === "fat" || selectedType === "pre_shipment") && " *"}</>}>
               <input
@@ -186,7 +188,7 @@ export function NewAssignmentForm({
               maxLength={120}
               required={selectedType === "fat" || selectedType === "pre_shipment"}
               placeholder={tl("e.g. SN-48213 / TAG-102")}
-              className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
           </div>
@@ -203,7 +205,7 @@ export function NewAssignmentForm({
                 if (v === "live") captureLive();
                 else setLocation(v);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             >
               <option value=""><Tx>No location</Tx></option>
               <option value="live"><Tx>Use live location</Tx></option>
@@ -219,16 +221,16 @@ export function NewAssignmentForm({
         </div>
       </fieldset>
 
-      <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4">
-        <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted"><Tx>Reference</Tx></legend>
+      <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <legend className="px-1 text-sm font-semibold text-ink"><Tx>Reference</Tx></legend>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <FormField label="Standard reference">
               <input
               name="standard_reference"
               placeholder={tl("e.g. ISO 9001 / client spec no.")}
-              className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
           </div>
@@ -239,7 +241,7 @@ export function NewAssignmentForm({
               type="date"
               min={dateBounds.min}
               max={dateBounds.max}
-              className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
             />
             </FormField>
           </div>
@@ -250,7 +252,7 @@ export function NewAssignmentForm({
             <select
             name="discipline_id"
             defaultValue=""
-            className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           >
             <option value="">—</option>
             {disciplines.map((d) => (
@@ -263,11 +265,13 @@ export function NewAssignmentForm({
         </div>
       </fieldset>
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} />
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Creating…" : "Create assignment"}
-      </Button>
+      <StickyActionBar>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Creating…" : "Create assignment"}
+        </Button>
+      </StickyActionBar>
     </form>
   );
 }

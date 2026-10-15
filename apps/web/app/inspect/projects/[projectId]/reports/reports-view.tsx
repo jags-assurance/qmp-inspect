@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ViewHeader } from "@/components/domain/view-header";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -105,7 +106,6 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
       .returns<(HandoverAttentionRow & { package_storage_path: string | null })[]>(),
   ]);
 
-  const Heading = embedded ? "h2" : "h1";
   const packColumns: ResponsiveColumn<(typeof reportPacks)[number]>[] = [
     { key: "period", header: "Period", render: (pack) => `${MONTH_NAMES[pack.month - 1]} ${pack.year}` },
     { key: "status", header: "Status", render: (pack) => REPORT_PACK_STATUS_LABEL[pack.status] ?? pack.status },
@@ -134,14 +134,11 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
 
   return (
     <div>
-      {!embedded && (
-        <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          <T>← Back to Project</T>
-        </Link>
-      )}
-      <div className="mt-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink"><T>Reports</T></Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/projects/${projectId}`}
+        title={<T>Reports</T>}
+        guide={
           <PageGuide
             title={tl("Reports & Downloads — how this works")}
             points={[
@@ -151,10 +148,10 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
               "Each ITP's own controlled A4 PDF lives on that ITP's own page, linked from the \"ITP documents\" list below.",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name ?? "—"} · <span className="doc-id">{project.project_number}</span> {project.name}
-        </p>
+        }
+        subtitle={<>{project.organizations?.name ?? "—"} · <span className="doc-id">{project.project_number}</span> {project.name}</>}
+      />
+      <div>
       </div>
 
       {(handoverAttentionRows ?? []).length > 0 && (

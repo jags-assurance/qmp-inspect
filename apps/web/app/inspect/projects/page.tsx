@@ -3,7 +3,10 @@ import Link from "next/link";
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterBar } from "@/components/ui/toolbar";
+import { FilterChips, type FilterChip } from "@/components/ui/filter-chips";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { ProjectsTable, type ProjectRow } from "./projects-table";
 import { isClosedStatus } from "@/lib/projects/close-helpers";
@@ -150,68 +153,55 @@ export default async function ProjectsPage({
     openPunchCount: openPunchByProject.get(p.id) ?? 0,
   }));
 
-  return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>Projects</T></h1>
-            <PageGuide
-              title={tl("Projects — how this works")}
-              points={[
-                "Every project you have access to, across every client — JAGS staff see everything they're granted; a client/contractor login sees only projects their organisation is engaged on.",
-                "\"+ New project\" is normally Admin-only; it also appears for anyone whose organisation is on the Self-Managed (Hybrid) or Full Client-Managed engagement tier, since both run their own program and create their own projects.",
-                "ITP completion % and open NCR count per row are computed live from that project's own ITPs and NCRs, not cached.",
-              ]}
-            />
-          </div>
-        </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto">
-          {orgFilterOptions.length > 0 && <OrgFilter organizations={orgFilterOptions} />}
-          {canCreateProject && (
-            <Link href="/inspect/projects/new">
-              <Button><T>+ New project</T></Button>
-            </Link>
-          )}
-        </div>
-      </div>
+  const showHref = (key: string) => {
+    const qs = new URLSearchParams({
+      ...(selectedOrgId ? { org: selectedOrgId } : {}),
+      ...(key ? { show: key } : {}),
+    }).toString();
+    return qs ? `/inspect/projects?${qs}` : "/inspect/projects";
+  };
+  const totalVisible = (allVisible ?? []).length;
+  const statusChips: FilterChip[] = [
+    { key: "open", label: tl("Open only"), count: totalVisible - closedCount, href: showHref(""), active: !showClosed },
+    { key: "closed", label: tl("Closed"), count: closedCount, href: showHref("closed"), active: onlyClosed },
+    { key: "all", label: tl("All"), count: totalVisible, href: showHref("all"), active: show === "all" },
+  ];
 
-      <div className="mt-6">
-        {closedCount > 0 && (
-          <p className="mb-3 text-sm text-muted">
-            {onlyClosed
-              ? "Closed projects only."
-              : showClosed
-                ? "All projects, including closed."
-                : `${closedCount} closed project${closedCount > 1 ? "s" : ""} hidden.`}{" "}
-            {(
-              [
-                { key: "", label: "Open only", active: !showClosed },
-                { key: "closed", label: "Closed", active: onlyClosed },
-                { key: "all", label: "All", active: show === "all" },
-              ] as const
-            ).map((opt, i) => (
-              <span key={opt.label}>
-                {i > 0 && " · "}
-                {opt.active ? (
-                  <span className="font-medium text-ink"><T>{opt.label}</T></span>
-                ) : (
-                  <Link
-                    className="text-burgundy hover:underline"
-                    href={`/inspect/projects?${new URLSearchParams({
-                      ...(selectedOrgId ? { org: selectedOrgId } : {}),
-                      ...(opt.key ? { show: opt.key } : {}),
-                    }).toString()}`}
-                  >
-                    <T>{opt.label}</T>
-                  </Link>
-                )}
-              </span>
-            ))}
-          </p>
-        )}
-        <ProjectsTable rows={projectRows} canCreate={canCreateProject} />
-      </div>
+  return (
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        title={<T>Projects</T>}
+        guide={
+          <PageGuide
+            title={tl("Projects — how this works")}
+            points={[
+              "Every project you have access to, across every client — JAGS staff see everything they're granted; a client/contractor login sees only projects their organisation is engaged on.",
+              "\"+ New project\" is normally Admin-only; it also appears for anyone whose organisation is on the Self-Managed (Hybrid) or Full Client-Managed engagement tier, since both run their own program and create their own projects.",
+              "ITP completion % and open NCR count per row are computed live from that project's own ITPs and NCRs, not cached.",
+            ]}
+          />
+        }
+        primaryAction={
+          canCreateProject ? (
+            <Link href="/inspect/projects/new" className={buttonVariants()}>
+              <T>+ New project</T>
+            </Link>
+          ) : undefined
+        }
+      />
+
+      {closedCount > 0 && <FilterChips label={tl("Filter by project status")} items={statusChips} />}
+
+      {orgFilterOptions.length > 0 && (
+        <FilterBar
+          activeCount={selectedOrgId ? 1 : 0}
+          clearHref={selectedOrgId ? (show ? "/inspect/projects?show=" + show : "/inspect/projects") : undefined}
+          filters={<OrgFilter organizations={orgFilterOptions} />}
+        />
+      )}
+
+      <ProjectsTable rows={projectRows} canCreate={canCreateProject} />
     </div>
   );
 }

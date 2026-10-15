@@ -53,7 +53,7 @@ export async function ChecklistLibraryView({ embedded }: { embedded?: boolean })
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2">
         <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink"><T>Checklist / Form Template Library</T></Heading>
+          <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Checklist / Form Template Library</T></Heading>
           <PageGuide
             title={tl("Checklist / Form Template Library — how this works")}
             points={[

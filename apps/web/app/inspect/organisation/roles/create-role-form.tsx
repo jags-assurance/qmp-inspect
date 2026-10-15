@@ -26,7 +26,7 @@ export function CreateRoleForm({
   const [state, formAction, pending] = useActionState(createCustomRoleAction, initialState);
 
   return (
-    <form action={formAction} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div>
         <FormField label="Role name">
           <input

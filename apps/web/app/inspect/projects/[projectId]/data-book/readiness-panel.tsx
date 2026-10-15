@@ -26,8 +26,8 @@ function CategoryRow({ label, ready, total, percentage }: { label: string; ready
   const barTone: "success" | "warning" = !isEmpty && percentage === 100 ? "success" : "warning";
   return (
     <div className="border-b border-border py-3 last:border-0">
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-ink">{label}</span>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="flex items-center gap-2 text-sm text-ink"><span aria-hidden="true" className={isEmpty ? "text-muted" : percentage === 100 ? "text-success" : "text-warning"}>{isEmpty ? "–" : percentage === 100 ? "✓" : "!"}</span>{label}</span>
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted">
             {ready}/{total}
@@ -61,7 +61,7 @@ export function ReadinessPanel({ readiness }: { readiness: DataBookReadiness }) 
   ].every((c) => c.total === 0);
   const overallTone = nothingProvisionedYet ? "neutral" : readiness.overallPercentage === 100 ? "success" : "warning";
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-medium text-ink"><T>Compilation readiness</T></h2>
         <Badge tone={overallTone}>{nothingProvisionedYet ? "No data yet" : `${readiness.overallPercentage}% overall`}</Badge>

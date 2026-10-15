@@ -3,7 +3,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { requireSession } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/rbac/permissions";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterBar, FilterField } from "@/components/ui/toolbar";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
 import { StandaloneTable, type StandaloneAssignmentListRow } from "./standalone-table";
 import { STANDALONE_TABLE_PAGE_SIZE } from "./constants";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
@@ -119,7 +123,7 @@ export default async function StandaloneAssignmentsPage({
     { val: "completed", label: "Completed", n: statusCounts[2] },
   ];
   const hasFilters = !!(projectId || disciplineId || q || statusFilter || typeFilter || resultFilter);
-  const selectCls = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
+  const activeFilterCount = [projectId, disciplineId, typeFilter, resultFilter, sortKey !== "newest" ? sortKey : ""].filter(Boolean).length;
 
   const offset = (page - 1) * STANDALONE_TABLE_PAGE_SIZE;
   const [{ count: totalCount }, { data: assignments }] = await Promise.all([
@@ -137,104 +141,90 @@ export default async function StandaloneAssignmentsPage({
   ]);
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>Standalone Assignments</T></h1>
-            <PageGuide
-              title={tl("Standalone Assignments — how this works")}
-              points={[
-                "One-off FATs, witness inspections, specific tests and pre-shipment checks that don't need an ITP or data book behind them.",
-                "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance — UNLESS your organisation is on the Full Client-Managed tier and you specifically hold the \"Create and run a Standalone Assignment\" custom permission, OR you're an active subcontractor/main-contractor party on a project a JAGS Admin has specifically opted into contractor-run assignments — either way you can then do all of it yourself.",
-                "A conditional pass leaves the assignment genuinely open (\"conditional_open\") until its linked punch-list item(s) are closed and clearance is issued — a clean pass or fail completes immediately on finalize.",
-                "The discipline filter and search run server-side against the full register, not just the current page.",
-              ]}
-            />
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            <T>One-off FATs, witness inspections and tests, with no ITP needed.</T>
-          </p>
-        </div>
-        {canRunStandaloneAssignment && (
-          <Link href="/inspect/standalone/new">
-            <Button><T>+ New assignment</T></Button>
-          </Link>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        title={<T>Standalone Assignments</T>}
+        subtitle={<T>One-off FATs, witness inspections and tests, with no ITP needed.</T>}
+        guide={
+          <PageGuide
+            title={tl("Standalone Assignments — how this works")}
+            points={[
+              "One-off FATs, witness inspections, specific tests and pre-shipment checks that don't need an ITP or data book behind them.",
+              "Running one is JAGS-staff-only end to end — creating, adding measurements/photos/punch items/signatures, finalizing and issuing clearance — UNLESS your organisation is on the Full Client-Managed tier and you specifically hold the \"Create and run a Standalone Assignment\" custom permission, OR you're an active subcontractor/main-contractor party on a project a JAGS Admin has specifically opted into contractor-run assignments — either way you can then do all of it yourself.",
+              "A conditional pass leaves the assignment genuinely open (\"conditional_open\") until its linked punch-list item(s) are closed and clearance is issued — a clean pass or fail completes immediately on finalize.",
+              "The discipline filter and search run server-side against the full register, not just the current page.",
+            ]}
+          />
+        }
+        primaryAction={
+          canRunStandaloneAssignment ? (
+            <Link href="/inspect/standalone/new" className={buttonVariants()}>
+              <T>+ New assignment</T>
+            </Link>
+          ) : undefined
+        }
+      />
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        {chips.map((c) => (
-          <Link
-            key={c.val}
-            href={chipHref(c.val)}
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${statusFilter === c.val ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border bg-surface text-muted hover:text-ink"}`}
-          >
-            {c.label} ({c.n})
-          </Link>
-        ))}
-      </div>
+      <FilterChips
+        label={tl("Filter by status")}
+        items={chips.map((c) => ({ key: c.val || "all", label: tl(c.label), count: c.n, href: chipHref(c.val), active: statusFilter === c.val }))}
+      />
 
-      <form method="get" className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
-        {q && <input type="hidden" name="q" value={q} />}
-        <div>
-          <label htmlFor="f_project" className="block text-sm font-medium text-ink"><T>Project</T></label>
-          <select id="f_project" name="project" defaultValue={projectId ?? ""} className={selectCls}>
-            <option value=""><T>All projects</T></option>
-            {(projectOptions ?? []).map((p) => (
-              <option key={p.id} value={p.id}>{p.project_number} - {p.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="f_type" className="block text-sm font-medium text-ink"><T>Type</T></label>
-          <select id="f_type" name="type" defaultValue={typeFilter} className={selectCls}>
-            <option value=""><T>All types</T></option>
-            <option value="fat"><T>FAT</T></option>
-            <option value="witness_inspection"><T>Witness Inspection</T></option>
-            <option value="specific_test"><T>Specific Test</T></option>
-            <option value="pre_shipment"><T>Pre-Shipment</T></option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="f_result" className="block text-sm font-medium text-ink"><T>Result</T></label>
-          <select id="f_result" name="result" defaultValue={resultFilter} className={selectCls}>
-            <option value=""><T>Any result</T></option>
-            <option value="pass"><T>Pass</T></option>
-            <option value="conditional_pass"><T>Conditional Pass</T></option>
-            <option value="fail"><T>Fail</T></option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="f_discipline" className="block text-sm font-medium text-ink"><T>Discipline</T></label>
-          <select id="f_discipline" name="discipline" defaultValue={disciplineId ?? ""} className={selectCls}>
-            <option value=""><T>All disciplines</T></option>
-            {(disciplines ?? []).map((d) => (
-              <option key={d.id} value={d.id}>{d.code} - {d.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="f_sort" className="block text-sm font-medium text-ink"><T>Sort</T></label>
-          <select id="f_sort" name="sort" defaultValue={sortKey} className={selectCls}>
-            <option value="newest"><T>Newest first</T></option>
-            <option value="oldest"><T>Oldest first</T></option>
-            <option value="date"><T>Assignment date</T></option>
-            <option value="number"><T>Assignment no.</T></option>
-          </select>
-        </div>
-        <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-5">
-          <Button type="submit"><T>Apply filters</T></Button>
-          {hasFilters && (
-            <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline"><T>Clear all</T></Link>
-          )}
-        </div>
-      </form>
+      <FilterBar
+        activeCount={activeFilterCount}
+        clearHref={hasFilters ? "/inspect/standalone" : undefined}
+        filters={
+          <form method="get" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
+            {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+            {q && <input type="hidden" name="q" value={q} />}
+            <FilterField label={<T>Project</T>}>
+              <select name="project" defaultValue={projectId ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>All projects</T></option>
+                {(projectOptions ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>{p.project_number} - {p.name}</option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label={<T>Type</T>}>
+              <select name="type" defaultValue={typeFilter} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>All types</T></option>
+                <option value="fat"><T>FAT</T></option>
+                <option value="witness_inspection"><T>Witness Inspection</T></option>
+                <option value="specific_test"><T>Specific Test</T></option>
+                <option value="pre_shipment"><T>Pre-Shipment</T></option>
+              </select>
+            </FilterField>
+            <FilterField label={<T>Result</T>}>
+              <select name="result" defaultValue={resultFilter} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>Any result</T></option>
+                <option value="pass"><T>Pass</T></option>
+                <option value="conditional_pass"><T>Conditional Pass</T></option>
+                <option value="fail"><T>Fail</T></option>
+              </select>
+            </FilterField>
+            <FilterField label={<T>Discipline</T>}>
+              <select name="discipline" defaultValue={disciplineId ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>All disciplines</T></option>
+                {(disciplines ?? []).map((d) => (
+                  <option key={d.id} value={d.id}>{d.code} - {d.name}</option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label={<T>Sort</T>}>
+              <select name="sort" defaultValue={sortKey} className={FILTER_CONTROL_CLASS}>
+                <option value="newest"><T>Newest first</T></option>
+                <option value="oldest"><T>Oldest first</T></option>
+                <option value="date"><T>Assignment date</T></option>
+                <option value="number"><T>Assignment no.</T></option>
+              </select>
+            </FilterField>
+            <Button type="submit" variant="outline"><T>Apply filters</T></Button>
+          </form>
+        }
+      />
 
-      <div className="mt-6">
-        <StandaloneTable rows={assignments ?? []} totalCount={totalCount ?? 0} />
-      </div>
+      <StandaloneTable rows={assignments ?? []} totalCount={totalCount ?? 0} />
     </div>
   );
 }

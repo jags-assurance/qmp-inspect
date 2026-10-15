@@ -22,11 +22,11 @@ export default async function SupportPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink"><T>Help and support</T></h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Help and support</T></h1>
         <p className="mt-1 text-sm text-muted"><T>Where to find answers and who to contact.</T></p>
       </header>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <section className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <h2 className="text-base font-semibold text-ink"><T>Contact support</T></h2>
         {email ? (
           <p className="mt-2 text-sm text-ink">
@@ -46,7 +46,7 @@ export default async function SupportPage() {
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <section className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <h2 className="text-base font-semibold text-ink"><T>Find an answer first</T></h2>
         <p className="mt-2 text-sm text-ink">
           <T>The</T>{" "}
@@ -61,7 +61,7 @@ export default async function SupportPage() {
         </p>
       </section>
 
-      <section className="rounded-lg border border-border bg-surface p-4">
+      <section className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <h2 className="text-base font-semibold text-ink"><T>How to report an issue</T></h2>
         <ol className="mt-2 list-decimal space-y-1 ps-5 text-sm text-ink">
           {REPORT_STEPS.map((s) => (

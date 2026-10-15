@@ -28,7 +28,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
     <>
       <nav
         aria-label="Settings sections"
-        className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-[5] -mx-3 mt-4 border-b border-border bg-background px-3 sm:-mx-6 sm:px-6 lg:hidden"
+        className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 mt-4 border-b border-border-strong bg-background px-3 sm:-mx-6 sm:px-6 lg:hidden"
       >
         <ul className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]" aria-label="Groups">
           {groups.map((g) => {
@@ -61,7 +61,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-3 text-sm transition-colors",
-                    isActive ? "bg-burgundy font-medium text-white" : "text-muted hover:bg-off-white hover:text-ink"
+                    isActive ? "bg-burgundy font-medium text-white" : "text-muted hover:bg-surface-subtle hover:text-ink"
                   )}
                 >
                   {item.label}
@@ -88,7 +88,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
                         aria-current={isActive ? "page" : undefined}
                         className={cn(
                           "flex min-h-11 items-center rounded-md px-3 text-sm transition-colors",
-                          isActive ? "bg-burgundy/10 font-medium text-burgundy" : "text-ink hover:bg-off-white"
+                          isActive ? "bg-burgundy/10 font-medium text-burgundy" : "text-ink hover:bg-surface-subtle"
                         )}
                       >
                         {item.label}

@@ -14,8 +14,8 @@ export function OrgFilter({ organizations }: { organizations: { id: string; labe
   const current = searchParams.get("org") ?? "";
 
   return (
-    <label className="flex w-full min-w-0 items-center gap-2 text-sm sm:w-auto">
-      <span className="font-medium text-ink"><Tx>Organisation</Tx></span>
+    <label className="flex w-full min-w-0 flex-col gap-1 text-xs font-medium text-muted md:w-auto">
+      <span><Tx>Organisation</Tx></span>
       <select
         value={current}
         onChange={(e) => {
@@ -26,7 +26,7 @@ export function OrgFilter({ organizations }: { organizations: { id: string; labe
           const query = params.toString();
           router.push(query ? `${pathname}?${query}` : pathname);
         }}
-        className="min-w-0 flex-1 rounded-md border border-border bg-off-white px-3 py-1.5 text-sm outline-none focus:border-burgundy sm:flex-none"
+        className="min-h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-sm font-normal text-ink [@media(pointer:coarse)]:min-h-11 md:w-auto"
       >
         <option value=""><Tx>All organisations</Tx></option>
         {organizations.map((o) => (

@@ -51,6 +51,11 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
+import { Card } from "@/components/ui/section";
+import { DescriptionList } from "@/components/ui/description-list";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -252,28 +257,14 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   );
 
   return (
-    <div className="max-w-3xl">
-      <Link
-        href={`/inspect/checklists/${record.checklist_template_id}`}
-        className="text-sm text-burgundy hover:underline"
-      >
-        <T>← Back to Checklist</T>
-      </Link>
-      {/* Certificate-style header band — traceability info at a glance, echoing the IRN layout below. */}
-      <div className="overflow-hidden rounded-lg border border-border bg-surface">
-        <div className="flex flex-wrap items-start justify-between gap-4 bg-burgundy px-5 py-4 text-white">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-white/70"><T>Inspection Record</T></p>
-            <h1 className="doc-id text-2xl font-semibold">{record.record_number}</h1>
+    <div className="max-w-5xl">
+      <PageHeader
+        backHref={`/inspect/checklists/${record.checklist_template_id}`}
+        backLabel="Back to Checklist"
+        title={<span className="doc-id">{record.record_number}</span>}
+        guide={
+          <>
             <BreadcrumbTail label={record.record_number} />
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>
-              {(record.overall_result ?? "In progress").toString().toUpperCase()}
-            </Badge>
-            {session.isJagsStaff && missingSignature && (
-              <Badge tone="warning"><T>Completed without a signature (legacy)</T></Badge>
-            )}
             <PageGuide
               title={tl("Inspection record — how this works")}
               points={[
@@ -284,98 +275,92 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 "The narrative editor (AI-assisted draft, when AI is configured) only shows for JAGS staff.",
               ]}
             />
-          </div>
-        </div>
-        {record.overall_result && (
-          <div
-            className={`px-5 py-2 text-sm font-medium ${
-              record.overall_result === "pass"
-                ? "bg-success/10 text-success"
-                : record.overall_result === "fail"
-                  ? "bg-danger/10 text-danger"
-                  : "bg-warning/10 text-warning"
-            }`}
-          >
-            {record.overall_result === "pass"
-              ? "Inspection passed — all items satisfactory."
-              : record.overall_result === "fail"
-                ? "Inspection failed — raise/close an NCR and re-inspect before release."
-                : "Conditional result — items marked N/A; confirm they genuinely do not apply before releasing."}
-          </div>
-        )}
-        <div className="bg-surface px-5 py-3">
-          <InspectionReportPdfButton inspectionRecordId={record.id} latest={latestReportPdf} completed={Boolean(record.overall_result)} signedAt={record.signed_at} />
-        </div>
-        <div className="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 text-sm sm:grid-cols-4">
-          <div>
-            <p className="text-xs text-muted"><T>Activity</T></p>
-            <p className="mt-0.5 text-ink">{record.activity}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted"><T>Project</T></p>
-            <p className="mt-0.5 text-ink">{record.project_name}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted"><T>ITP</T></p>
-            <p className="doc-id mt-0.5 text-ink">{record.itp_number}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted"><T>Date</T></p>
-            <p className="mt-0.5 text-ink">{record.inspection_date}</p>
-          </div>
-          {record.location && (
-            <div>
-              <p className="text-xs text-muted"><T>Location</T></p>
-              <p className="mt-0.5 text-ink">
-                {formatLocationForDisplay(record.location)}
-                {mapsUrl(record.location) && (
-                  <>
-                    {" "}
-                    <a href={mapsUrl(record.location)!} target="_blank" rel="noreferrer" className="text-xs text-burgundy hover:underline">
-                      <T>Open in maps</T>
-                    </a>
-                  </>
-                )}
-              </p>
-            </div>
-          )}
-          <div>
-            <p className="text-xs text-muted"><T>Inspector</T></p>
-            <p className="mt-0.5 text-ink">{record.users?.full_name ?? "—"}</p>
-          </div>
-          {record.client_name && (
-            <div>
-              <p className="text-xs text-muted"><T>Client</T></p>
-              <p className="mt-0.5 text-ink">{record.client_name}</p>
-            </div>
-          )}
-          {record.applicable_standard && (
-            <div>
-              <p className="text-xs text-muted"><T>Applicable standard</T></p>
-              <p className="mt-0.5 text-ink">{record.applicable_standard}</p>
-            </div>
-          )}
-          {record.governing_drawing_reference && (
-            <div>
-              <p className="text-xs text-muted"><T>Governing drawing</T></p>
-              <p className="doc-id mt-0.5 text-ink">
-                {record.governing_drawing_reference}
-                {record.governing_drawing_revision ? ` (Rev ${record.governing_drawing_revision})` : ""}
-              </p>
-            </div>
-          )}
-        </div>
-        {record.checklist_template_id && (
-          <div className="border-t border-border px-5 py-3">
-            <Link
-              href={`/inspect/checklists/${record.checklist_template_id}`}
-              className="text-sm font-medium text-burgundy hover:underline"
-            >
+          </>
+        }
+        badges={
+          <>
+            <Badge tone={RESULT_TONE[record.overall_result ?? ""] ?? "neutral"}>
+              {(record.overall_result ?? "In progress").toString().toUpperCase()}
+            </Badge>
+            {session.isJagsStaff && missingSignature && (
+              <Badge tone="warning"><T>Completed without a signature (legacy)</T></Badge>
+            )}
+          </>
+        }
+        subtitle={<T>Inspection Record</T>}
+        primaryAction={
+          record.checklist_template_id ? (
+            <Link href={`/inspect/checklists/${record.checklist_template_id}`} className={buttonVariants({ variant: "outline" })}>
               <T>View checklist →</T>
             </Link>
-          </div>
-        )}
-      </div>
+          ) : undefined
+        }
+      />
+
+      {record.overall_result && (
+        <div
+          role="status"
+          className={`mb-4 rounded-lg border px-4 py-3 text-sm font-medium ${
+            record.overall_result === "pass"
+              ? "border-success/40 bg-success-soft text-success"
+              : record.overall_result === "fail"
+                ? "border-danger/40 bg-danger-soft text-danger"
+                : "border-warning/40 bg-warning-soft text-warning"
+          }`}
+        >
+          <span aria-hidden="true" className="me-1.5">{record.overall_result === "pass" ? "✓" : record.overall_result === "fail" ? "✕" : "!"}</span>
+          {record.overall_result === "pass"
+            ? "Inspection passed — all items satisfactory."
+            : record.overall_result === "fail"
+              ? "Inspection failed — raise/close an NCR and re-inspect before release."
+              : "Conditional result — items marked N/A; confirm they genuinely do not apply before releasing."}
+        </div>
+      )}
+
+      <Card className="space-y-4">
+        <DescriptionList
+          columns={3}
+          items={[
+            { label: <T>Activity</T>, value: record.activity },
+            { label: <T>Project</T>, value: record.project_name },
+            { label: <T>ITP</T>, value: <span className="doc-id">{record.itp_number}</span> },
+            { label: <T>Date</T>, value: record.inspection_date },
+            {
+              label: <T>Location</T>,
+              hidden: !record.location,
+              value: record.location ? (
+                <>
+                  {formatLocationForDisplay(record.location)}
+                  {mapsUrl(record.location) && (
+                    <>
+                      {" "}
+                      <a href={mapsUrl(record.location)!} target="_blank" rel="noreferrer" className="text-xs text-brand hover:underline">
+                        <T>Open in maps</T>
+                      </a>
+                    </>
+                  )}
+                </>
+              ) : null,
+            },
+            { label: <T>Inspector</T>, value: record.users?.full_name ?? "—" },
+            { label: <T>Client</T>, value: record.client_name, hidden: !record.client_name },
+            { label: <T>Applicable standard</T>, value: record.applicable_standard, hidden: !record.applicable_standard },
+            {
+              label: <T>Governing drawing</T>,
+              hidden: !record.governing_drawing_reference,
+              value: (
+                <span className="doc-id">
+                  {record.governing_drawing_reference}
+                  {record.governing_drawing_revision ? ` (Rev ${record.governing_drawing_revision})` : ""}
+                </span>
+              ),
+            },
+          ]}
+        />
+        <div className="no-print border-t border-border pt-4">
+          <InspectionReportPdfButton inspectionRecordId={record.id} latest={latestReportPdf} completed={Boolean(record.overall_result)} signedAt={record.signed_at} />
+        </div>
+      </Card>
 
       {staleWarning && (
         <p className="mt-6 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
@@ -384,7 +369,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       )}
 
       {reviewSupported && record.overall_result && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-medium text-ink"><T>Review</T></h2>
             <Badge tone={reviewBadge.tone}>{reviewBadge.label}</Badge>
@@ -421,8 +406,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       )}
 
       {(record.overall_result === "fail" || record.overall_result === "partial" || (linkedNcrs ?? []).length > 0) && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink"><T>Non-conformance</T></h2>
+        <Section title={<T>Non-conformance</T>} className="mt-5">
           {(linkedNcrs ?? []).length > 0 ? (
             <ul className="mt-2 space-y-1">
               {(linkedNcrs ?? []).map((ncr) => (
@@ -454,10 +438,10 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </Link>
             </>
           )}
-        </div>
+        </Section>
       )}
 
-      <div className="mt-6 rounded-lg border border-border bg-surface">
+      <div className="mt-5 rounded-lg border border-border bg-surface shadow-xs">
         <div className="border-b border-border px-4 py-3">
           <h2 className="font-medium text-ink"><T>Responses</T></h2>
         </div>
@@ -516,22 +500,19 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       )}
 
       {record.notes && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink"><T>Notes</T></h2>
+        <Section title={<T>Notes</T>} className="mt-5">
           <p className="mt-1 text-sm text-muted">{record.notes}</p>
-        </div>
+        </Section>
       )}
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink"><T>Photo evidence</T></h2>
+      <Section title={<T>Photo evidence</T>} className="mt-5">
         <div className="mt-3">
           <PhotoGallery photos={photosWithUrls} />
         </div>
-      </div>
+      </Section>
 
       {record.inspector_signature && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <h2 className="text-sm font-medium text-ink"><T>Inspector signature</T></h2>
+        <Section title={<T>Inspector signature</T>} className="mt-5">
           {/* Captured as a canvas data URL — see components/domain/signature-pad.tsx. */}
           <div className="mt-2 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3">
             <img src={record.inspector_signature} alt="Inspector signature" className="h-28 w-auto" />
@@ -548,11 +529,10 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </div>
             </div>
           )}
-        </div>
+        </Section>
       )}
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="text-sm font-medium text-ink"><T>Inspection Release Note</T></h2>
+      <Section title={<T>Inspection Release Note</T>} className="mt-5">
         {irn ? (
           <div className="mt-2">
             <p className="text-sm text-ink">
@@ -587,8 +567,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
           <p className="mt-2 text-sm text-muted"><T>An IRN can be issued once the inspection has passed.</T></p>
         )}
         {voidedIrns.length > 0 && (
-          <details className="mt-4 border-t border-border pt-3">
-            <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-muted"><T>IRN history</T> ({voidedIrns.length})</summary>
+          <Disclosure variant="inline" summary={<><T>IRN history</T> ({voidedIrns.length})</>} className="mt-4 border-t border-border pt-3">
             <ul className="mt-2 space-y-1 text-sm">
               {voidedIrns.map((v) => (
                 <li key={v.id}>
@@ -599,24 +578,24 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 </li>
               ))}
             </ul>
-          </details>
+</Disclosure>
         )}
-      </div>
+      </Section>
 
       {!record.overall_result && (session.isJagsStaff || record.inspector_id === session.userId) && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <DiscardDraftForm inspectionRecordId={record.id} />
         </div>
       )}
 
       {session.isJagsStaff && record.overall_result && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <ReopenInspectionForm inspectionRecordId={record.id} />
         </div>
       )}
 
       {record.overall_result && canIssueIrn && !isAdminStaff(session) && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <RequestCorrectionForm inspectionRecordId={record.id} />
         </div>
       )}
@@ -624,8 +603,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       <CorrectionRequestsPanel requests={correctionViews} canResolve={session.isJagsStaff} />
 
       {responseHistory.length > 0 && (
-        <details className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
-          <summary className="cursor-pointer font-medium text-burgundy"><T>Answer changes (</T>{responseHistory.length})</summary>
+        <Disclosure variant="inline" summary={<><T>Answer changes (</T>{responseHistory.length})</>} className="mt-5 rounded-lg border border-border bg-surface p-4 text-sm">
           <p className="mt-2 text-xs text-muted"><T>Earlier answers, newest first.</T></p>
           <ul className="mt-2 divide-y divide-border">
             {[...historyByItem.entries()].map(([itemId, list]) => {
@@ -649,12 +627,11 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               );
             })}
           </ul>
-        </details>
+</Disclosure>
       )}
 
       {amendments.length > 0 && (
-        <details className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <summary className="cursor-pointer text-sm font-medium text-ink"><T>Amendment history</T> ({amendments.length})</summary>
+        <Disclosure variant="inline" summary={<><T>Amendment history</T> ({amendments.length})</>} className="mt-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <ul className="mt-2 divide-y divide-border text-sm">
             {amendments.map((a) => (
               <li key={a.id} className="py-2">
@@ -672,7 +649,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
               </li>
             ))}
           </ul>
-        </details>
+</Disclosure>
       )}
     </div>
   );
@@ -684,8 +661,7 @@ const PREV_TONE: Record<string, "success" | "danger" | "neutral"> = { yes: "succ
 function PreviousAnswers({ amendmentId, responses }: { amendmentId: string; responses: ReturnType<typeof parsePreviousResponses> }) {
   if (responses.length === 0) return null;
   return (
-    <details className="mt-2 text-xs">
-      <summary className="cursor-pointer font-medium text-burgundy"><T>Previous answers (</T>{responses.length})</summary>
+    <Disclosure variant="inline" summary={<><T>Previous answers (</T>{responses.length})</>} className="mt-2 text-xs">
       <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-off-white" aria-label={`Answers before re-open ${amendmentId}`}>
         {responses.map((r) => (
           <li key={r.checklist_item_id} className="px-3 py-2">
@@ -700,6 +676,6 @@ function PreviousAnswers({ amendmentId, responses }: { amendmentId: string; resp
           </li>
         ))}
       </ul>
-    </details>
+</Disclosure>
   );
 }

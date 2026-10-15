@@ -61,7 +61,7 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Intervention (sign-off) levels</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Intervention (sign-off) levels</T></Heading>
         <PageGuide
           title={tl("Intervention (sign-off) levels — how this works")}
           points={[
@@ -81,7 +81,7 @@ export async function InterventionLevelsSettingsView({ searchParams, embedded }:
       <OrgPickerForm organizations={organizations ?? []} selectedOrgId={selectedOrg?.id ?? null} />
 
       {selectedOrg && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <h2 className="text-sm font-semibold text-ink">{selectedOrg.name}<T>&rsquo;s levels</T></h2>
 
           <div className="mt-3 divide-y divide-border">

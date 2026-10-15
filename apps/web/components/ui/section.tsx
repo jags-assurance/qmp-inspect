@@ -1,5 +1,6 @@
 import type { ElementType, ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { Disclosure } from "@/components/ui/disclosure";
 
 /**
  * Card: the one surface container. White, 1px border, radius-lg, shadow-xs. `padded` adds the
@@ -64,16 +65,18 @@ export function Section({
   );
   if (collapsible) {
     return (
-      <details id={id} open={defaultOpen} className={cn("group rounded-lg border border-border bg-surface shadow-xs", className)}>
-        <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 px-4 py-3 sm:px-5 [&::-webkit-details-marker]:hidden">
-          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-muted transition-transform group-open:rotate-90 rtl:-scale-x-100 rtl:group-open:-rotate-90">
-            <path d="M7 4.5l5.5 5.5-5.5 5.5" />
-          </svg>
-          {heading}
-          {actions && <div className="ms-auto flex shrink-0 items-center gap-2">{actions}</div>}
-        </summary>
-        <div className={cn("border-t border-border", !flush && "p-4 sm:p-5", bodyClassName)}>{children}</div>
-      </details>
+      <Disclosure
+        variant="card"
+        id={id}
+        defaultOpen={defaultOpen}
+        className={className}
+        summary={heading}
+        summaryClassName="font-normal"
+        actions={actions}
+        bodyClassName={cn("border-t border-border", !flush && "p-4 sm:p-5", bodyClassName)}
+      >
+        {children}
+      </Disclosure>
     );
   }
   return (

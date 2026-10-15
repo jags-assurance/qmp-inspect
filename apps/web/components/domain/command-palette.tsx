@@ -123,14 +123,14 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         aria-label={tl("Search pages and records (Ctrl+K)")}
-        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink sm:flex lg:w-56 xl:w-72 [@media(pointer:coarse)]:h-11"
+        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-control-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink sm:flex lg:w-56 xl:w-72 [@media(pointer:coarse)]:h-11"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
         <span className="min-w-0 flex-1 truncate text-start"><Tx>Search…</Tx></span>
-        <kbd className="hidden rounded border border-border px-1.5 text-xs text-muted [@media(pointer:coarse)]:hidden lg:inline"><Tx>Ctrl K</Tx></kbd>
+        <kbd className="hidden rounded-sm border border-border px-1.5 text-xs text-muted [@media(pointer:coarse)]:hidden lg:inline"><Tx>Ctrl K</Tx></kbd>
       </button>
 
       <button
@@ -174,9 +174,9 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
                   aria-selected={i === active}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => go(r)}
-                  className={"cursor-pointer px-4 py-2 text-sm " + (i === active ? "bg-off-white text-burgundy" : "text-ink")}
+                  className={"cursor-pointer px-4 py-2.5 text-sm " + (i === active ? "bg-surface-subtle text-burgundy" : "text-ink")}
                 >
-                  {r.path}
+                  <span className="block truncate" title={r.path}>{r.path}</span>
                 </li>
               ))}
               {results.length === 0 && <li className="px-4 py-3 text-sm text-muted">{searching ? "Searching…" : "No matching page or record."}</li>}

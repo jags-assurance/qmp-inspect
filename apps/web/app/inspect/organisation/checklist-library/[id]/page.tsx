@@ -59,7 +59,7 @@ export default async function ChecklistLibraryTemplateDetailPage({ params }: { p
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]">{template.title}</h1>
             <PageGuide
               title={tl("Checklist / Form Template — how this works")}
               points={[

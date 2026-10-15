@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ViewHeader } from "@/components/domain/view-header";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -468,17 +469,13 @@ export async function ActivityView({
   // Staff-only: open correction requests (site-execution M7) with a link to each inspection.
   const openCorrections = (await requireSession()).isJagsStaff ? await listOpenCorrectionRequestsForProject(supabase, projectId) : [];
 
-  const Heading = embedded ? "h2" : "h1";
   return (
     <div>
-      {!embedded && (
-        <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          <T>← Back to Project</T>
-        </Link>
-      )}
-      <div className="mt-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Heading className="doc-id text-2xl font-semibold text-ink">{embedded ? "Activity" : `${project.project_number} — Activity`}</Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/projects/${projectId}`}
+        title={<>{embedded ? "Activity" : `${project.project_number} — Activity`}</>}
+        guide={
           <PageGuide
             title={tl("Activity — how this works")}
             points={[
@@ -488,10 +485,10 @@ export async function ActivityView({
               "Capped to the most recent 80 events across all sources, newest first.",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name} · {project.name}<T>. Everything recorded on this project, newest first.</T>
-        </p>
+        }
+        subtitle={<>{project.organizations?.name} · {project.name}<T>. Everything recorded on this project, newest first.</T></>}
+      />
+      <div>
         {openCorrections.length > 0 && (
           <div className="mt-3 rounded-md border border-border bg-surface p-3 text-sm">
             <p className="font-medium text-ink"><T>Correction requests</T> ({openCorrections.length})</p>

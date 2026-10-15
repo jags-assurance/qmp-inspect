@@ -16,7 +16,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
 
   return (
     <>
-      <h2 className="text-2xl font-semibold text-ink"><Tx>Set a new password</Tx></h2>
+      <h1 className="text-2xl font-semibold text-ink"><Tx>Set a new password</Tx></h1>
       <p className="mt-1 text-sm text-muted">
         {isForced
           ? "For security, you need to set your own password before continuing — you're currently signed in with a temporary one."
@@ -46,7 +46,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
         </p>
         <FormMessage error={state.error} />
 
-        <Button type="submit" disabled={pending} className="w-full">
+        <Button type="submit" size="lg" disabled={pending} className="w-full">
           {pending ? "Updating…" : "Update password"}
         </Button>
       </form>

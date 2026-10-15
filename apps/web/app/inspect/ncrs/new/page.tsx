@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
 import { NewNcrForm } from "./new-ncr-form";
+import { PageHeader } from "@/components/ui/page-header";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -117,13 +118,13 @@ export default async function NewNcrPage({
   }
 
   return (
-    <div className="max-w-xl">
-      <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
-        <T>← Back to NCR Register</T>
-      </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Raise NCR / Observation</T></h1>
-        <PageGuide
+    <div className="max-w-2xl">
+      <PageHeader
+        backHref="/inspect/ncrs"
+        backLabel="Back to NCR Register"
+        title={<T>Raise NCR / Observation</T>}
+        guide={
+          <PageGuide
           title={tl("Raise NCR / Observation — how this works")}
           points={[
             "One form, one engine, for both — picking severity \"Observation\" instead of minor/major NCR is what routes it to the Observation Register instead of the NCR Register.",
@@ -133,9 +134,10 @@ export default async function NewNcrPage({
             "Reaching this page from a failed inspection record pre-fills the project, ITP item and description and links the two records — closing the resulting NCR will prompt the original inspector to re-inspect.",
           ]}
         />
-      </div>
+        }
+      />
       {params.inspection_record_id && (
-        <p className="mt-2 rounded-md border border-border bg-off-white px-3 py-2 text-xs text-muted">
+        <p className="mb-4 rounded-md border border-border bg-surface-subtle px-3 py-2 text-xs text-muted">
           <T>Linked to an inspection record; closing notifies the inspector to re-inspect.</T>
         </p>
       )}

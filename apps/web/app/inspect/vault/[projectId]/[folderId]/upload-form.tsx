@@ -7,8 +7,9 @@ import { uploadWithResume } from "@/lib/storage/upload-client";
 import { VAULT_DEFAULT_UPLOAD_MB, vaultFileTooLargeMessage } from "@/lib/vault/limits";
 import { uploadVaultDocumentAction } from "@/lib/vault/actions";
 import { checkVaultDuplicatesAction, type VaultDuplicateMatch } from "@/lib/vault/document-control-actions";
-import { Button } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -268,11 +269,11 @@ export function VaultUploadForm({
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
-        className={`rounded-md border-2 border-dashed p-4 text-center ${dragOver ? "border-burgundy bg-off-white" : "border-border"}`}
+        className={`rounded-lg p-0 text-center md:border-2 md:border-dashed md:p-6 ${dragOver ? "md:border-burgundy md:bg-brand-soft" : "md:border-control-border"}`}
       >
-        <p className="text-sm text-ink">{prefill ? "Drop the new file here" : "Drag and drop files here"}</p>
-        <p className="mt-0.5 text-xs text-muted"><Tx>or</Tx></p>
-        <label htmlFor="file" className="mt-1 inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white">
+        <p className="hidden text-sm text-ink md:block">{prefill ? "Drop the new file here" : "Drag and drop files here"}</p>
+        <p className="mt-0.5 hidden text-xs text-muted md:block"><Tx>or</Tx></p>
+        <label htmlFor="file" className={buttonVariants({ variant: "outline", size: "lg", className: "mt-1 w-full cursor-pointer md:w-auto focus-within:outline" })}>
           <Tx>Choose file</Tx>{prefill ? "" : "s"}
         </label>
         <input
@@ -466,7 +467,8 @@ export function VaultUploadForm({
       )}
 
       {!duplicates && (
-        <Button type="submit" disabled={uploading || rows.length === 0}>
+        <StickyActionBar>
+        <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={uploading || rows.length === 0}>
           {uploading
             ? `Uploading ${doneCount}/${rows.length}…`
             : prefill
@@ -475,6 +477,7 @@ export function VaultUploadForm({
                 ? `Upload ${rows.length} files`
                 : "Upload"}
         </Button>
+        </StickyActionBar>
       )}
     </form>
   );

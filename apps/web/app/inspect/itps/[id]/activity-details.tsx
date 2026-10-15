@@ -1,4 +1,5 @@
 import { Tx } from "@/components/domain/tx";
+import { Disclosure } from "@/components/ui/disclosure";
 
 /**
  * The long text of an ITP activity (acceptance criteria, reference, method, frequency) behind one small
@@ -25,11 +26,7 @@ export function ActivityDetails({
   const filled = rows.filter(([, v]) => v.trim());
   if (filled.length === 0) return null;
   return (
-    <details className="group mt-1">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-        <Tx>Details</Tx>
-      </summary>
+    <Disclosure variant="pill" summary={<><Tx>Details</Tx></>} className="mt-1">
       <dl className="mt-1.5 max-w-prose space-y-1 text-xs text-muted">
         {filled.map(([label, value]) => (
           <div key={label}>
@@ -38,6 +35,6 @@ export function ActivityDetails({
           </div>
         ))}
       </dl>
-    </details>
+</Disclosure>
   );
 }

@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -80,7 +81,7 @@ export function RecordWalkdownForm({
       key={resetKey}
       action={submit}
       encType="multipart/form-data"
-      className="w-full rounded-lg border border-border bg-off-white p-4"
+      className="w-full rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5"
     >
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="request_id" value={requestId} />
@@ -122,8 +123,8 @@ export function RecordWalkdownForm({
 
       <div className="mt-4 space-y-3">
         {rowIds.map((rowId, index) => (
-          <div key={rowId} className="flex flex-wrap items-end gap-3 rounded-md border border-border bg-surface p-3">
-            <div className="w-full sm:min-w-56 flex-1">
+          <div key={rowId} className="grid grid-cols-1 items-end gap-3 rounded-md border border-border bg-surface-subtle p-3 md:grid-cols-2">
+            <div className="min-w-0 md:col-span-2">
               <label htmlFor={`walkdown-description-${rowId}`} className="block text-xs font-medium text-ink">
                 <Tx>Item found</Tx>
               </label>
@@ -135,7 +136,7 @@ export function RecordWalkdownForm({
               />
             </div>
 
-            <div className="w-full sm:w-40">
+            <div className="min-w-0">
               <label htmlFor={`walkdown-location-${rowId}`} className="block text-xs font-medium text-ink">
                 <Tx>Location / ITP area</Tx>
               </label>
@@ -146,7 +147,7 @@ export function RecordWalkdownForm({
               />
             </div>
 
-            <div className="w-full sm:w-48">
+            <div className="min-w-0">
               <label htmlFor={`walkdown-party-${rowId}`} className="block text-xs font-medium text-ink">
                 <Tx>Responsible party</Tx>
               </label>
@@ -166,7 +167,7 @@ export function RecordWalkdownForm({
             </div>
 
             <input type="hidden" name="row_key" value={rowId} />
-            <div className="w-full sm:w-28">
+            <div className="min-w-0">
               <label htmlFor={`walkdown-priority-${rowId}`} className="block text-xs font-medium text-ink">
                 <Tx>Priority</Tx>
               </label>
@@ -182,7 +183,7 @@ export function RecordWalkdownForm({
               </select>
             </div>
 
-            <div className="w-full sm:w-52">
+            <div className="min-w-0">
               <label htmlFor={`walkdown-photo-${rowId}`} className="block text-xs font-medium text-ink">
                 <Tx>Photo</Tx>
               </label>
@@ -197,7 +198,7 @@ export function RecordWalkdownForm({
               />
             </div>
 
-            <div className="w-full sm:w-36">
+            <div className="min-w-0">
               <label htmlFor={`walkdown-due-${rowId}`} className="block text-xs font-medium text-ink">
                 <Tx>Due date</Tx>
               </label>
@@ -223,15 +224,6 @@ export function RecordWalkdownForm({
         ))}
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <Button type="button" onClick={addRow} variant="link">
-          <Tx>+ Add another item</Tx>
-        </Button>
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? "Recording…" : "Record walk-down"}
-        </Button>
-      </div>
-
       {photoError && <p role="alert" className="mt-2 text-sm text-danger">{photoError}</p>}
       {state.error && <p role="alert" className="mt-2 text-sm text-danger">{state.error}</p>}
       {!pending && !state.error && state.addedCount ? (
@@ -239,6 +231,14 @@ export function RecordWalkdownForm({
           <Tx>Recorded</Tx> {state.addedCount} <Tx>item</Tx>{state.addedCount === 1 ? "" : "s"} <Tx>from the walk-down.</Tx>
         </p>
       ) : null}
+      <StickyActionBar className="mt-3 md:mt-3">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Recording…" : "Record walk-down"}
+        </Button>
+        <Button type="button" onClick={addRow} variant="outline">
+          <Tx>+ Add another item</Tx>
+        </Button>
+      </StickyActionBar>
     </form>
   );
 }

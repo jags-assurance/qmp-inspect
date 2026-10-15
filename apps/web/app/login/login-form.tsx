@@ -9,7 +9,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { SiteLinks } from "@/components/domain/site-links";
-import { Tx } from "@/components/domain/tx";
+import { AuthShell } from "@/components/domain/auth-shell";
 
 const initialState: SignInState = { error: null };
 
@@ -18,18 +18,8 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
   const t = useTranslate();
 
   return (
-    <div className="flex min-h-screen">
-      <div className="hidden w-1/2 flex-col justify-center bg-burgundy px-16 text-white md:flex">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-gold text-lg font-semibold">
-          <Tx>JA</Tx>
-        </div>
-        <h1 className="mt-8 text-3xl font-semibold"><Tx>JAGS Assurance</Tx></h1>
-        <p className="mt-3 max-w-sm text-white/80">
-          {t("Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.")}
-        </p>
-      </div>
-      <div className="flex w-full flex-col justify-center px-8 md:w-1/2 md:px-20">
-        <h2 className="text-2xl font-semibold text-ink">{t("Sign in")}</h2>
+    <AuthShell>
+        <h1 className="text-2xl font-semibold text-ink">{t("Sign in")}</h1>
         <p className="mt-1 text-sm text-muted">{t("Use your JAGS Assurance account credentials.")}</p>
 
         <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
@@ -43,7 +33,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
               autoComplete="email"
               autoFocus
               aria-invalid={state.error ? true : undefined}
-              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
+              className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 aria-[invalid=true]:border-danger sm:text-sm"
             />
             </FormField>
           </div>
@@ -52,7 +42,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
               <label htmlFor="password" className="block text-sm font-medium text-ink">
                 {t("Password")}
               </label>
-              <Link href="/forgot-password" className="text-xs font-medium text-burgundy hover:underline">
+              <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline">
                 {t("Forgot password?")}
               </Link>
             </div>
@@ -66,12 +56,11 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
             suffix={state.error ? t("If you keep having trouble, use Forgot password or contact your administrator.") : undefined}
           />
 
-          <Button type="submit" disabled={pending} className="w-full">
+          <Button type="submit" size="lg" disabled={pending} className="w-full">
             {pending ? t("Signing in…") : t("Sign in")}
           </Button>
         </form>
-        <SiteLinks signedIn={false} className="mt-8" />
-      </div>
-    </div>
+        <SiteLinks signedIn={false} className="mt-6" />
+    </AuthShell>
   );
 }

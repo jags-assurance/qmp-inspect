@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: IssueIrnState = { error: null };
 
@@ -28,8 +29,7 @@ export function VoidIrnForm({ irnId }: { irnId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(voidIrnAction, initialState);
   return (
-    <details className="mt-3 text-sm">
-      <summary className="cursor-pointer text-danger"><Tx>Void this IRN…</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Void this IRN…</Tx></>} className="mt-3 text-sm">
       <form action={formAction} className="mt-2 space-y-2">
         <input type="hidden" name="irn_id" value={irnId} />
         <textarea
@@ -45,6 +45,6 @@ export function VoidIrnForm({ irnId }: { irnId: string }) {
         </Button>
         {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       </form>
-    </details>
+</Disclosure>
   );
 }

@@ -45,17 +45,17 @@ export function PasswordField({
           aria-describedby={error ? `${id}-err` : undefined}
           value={value}
           onChange={onChange ? (e) => onChange(e.target.value) : undefined}
-          className="w-full rounded-md border border-border bg-surface ps-3 pe-10 py-2 text-sm outline-none focus:border-burgundy"
+          className="min-h-11 w-full rounded-md border border-border bg-surface ps-3 pe-12 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 aria-[invalid=true]:border-danger sm:text-sm"
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? t("Hide password") : t("Show password")}
           aria-pressed={visible}
-          className="absolute end-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+          className="absolute end-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-md text-muted hover:text-ink"
         >
           {visible ? (
-            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
               <path
                 d="M2.5 10.5C4 6.5 7 4.5 10 4.5s6 2 7.5 6c-1.5 4-4.5 6-7.5 6s-6-2-7.5-6z"
                 stroke="currentColor"

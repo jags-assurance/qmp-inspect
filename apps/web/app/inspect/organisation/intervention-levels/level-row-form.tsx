@@ -24,7 +24,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
 
   return (
     <div className="py-3">
-      <form action={formAction} className="grid grid-cols-2 items-end gap-2 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
+      <form action={formAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
         <input type="hidden" name="id" value={level.id} />
         <div>
           <label className="block text-xs text-muted"><Tx>Code</Tx></label>
@@ -50,7 +50,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
           />
           </FormField>
         </div>
-        <label className="flex items-center gap-1.5 pb-2 text-xs text-muted">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
           <input type="checkbox" name="is_blocking" defaultChecked={level.is_blocking} />
           <Tx>Blocking</Tx>
         </label>

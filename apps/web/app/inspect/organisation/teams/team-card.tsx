@@ -50,7 +50,7 @@ export function TeamCard({
   const availableProjects = projects.filter((p) => !assignedIds.has(p.id));
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="font-medium text-ink">{team.name}</h2>

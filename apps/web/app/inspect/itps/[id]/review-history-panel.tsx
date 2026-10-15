@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { T } from "@/components/domain/t";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface HistoryRow {
   review_round: number;
@@ -37,8 +38,7 @@ export async function ReviewHistoryPanel({ itpId }: { itpId: string }) {
   for (const row of data) rounds.set(row.review_round, [...(rounds.get(row.review_round) ?? []), row]);
 
   return (
-    <details className="group mt-4">
-      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Earlier review rounds</T></summary>
+    <Disclosure variant="pill" summary={<><T>Earlier review rounds</T></>} className="mt-4">
       <ul className="mt-2 space-y-2">
         {[...rounds.entries()].map(([round, rows]) => (
           <li key={round}>
@@ -64,6 +64,6 @@ export async function ReviewHistoryPanel({ itpId }: { itpId: string }) {
           </li>
         ))}
       </ul>
-    </details>
+</Disclosure>
   );
 }

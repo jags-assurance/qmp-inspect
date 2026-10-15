@@ -6,7 +6,6 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSelfManagedOrgIdsForUser } from "@/lib/rbac/access";
 import { Badge } from "@/components/ui/badge";
-import { StatCard } from "@/components/ui/stat-card";
 import { PUNCH_LIST_ITEMS_TABLE } from "@/lib/punch-list/types";
 import { OrgBrandScope } from "@/components/domain/org-brand-scope";
 import { AddProjectPartyForm } from "./add-project-party-form";
@@ -30,6 +29,8 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { AskProjectPanel } from "./ask-project-panel";
 import { ReviewChainForm } from "./review-chain-form";
 import { getProjectReviewChain } from "@/lib/itps/review-chain";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
 import { PageGuide } from "@/components/domain/page-guide";
 import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { EditProjectDetailsForm } from "./edit-project-details-form";
@@ -44,6 +45,7 @@ import { getLocationPresetsForProject } from "@/lib/checklists/location-presets"
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -325,12 +327,13 @@ export async function ProjectOverviewView({
       }}
     >
     <div>
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="doc-id text-sm text-muted">{project.project_number}</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink">{project.name}</h1>
-            <PageGuide
+      <PageHeader
+        backHref="/inspect/projects"
+        backLabel="Back to Projects"
+        className="mb-4 sm:mb-4"
+        title={<span className="[overflow-wrap:anywhere]">{project.name}</span>}
+        guide={
+          <PageGuide
               title={tl("Project hub — how this works")}
               points={[
                 "The entry point into everything scoped to this project — ITPs, NCRs, registers, punch list, data book, reports, and every party engaged on it.",
@@ -343,20 +346,33 @@ export async function ProjectOverviewView({
                 "\"Deactivate all parties\" only unlocks once the project's status is completed or cancelled, so it can't be fired by mistake on a live project — and even then it's its own separate click, never automatic on the status change itself.",
               ]}
             />
-          </div>
-          <p className="mt-1 text-sm text-muted">
+        }
+        subtitle={
+          <>
+            <span className="doc-id">{project.project_number}</span>
+            {" · "}
             {project.organizations?.name ?? "—"}
             {project.site_location && ` · ${project.site_location}`}
             {project.country && `, ${project.country}`}
-          </p>
-          {(project.contract_number || project.start_date || project.end_date) && (
-            <p className="mt-0.5 text-xs text-muted">
+          </>
+        }
+        badges={isAdminStaff(session) ? undefined : <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>}
+        meta={
+          (project.contract_number || project.start_date || project.end_date) ? (
+            <span className="text-xs">
               {project.contract_number && `Contract ${project.contract_number}`}
               {project.contract_number && (project.start_date || project.end_date) && " · "}
               {(project.start_date || project.end_date) && `${project.start_date ?? "?"} to ${project.end_date ?? "?"}`}
-            </p>
-          )}
-          {(isAdminStaff(session) || canAddSelfManagedParty) && (
+            </span>
+          ) : undefined
+        }
+        primaryAction={
+          isAdminStaff(session) ? (
+            <ProjectStatusControl projectId={project.id} status={project.status} openNcrs={openNcrCount ?? 0} openPunch={openPunchAnyCount ?? 0} />
+          ) : undefined
+        }
+      />
+      {(isAdminStaff(session) || canAddSelfManagedParty) && (
             <EditProjectDetailsForm
               project={{
                 id: project.id,
@@ -371,15 +387,8 @@ export async function ProjectOverviewView({
               }}
             />
           )}
-        </div>
-        {isAdminStaff(session) ? (
-          <ProjectStatusControl projectId={project.id} status={project.status} openNcrs={openNcrCount ?? 0} openPunch={openPunchAnyCount ?? 0} />
-        ) : (
-          <Badge tone={STATUS_TONE[project.status] ?? "neutral"}>{project.status.replace("_", " ")}</Badge>
-        )}
-      </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-off-white px-3 py-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface px-4 py-3 shadow-xs">
         <span className="text-sm font-medium text-ink"><T>Responsible Person:</T></span>
         {project.responsible_person ? (
           <span className="text-sm text-ink">
@@ -401,12 +410,12 @@ export async function ProjectOverviewView({
         />
       )}
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="ITPs" value={itpCount ?? 0} href={`/inspect/projects/${project.id}?tab=itps`} />
-        <StatCard label="Pending inspections" value={pendingInspectionCount ?? 0} href={`/inspect/inspections?project=${project.id}`} />
-        <StatCard label="Open NCRs" value={openNcrCount ?? 0} href={`/inspect/projects/${project.id}?tab=ncrs`} />
-        <StatCard label="Open punch items" value={openPunchCount ?? 0} href={`/inspect/projects/${project.id}?tab=punch-list`} />
-      </div>
+      <StatGrid max={4} className="mt-5">
+        <StatTile label="ITPs" value={itpCount ?? 0} href={`/inspect/projects/${project.id}?tab=itps`} />
+        <StatTile label="Pending inspections" value={pendingInspectionCount ?? 0} href={`/inspect/inspections?project=${project.id}`} />
+        <StatTile label="Open NCRs" value={openNcrCount ?? 0} href={`/inspect/projects/${project.id}?tab=ncrs`} />
+        <StatTile label="Open punch items" value={openPunchCount ?? 0} href={`/inspect/projects/${project.id}?tab=punch-list`} />
+      </StatGrid>
       {openObservationCount > 0 && (
         <p className="mt-2 text-sm text-muted">
           <Link href="/inspect/observations" className="text-burgundy hover:underline">
@@ -425,7 +434,7 @@ export async function ProjectOverviewView({
           )}
         </p>
       )}
-      <nav aria-label={tl("Other modules")} className="mt-3 flex flex-wrap gap-2 text-sm">
+      <nav aria-label={tl("Other modules")} className="no-print mt-4 flex flex-wrap gap-2 text-sm">
         <Link className={buttonVariants({ variant: "outline" })} href={`/inspect/start-work?project=${project.id}`}><T>Start work</T></Link>
         <Link className={buttonVariants({ variant: "outline" })} href={`/inspect/inspections?project=${project.id}`}><T>Inspections</T></Link>
         <Link className={buttonVariants({ variant: "outline" })} href={`/inspect/vault?project=${project.id}`}><T>Vault</T></Link>
@@ -437,7 +446,7 @@ export async function ProjectOverviewView({
 
       {(await isAiEnabledForOrg(supabase, project.organization_id)) && <AskProjectPanel projectId={project.id} />}
 
-      <div className="mt-8 rounded-lg border border-border bg-surface p-5">
+      <div className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-medium text-ink"><T>Project parties</T></h2>
@@ -530,11 +539,7 @@ export async function ProjectOverviewView({
       </div>
 
       {(isAdminStaff(session) || canAddSelfManagedParty) && (
-        <details className="group mt-8 rounded-lg border border-border bg-surface px-5 py-3">
-          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
-            <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-            <T>Project settings</T>
-          </summary>
+        <Disclosure variant="inline" summary={<><T>Project settings</T></>} className="mt-8 rounded-lg border border-border bg-surface px-5 py-3">
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Checklist execution settings</T></h2>
@@ -636,8 +641,7 @@ export async function ProjectOverviewView({
           />
         </div>
       )}
-
-        </details>
+</Disclosure>
       )}
 
       {isAdminStaff(session) && (

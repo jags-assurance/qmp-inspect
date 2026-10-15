@@ -223,7 +223,7 @@ export async function DoneActivitiesPanel({
           <a
             key={t.key}
             href={tabHref(t.key)}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+            className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-semibold ${
               tab === t.key ? "border-burgundy bg-burgundy text-white" : "border-border text-muted hover:text-ink"
             }`}
           >
@@ -238,7 +238,7 @@ export async function DoneActivitiesPanel({
             <input type="hidden" name="done" value="activities" />
             <label className="flex flex-col text-xs text-muted">
               <T>ITP</T>
-              <select name="itp" defaultValue={itp ?? ""} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink">
+              <select name="itp" defaultValue={itp ?? ""} className="mt-1 rounded-md border border-border bg-surface px-3 py-2 text-base text-ink sm:text-sm [@media(pointer:coarse)]:min-h-11">
                 <option value=""><T>All ITPs</T></option>
                 {itpOptions.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -249,7 +249,7 @@ export async function DoneActivitiesPanel({
             </label>
             <label className="flex flex-col text-xs text-muted">
               <T>Discipline</T>
-              <select name="disc" defaultValue={disc ?? ""} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink">
+              <select name="disc" defaultValue={disc ?? ""} className="mt-1 rounded-md border border-border bg-surface px-3 py-2 text-base text-ink sm:text-sm [@media(pointer:coarse)]:min-h-11">
                 <option value=""><T>All</T></option>
                 {discOptions.map((d) => (
                   <option key={d} value={d}>
@@ -260,7 +260,7 @@ export async function DoneActivitiesPanel({
             </label>
             <label className="flex flex-col text-xs text-muted">
               <T>Status</T>
-              <select name="status" defaultValue={status ?? ""} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm text-ink">
+              <select name="status" defaultValue={status ?? ""} className="mt-1 rounded-md border border-border bg-surface px-3 py-2 text-base text-ink sm:text-sm [@media(pointer:coarse)]:min-h-11">
                 <option value=""><T>All</T></option>
                 {(Object.keys(STATUS_META) as ActStatus[]).map((s) => (
                   <option key={s} value={s}>
@@ -269,11 +269,11 @@ export async function DoneActivitiesPanel({
                 ))}
               </select>
             </label>
-            <Button type="submit" size="sm">
+            <Button type="submit" size="md">
               <T>Apply</T>
             </Button>
             {(itp || disc || status) && (
-              <a href={tabHref("activities")} className="py-1.5 text-sm text-burgundy hover:underline">
+              <a href={tabHref("activities")} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
                 <T>Clear</T>
               </a>
             )}

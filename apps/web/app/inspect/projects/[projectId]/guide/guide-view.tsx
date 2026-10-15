@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { ViewHeader } from "@/components/domain/view-header";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
-import { MoreDetails } from "../../more-details";
+import { Disclosure } from "@/components/ui/disclosure";
 import { buttonVariants } from "@/components/ui/button";
 
 const PARTY_TYPE_LABEL: Record<string, string> = {
@@ -63,7 +64,7 @@ function PipelineBar({ segments }: { segments: { label: string; count: number; c
           ) : null
         )}
       </div>
-      <MoreDetails label="Legend">
+      <Disclosure variant="pill" summary="Legend" className="mt-2">
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
           {segments.map((s) => (
             <span key={s.label} className="inline-flex items-center gap-1.5">
@@ -72,7 +73,7 @@ function PipelineBar({ segments }: { segments: { label: string; count: number; c
             </span>
           ))}
         </div>
-      </MoreDetails>
+      </Disclosure>
     </div>
   );
 }
@@ -221,24 +222,14 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
     danger: "border-danger/40 bg-danger/10 text-danger",
   };
 
-  const Heading = embedded ? "h2" : "h1";
   return (
-    <div className={embedded ? "" : "max-w-4xl"}>
-      {!embedded && (
-        <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          ← Back to Project
-        </Link>
-      )}
-
-      <div className="mt-3 rounded-xl border border-border bg-gradient-to-br from-burgundy/5 to-transparent p-6">
-        <p className="text-xs font-semibold uppercase tracking-wide text-burgundy">Project Guide</p>
-        <Heading className="mt-1 text-2xl font-semibold text-ink">
-          {project.project_number} <span className="font-normal text-muted">— {project.name}</span>
-        </Heading>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-Who is on this project and where it stands.
-        </p>
-      </div>
+    <div className={embedded ? "" : "max-w-5xl"}>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/projects/${projectId}`}
+        title={<>Project Guide <span className="font-normal text-muted">· {project.project_number}</span></>}
+        subtitle={<>{project.name}. Who is on this project and where it stands.</>}
+      />
 
       <section className={`mt-4 rounded-lg border p-4 ${PHASE_TONE_CLASS[phase.tone]}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -346,7 +337,7 @@ Who is on this project and where it stands.
                   {!p.is_active && <Badge tone="neutral">Inactive</Badge>}
                 </div>
                 {PARTY_TYPE_RESPONSIBILITY[p.party_type] && (
-                  <MoreDetails label="Role">{PARTY_TYPE_RESPONSIBILITY[p.party_type]}</MoreDetails>
+                  <Disclosure variant="pill" summary="Role" className="mt-1">{PARTY_TYPE_RESPONSIBILITY[p.party_type]}</Disclosure>
                 )}
               </div>
             </div>

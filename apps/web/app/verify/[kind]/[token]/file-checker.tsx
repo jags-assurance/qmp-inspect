@@ -39,10 +39,10 @@ export function FileChecker({ known }: { known: KnownHashes }) {
   }
 
   return (
-    <section className="mt-4 rounded-lg border border-border bg-surface p-4">
+    <section className="mt-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <h2 className="text-sm font-semibold text-ink"><Tx>Check a file you hold</Tx></h2>
       <p className="mt-1 text-xs text-muted"><Tx>Choose your copy of the PDF. Its fingerprint is worked out on your device; the file is not uploaded.</Tx></p>
-      <input type="file" onChange={onChange} aria-label={tl("File to check")} className="mt-3 block w-full text-sm text-ink" />
+      <input type="file" onChange={onChange} aria-label={tl("File to check")} className="mt-3 block min-h-11 w-full text-sm text-ink file:me-3 file:min-h-10 file:rounded-md file:border file:border-control-border file:bg-surface file:px-3 file:text-sm file:font-medium" />
       <div aria-live="polite" className="mt-3 text-sm">
         {outcome.state === "working" && <p className="text-muted"><Tx>Checking…</Tx></p>}
         {outcome.state === "error" && <p className="text-danger">{outcome.message}</p>}

@@ -1,3 +1,5 @@
+import { buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { MoreDetails } from "@/components/domain/more-details";
 import { T } from "@/components/domain/t";
@@ -167,9 +169,11 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
   return (
     <div className="max-w-3xl">
       <RealtimeRefresh table="handover_certificates" />
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Handover Portal</T></h1>
-        <PageGuide
+      <PageHeader
+        title={<T>Handover Portal</T>}
+        subtitle={<T>Issued Data Books and handover certificates.</T>}
+        guide={
+          <PageGuide
           title={tl("Handover Portal — how this works")}
           points={[
             "Each card is a certificate for a compiled Data Book that's been issued to your organisation — you only ever see certificates for your own org's projects.",
@@ -180,17 +184,15 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
             "Download links are valid for 10 minutes; reload the page for a fresh one. Times are shown in UTC.",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Issued Data Books and handover certificates.</T>
-      </p>
+        }
+      />
 
-      <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
+      <form method="get" className="flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="handover_status" className="block text-xs font-medium text-ink">
             <T>Status</T>
           </label>
-          <select id="handover_status" name="status" defaultValue={statusFilter} className="mt-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm">
+          <select id="handover_status" name="status" defaultValue={statusFilter} className="mt-1 min-h-11 rounded-md border border-border bg-surface px-3 text-base sm:text-sm">
             <option value="all"><T>All</T></option>
             <option value="awaiting"><T>Awaiting acknowledgement</T></option>
             <option value="acknowledged"><T>Acknowledged</T></option>
@@ -200,14 +202,14 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
           <label htmlFor="handover_q" className="block text-xs font-medium text-ink">
             <T>Certificate number</T>
           </label>
-          <input id="handover_q" name="q" defaultValue={q} className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm" />
+          <input id="handover_q" name="q" defaultValue={q} className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 text-base sm:w-48 sm:text-sm" />
         </div>
-        <Button type="submit" variant="outline" size="sm">
+        <Button type="submit" variant="outline">
           <T>Filter</T>
         </Button>
       </form>
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-6 space-y-4 lg:space-y-5">
         {certificatesShown.map((cert) => {
           const pdfInfo = certPdfInfo.get(cert.data_book_id);
           // The certificate PDF is a snapshot: after an acknowledgement a render that predates it is stale.
@@ -217,13 +219,13 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
           return (
             // Certificate-card layout, echoing the inspection record header band for a consistent
             // "official document" feel across the app.
-            <div key={cert.id} className="overflow-hidden rounded-lg border border-border bg-surface">
+            <div key={cert.id} className="overflow-hidden rounded-lg border border-border bg-surface shadow-xs">
               <div className="flex flex-wrap items-start justify-between gap-4 bg-burgundy px-5 py-4 text-white">
                 <div>
                   <p className="text-xs uppercase tracking-wide text-white/70"><T>Handover Certificate</T></p>
                   <h2 className="doc-id text-xl font-semibold">{cert.certificate_number}</h2>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {cert.superseded_at && <Badge tone="neutral"><T>Superseded</T></Badge>}
                   {cert.rejected_at && <Badge tone="danger"><T>Rejected</T></Badge>}
                   {cert.is_conditional && <Badge tone="warning"><T>Conditional</T></Badge>}
@@ -276,7 +278,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                 <div className="mt-2 text-sm">
                   {pdfInfo?.url ? (
                     <span className="inline-flex flex-wrap items-center gap-3">
-                      <a href={pdfInfo.url} target="_blank" rel="noreferrer" className="font-medium text-burgundy hover:underline">
+                      <a href={pdfInfo.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline" })}>
                         <T>Handover certificate (PDF) →</T>
                       </a>
                       {pdfInfo.createdAt && <span className="text-xs text-muted"><T>as of</T> {formatUtcDateTime(pdfInfo.createdAt)}</span>}
@@ -292,7 +294,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                 {packageLinks.has(cert.id) ? (
                   <>
                     <p className="mt-2 text-sm">
-                      <a href={packageLinks.get(cert.id)} className="font-medium text-burgundy hover:underline">
+                      <a href={packageLinks.get(cert.id)} className={buttonVariants({ variant: "primary" })}>
                         <T>Download handover package →</T>
                       </a>
                     </p>
@@ -392,7 +394,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
         })}
 
         {certificatesShown.length === 0 && (
-          <p className="text-sm text-muted">{q || statusFilter !== "all" ? "No certificates match these filters." : "No handover packages have been issued yet."}</p>
+          <p className="rounded-lg border border-border bg-surface p-6 text-center text-sm text-muted">{q || statusFilter !== "all" ? "No certificates match these filters." : "No handover packages have been issued yet."}</p>
         )}
       </div>
 

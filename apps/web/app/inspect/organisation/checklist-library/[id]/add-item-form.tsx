@@ -14,7 +14,7 @@ export function AddItemForm({ templateId }: { templateId: string }) {
   const [state, formAction, pending] = useActionState(addLibraryItemAction, initialState);
 
   return (
-    <form action={formAction} className="space-y-2 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="space-y-2 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="template_id" value={templateId} />
       <div className="grid grid-cols-2 gap-2">
         <div>

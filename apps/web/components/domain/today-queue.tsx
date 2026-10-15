@@ -66,7 +66,9 @@ export function TodayQueue({
   description,
   items,
   emptyText = "You're all caught up.",
+  className = "mt-6",
 }: {
+  className?: string;
   title?: string;
   description?: string;
   items: TodayItem[];
@@ -82,10 +84,10 @@ export function TodayQueue({
   const visible = items.filter((i) => kind === "all" || i.kind === kind);
 
   return (
-    <section className="mt-6 rounded-lg border border-border bg-surface p-5" aria-labelledby="today-queue-title">
+    <section className={cn("scroll-mt-24 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5", className)} aria-labelledby="today-queue-title">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 id="today-queue-title" className="font-medium text-ink">
+          <h2 id="today-queue-title" className="text-base font-semibold text-ink">
             {title}
             {items.length > 0 && <span className="ms-2 text-sm font-normal text-muted">{items.length} <Tx>to do</Tx></span>}
           </h2>
@@ -102,11 +104,11 @@ export function TodayQueue({
                   aria-pressed={kind === k}
                   onClick={() => setKind(k)}
                   className={cn(
-                    "min-h-9 rounded-full border px-3 text-xs font-medium",
-                    kind === k ? "border-burgundy bg-burgundy text-white" : "border-border bg-surface text-ink hover:bg-off-white"
+                    "min-h-9 rounded-full border px-3 text-sm font-medium [@media(pointer:coarse)]:min-h-11",
+                    kind === k ? "border-brand bg-brand text-white" : "border-control-border bg-surface text-ink hover:bg-surface-subtle"
                   )}
                 >
-                  {k === "all" ? "All" : KIND_LABEL[k]} ({count})
+                  {kind === k && <span aria-hidden="true">✓ </span>}{k === "all" ? "All" : KIND_LABEL[k]} ({count})
                 </button>
               );
             })}
@@ -115,7 +117,7 @@ export function TodayQueue({
       </div>
 
       {items.length === 0 ? (
-        <p className="mt-4 rounded-md bg-off-white px-3 py-4 text-sm text-muted">{emptyText}</p>
+        <p className="mt-4 rounded-md bg-surface-subtle px-3 py-4 text-sm text-muted">{emptyText}</p>
       ) : (
         <div className="mt-4 space-y-4">
           {GROUPS.map((group) => {
@@ -129,7 +131,7 @@ export function TodayQueue({
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">
                   {group.label} <span className="font-normal normal-case">· {group.hint}</span>
                 </h3>
-                <ul className="mt-1 divide-y divide-border rounded-md border border-border">
+                <ul className="mt-1 divide-y divide-border overflow-hidden rounded-md border border-border">
                   {rows.map((item) => {
                     const row = (
                       <>
@@ -142,8 +144,8 @@ export function TodayQueue({
                           )}
                         </span>
                         <span className="min-w-0 flex-1 basis-[12rem]">
-                          <span className="block text-sm text-ink [overflow-wrap:anywhere] sm:truncate">{item.title}</span>
-                          {item.meta && <span className="block text-xs text-muted [overflow-wrap:anywhere] sm:truncate">{item.meta}</span>}
+                          <span className="block text-sm font-medium text-ink [overflow-wrap:anywhere] sm:truncate" title={item.title}>{item.title}</span>
+                          {item.meta && <span className="block text-xs text-muted [overflow-wrap:anywhere] sm:truncate" title={item.meta}>{item.meta}</span>}
                         </span>
                         {item.badge && (
                           <span className={cn("hidden shrink-0 text-xs font-semibold sm:inline", item.urgency === 2 ? "text-danger" : "text-muted")}>
@@ -153,7 +155,7 @@ export function TodayQueue({
                         <span className="shrink-0 text-sm font-medium text-burgundy">{item.actionLabel ?? "Open"} →</span>
                       </>
                     );
-                    const cls = "flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-start hover:bg-off-white";
+                    const cls = "flex min-h-12 w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-start hover:bg-surface-subtle [@media(pointer:coarse)]:min-h-14";
                     return (
                       <li key={`${item.kind}-${item.id}`}>
                         {item.panel ? (

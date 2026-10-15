@@ -17,11 +17,16 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       <body style={{ fontFamily: "system-ui, sans-serif", background: "#f9f7f4", color: "#1c1c1e", margin: 0 }}>
         <div
           role="alert"
-          style={{ maxWidth: 440, margin: "80px auto", padding: 24, background: "#fff", border: "1px solid #b3a993", borderRadius: 8, textAlign: "center" }}
+          style={{ maxWidth: 440, margin: "48px 16px", marginInline: "auto", padding: 24, background: "#fff", border: "1px solid #b3a993", borderRadius: 12, textAlign: "center" }}
         >
           <h1 style={{ fontSize: 20, margin: 0 }}><Tx>Something went wrong</Tx></h1>
           <p style={{ fontSize: 14, color: "#5c5648" }}><Tx>The application could not load. Your data is safe. Try again.</Tx></p>
-          {error.digest && <p style={{ fontSize: 12, color: "#5c5648" }}><Tx>Error ID:</Tx> {error.digest}</p>}
+          {error.digest && (
+            <p style={{ fontSize: 12, color: "#5c5648", margin: "12px 0" }}>
+              <Tx>Error ID:</Tx>{" "}
+              <code style={{ display: "inline-block", maxWidth: "100%", overflowWrap: "anywhere", background: "#f4f1ec", border: "1px solid #857b66", borderRadius: 999, padding: "4px 10px", userSelect: "all", fontFamily: "ui-monospace, monospace", color: "#1c1c1e" }}>{error.digest}</code>
+            </p>
+          )}
           <button
             type="button"
             onClick={() => reset()}

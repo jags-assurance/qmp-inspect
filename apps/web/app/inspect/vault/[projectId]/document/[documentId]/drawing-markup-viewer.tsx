@@ -214,6 +214,9 @@ export function DrawingMarkupViewer({
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
+      <div className="min-w-0 flex-1">
+      <p className="mb-2 text-xs text-muted"><Tx>Tap the drawing to place a pin. Pinch to zoom and drag to move around.</Tx></p>
+      <div className="max-h-[75dvh] overflow-auto rounded-lg [touch-action:pan-x_pan-y_pinch-zoom]">
       <div
         tabIndex={0}
         role="group"
@@ -244,7 +247,7 @@ export function DrawingMarkupViewer({
             title={m.label}
             aria-label={`${DRAWING_MARKUP_TYPE_LABELS[m.markup_type]} pin: ${m.label}`}
             style={{ left: `${m.x * 100}%`, top: `${m.y * 100}%` }}
-            className="absolute -translate-x-1/2 -translate-y-full text-xl leading-none drop-shadow"
+            className="absolute -translate-x-1/2 -translate-y-full p-2 text-3xl leading-none drop-shadow [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11"
           >
             📍
           </button>
@@ -261,8 +264,10 @@ export function DrawingMarkupViewer({
           </div>
         )}
       </div>
+      </div>
+      </div>
 
-      <div className="w-full max-w-sm shrink-0 space-y-4">
+      <div className="w-full shrink-0 space-y-4 lg:max-w-sm">
         {pendingPin && (
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink"><Tx>+ Add pin</Tx></h2>
@@ -307,11 +312,11 @@ export function DrawingMarkupViewer({
               </div>
             )}
             <div role="alert">{error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}</div>
-            <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={handleSavePin} disabled={saving}>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Button onClick={handleSavePin} disabled={saving}>
                 {saving ? "Saving…" : "Drop pin"}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setPendingPin(null)} disabled={saving}>
+              <Button variant="outline" onClick={() => setPendingPin(null)} disabled={saving}>
                 <Tx>Cancel</Tx>
               </Button>
             </div>
@@ -346,7 +351,7 @@ export function DrawingMarkupViewer({
         {markups.length > 0 && (
           <div className="rounded-lg border border-border bg-surface p-4">
             <h2 className="text-sm font-semibold text-ink"><Tx>All pins (</Tx>{markups.length})</h2>
-            <ul className="mt-2 space-y-1">
+            <ul className="mt-2 space-y-0.5">
               {markups.map((m) => (
                 <li key={m.id}>
                   <button
@@ -355,7 +360,7 @@ export function DrawingMarkupViewer({
                       setPendingPin(null);
                       setSelectedMarkup(m);
                     }}
-                    className="text-sm text-ink hover:text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center text-sm text-ink hover:text-burgundy hover:underline"
                   >
                     {m.label}
                   </button>

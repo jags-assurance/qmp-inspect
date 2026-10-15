@@ -112,3 +112,35 @@ side column from `lg`; on phones the side column stacks under the main one; acti
 
 **Field / mobile screen**: one primary action, 44px targets, cards not tables, `StickyActionBar` for submit, no hover-only information,
 text 14px minimum, content within the 12px page padding, bottom actions clear of `--notice-h` and the home indicator.
+
+## 5. Stage 2 shared-layer changes (builder B0)
+
+- **Sidebar rail, no flicker.** The rail preference is a cookie (`jags-sidebar-collapsed`, "1" rail / "0" expanded, key in `lib/ui/sidebar-pref.ts`),
+  read in `AppShell` and passed to `SidebarShell` as `initialRailPref`; localStorage stays as a fallback. Rail visuals are pure CSS
+  (`lg:max-desk:` utilities = 1024-1439px only), so the first paint is right at every width. Default: rail on laptops, expanded at >=1440.
+  `SidebarNav` takes `collapsed` (preference) and `railActive` (rail showing now; tooltips only).
+- **Portalled popovers.** `components/ui/popover-panel.tsx` (`PopoverPanel open onClose anchorRef align role className`) renders under `<body>`,
+  fixed under its trigger, dismisses on outside press and Esc, spans the screen on phones. Notifications bell and account menu use it.
+  Anything opened from the z-20 header must be portalled.
+- **Layers.** `useEscapeLayer(active, onEscape)`: only the topmost open layer handles Esc (capture phase), so a dropdown in a sheet
+  closes alone. `useFocusTrap`, `Sheet`, `SidePanel`, `ConfirmDialog` use it. `useScrollLock(active)` / `lockBodyScroll()` are
+  reference counted; never write `document.body.style.overflow` directly.
+- **Scroll padding** includes `env(safe-area-inset-top)`.
+- **Radius scale.** Bare `rounded` = `--radius` = 6px (same as `rounded-sm`). Scale: `rounded-sm` 6, `md` 8, `lg` 12, `xl` 16, `full`. Prefer explicit steps.
+- **Focus ring.** One recipe: tokens `--focus-ring-width/offset/color` drive the global `:focus-visible` rule (links, buttons, inputs, summary,
+  role=tab/button/menuitem/option/switch). Dark surfaces (`data-surface="dark"`, `.on-dark`) switch the colour to gold. Do not hand-roll outlines.
+- **Control border.** Interactive non-inputs (summary, pills, tabs, chips, header controls) use `border-control-border`; the global override also
+  covers `summary/[role=tab]/[role=button].border-border`.
+- **Titles on truncation.** Breadcrumb, header context control, avatar name/role, nav labels (expanded; the tooltip covers the rail), palette rows,
+  notification rows carry `title`.
+- **Loading.** `HeaderContextSkeleton` holds the header slot while the context control streams. `prefers-reduced-motion` disables pulse/spin and
+  transitions (sidebar, chevrons) globally.
+
+### Disclosure (`components/ui/disclosure.tsx`, server-safe)
+The one show/hide control (native details/summary). Never hand-style a `<summary>`.
+```tsx
+<Disclosure summary="Advanced options" variant="inline" | "pill" | "card" defaultOpen? actions? className? summaryClassName? bodyClassName? {...detailsProps}>
+```
+- `inline`: brand text toggle in running content. `pill`: small bordered pill for secondary detail. `card`: bordered card whose header row toggles (used by `Section collapsible`).
+- Built in: chevron (rotates, RTL-aware), control border, 44px touch target, focus ring, hidden native marker. `bodyClassName` replaces the default body spacing.
+- `MoreDetails` (`components/domain/more-details.tsx`, `app/inspect/projects/more-details.tsx`) are thin wrappers over `Disclosure variant="pill"`.

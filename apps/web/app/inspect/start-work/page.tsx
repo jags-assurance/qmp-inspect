@@ -18,18 +18,19 @@ import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { withActiveProject } from "@/lib/projects/active-project";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/section";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { FilterBar, FilterField } from "@/components/ui/toolbar";
+import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
   not_started: "Not started",
   in_progress: "In progress",
   completed: "Completed",
-};
-const STATUS_CLASS: Record<StatusKey, string> = {
-  not_started: "bg-off-white text-muted",
-  in_progress: "bg-gold/30 text-[color:var(--color-burgundy-dark)]",
-  completed: "bg-success/10 text-success",
 };
 
 interface TemplateRow {
@@ -179,25 +180,28 @@ export default async function StartWorkPage({
     .sort((a, b) => Number(b.overdue) - Number(a.overdue) || rank[a.status] - rank[b.status] || (a.plannedDate ?? "9999").localeCompare(b.plannedDate ?? "9999"))
     .slice(0, 100);
 
-  return (
-    <div className="max-w-4xl">
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Start work</T></h1>
-        <PageGuide
-          title={tl("Start work — how this works")}
-          points={[
-            "Only JAGS staff see this page — anyone else is redirected straight back to the dashboard.",
-            "Both cards just link to a real creation form — nothing is created by clicking here, only once you submit that form.",
-            "\"ITP-driven project\" is for the full workflow: approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off.",
-            "\"Standalone assignment\" skips the ITP entirely — a focused, independent inspection (FAT, vendor visit, one-off verification) with its own checklist and report.",
-          ]}
-        />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Choose a workflow. Nothing is created until you submit the form.</T>
-      </p>
+  const activeFilterCount = [projectFilter, statusFilter, dueFilter, archiveFilter === "archived" ? "archived" : "", assignedFilter].filter(Boolean).length;
+  const selectCls = FILTER_CONTROL_CLASS;
 
-      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+  return (
+    <div className="max-w-5xl">
+      <PageHeader
+        title={<T>Start work</T>}
+        subtitle={<T>Choose a workflow. Nothing is created until you submit the form.</T>}
+        guide={
+          <PageGuide
+            title={tl("Start work — how this works")}
+            points={[
+              "Only JAGS staff see this page — anyone else is redirected straight back to the dashboard.",
+              "Both cards just link to a real creation form — nothing is created by clicking here, only once you submit that form.",
+              "\"ITP-driven project\" is for the full workflow: approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off.",
+              "\"Standalone assignment\" skips the ITP entirely — a focused, independent inspection (FAT, vendor visit, one-off verification) with its own checklist and report.",
+            ]}
+          />
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
         <WorkModeCard
           badge="Full workflow"
           title={tl("ITP-driven project")}
@@ -229,84 +233,121 @@ export default async function StartWorkPage({
 
       <AssignedToMe items={assignedQueue} />
 
-      <section className="mt-10" aria-labelledby="activities-heading">
-        <h2 id="activities-heading" className="text-lg font-semibold text-ink"><T>Activities ready for site work</T></h2>
-        <p className="mt-1 text-sm text-muted">
-          <T>Activities on approved ITPs. Open Holds show when you open one.</T>
-        </p>
-        <form method="get" className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
-  <ScanSearchInput defaultValue={sp.q ?? ""} />
-          <select name="project" defaultValue={projectFilter} aria-label={tl("Project")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value=""><T>All projects</T></option>
-            {projectOptions.map(([id, name]) => (
-              <option key={id} value={id}>{name}</option>
-            ))}
-          </select>
-          <select name="status" defaultValue={statusFilter} aria-label={tl("Status")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value=""><T>Any status</T></option>
-            {(Object.keys(STATUS_LABEL) as StatusKey[]).map((k) => (
-              <option key={k} value={k}>{STATUS_LABEL[k]}</option>
-            ))}
-          </select>
-          <select name="due" defaultValue={dueFilter} aria-label={tl("Schedule")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value=""><T>Any schedule</T></option>
-            <option value="overdue"><T>Overdue (</T>{overdueCount})</option>
-            <option value="soon"><T>Due soon - 7 days (</T>{dueSoonCount})</option>
-            <option value="held"><T>Awaiting hold release (</T>{heldCount})</option>
-          </select>
-          <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} aria-label={tl("Archived")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value=""><T>Active checklists</T></option>
-            <option value="archived"><T>Archived (</T>{archivedIds.size})</option>
-          </select>
-          <select name="assigned" defaultValue={assignedFilter} aria-label={tl("Assignment")} className="min-h-11 rounded-md border border-border bg-off-white px-3 py-2 text-sm">
-            <option value=""><T>Everyone&apos;s activities</T></option>
-            <option value="me"><T>Assigned to me (</T>{assignedMine.length})</option>
-          </select>
-          <Button type="submit" ><T>Filter</T></Button>
-        </form>
+      <section className="mt-8 space-y-3" aria-labelledby="activities-heading">
+        <div>
+          <h2 id="activities-heading" className="text-lg font-semibold text-ink"><T>Activities ready for site work</T></h2>
+          <p className="mt-1 text-sm text-muted">
+            <T>Activities on approved ITPs. Open Holds show when you open one.</T>
+          </p>
+        </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]"], ["held", "Awaiting hold release", heldCount, "bg-off-white text-ink"]] as const).map(([k, label, n, cls]) => (
+        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 text-sm sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+          {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger", "!"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]", "★"], ["held", "Awaiting hold release", heldCount, "bg-surface-sunken text-ink", "•"]] as const).map(([k, label, n, cls, glyph]) => (
             <Link
               key={k}
               href={`/inspect/start-work?due=${dueFilter === k ? "" : k}`}
-              className={cn("rounded-full px-3 py-1 font-medium", cls, dueFilter === k && "ring-2 ring-burgundy")}
+              aria-current={dueFilter === k ? "true" : undefined}
+              className={cn("inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-control-border px-4 font-medium", cls, dueFilter === k && "ring-2 ring-burgundy")}
             >
+              <span aria-hidden="true">{dueFilter === k ? "✓" : glyph}</span>
               {label}: {n}
             </Link>
           ))}
         </div>
 
+        <form method="get" action="/inspect/start-work">
+          <FilterBar
+            activeCount={activeFilterCount}
+            clearHref={activeFilterCount > 0 || sp.q ? "/inspect/start-work" : undefined}
+            search={<ScanSearchInput defaultValue={sp.q ?? ""} />}
+            filters={
+              <div className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
+                <FilterField label={<T>Project</T>}>
+                  <select name="project" defaultValue={projectFilter} className={selectCls}>
+                    <option value=""><T>All projects</T></option>
+                    {projectOptions.map(([id, name]) => (
+                      <option key={id} value={id}>{name}</option>
+                    ))}
+                  </select>
+                </FilterField>
+                <FilterField label={<T>Status</T>}>
+                  <select name="status" defaultValue={statusFilter} className={selectCls}>
+                    <option value=""><T>Any status</T></option>
+                    {(Object.keys(STATUS_LABEL) as StatusKey[]).map((k) => (
+                      <option key={k} value={k}>{STATUS_LABEL[k]}</option>
+                    ))}
+                  </select>
+                </FilterField>
+                <FilterField label={<T>Schedule</T>}>
+                  <select name="due" defaultValue={dueFilter} className={selectCls}>
+                    <option value=""><T>Any schedule</T></option>
+                    <option value="overdue"><T>Overdue (</T>{overdueCount})</option>
+                    <option value="soon"><T>Due soon - 7 days (</T>{dueSoonCount})</option>
+                    <option value="held"><T>Awaiting hold release (</T>{heldCount})</option>
+                  </select>
+                </FilterField>
+                <FilterField label={<T>Archived</T>}>
+                  <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} className={selectCls}>
+                    <option value=""><T>Active checklists</T></option>
+                    <option value="archived"><T>Archived (</T>{archivedIds.size})</option>
+                  </select>
+                </FilterField>
+                <FilterField label={<T>Assignment</T>}>
+                  <select name="assigned" defaultValue={assignedFilter} className={selectCls}>
+                    <option value=""><T>Everyone&apos;s activities</T></option>
+                    <option value="me"><T>Assigned to me (</T>{assignedMine.length})</option>
+                  </select>
+                </FilterField>
+                <Button type="submit" className="w-full md:w-auto"><T>Apply filters</T></Button>
+              </div>
+            }
+          />
+        </form>
+
         {visible.length === 0 ? (
-          <p className="mt-4 rounded-md bg-off-white p-4 text-sm text-muted">
-            {activities.length === 0
-              ? "No activities are ready yet — an ITP must be approved and have a checklist before site work can start."
-              : "No activities match these filters."}
-          </p>
+          <EmptyState
+            title={activities.length === 0 ? <T>No activities are ready yet</T> : <T>No activities match these filters</T>}
+            description={
+              activities.length === 0
+                ? <T>An ITP must be approved and have a checklist before site work can start.</T>
+                : <T>Try clearing a filter or searching for something else.</T>
+            }
+            className="rounded-lg border border-border bg-surface"
+          />
         ) : (
           <>
-          <SaveOfflineButton urls={visible.filter((a) => a.status !== "completed").map((a) => `/inspect/checklists/${a.templateId}`)} />
-          <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
-            {visible.map((a) => (
-              <li key={a.templateId}>
-                <Link href={`/inspect/checklists/${a.templateId}`} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3 hover:bg-off-white">
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-ink">{a.itemNumber}. {a.activity}{a.assignedToUserId === session.userId && <span className="ms-2 rounded-full bg-burgundy/10 px-2 py-0.5 text-xs font-medium text-burgundy"><T>Assigned to you</T></span>}</span>
-                    <span className="block truncate text-xs text-muted">{a.projectName} · {a.itpNumber} · {a.checklistNumber}</span>
-                  </span>
-                  <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-                    {a.plannedDate && <span className="text-xs text-muted">{a.plannedDate}</span>}
-                    {a.overdue && <span className="rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-medium text-danger"><T>Overdue</T></span>}
-                    {a.dueSoon && <span className="rounded-full bg-gold/30 px-2.5 py-0.5 text-xs font-medium text-[color:var(--color-burgundy-dark)]"><T>Due soon</T></span>}
-                    {a.awaitingHold && a.status !== "completed" && <span className="rounded-full bg-off-white px-2.5 py-0.5 text-xs font-medium text-ink"><T>Awaiting hold release</T></span>}
-                    <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-medium", STATUS_CLASS[a.status])}>
-                      {STATUS_LABEL[a.status]}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+            <SaveOfflineButton urls={visible.filter((a) => a.status !== "completed").map((a) => `/inspect/checklists/${a.templateId}`)} />
+            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {visible.map((a) => (
+                <li key={a.templateId}>
+                  <Card className="flex h-full flex-col gap-3 !p-4">
+                    <div className="min-w-0">
+                      <p className="text-base font-medium leading-snug text-ink" title={`${a.itemNumber}. ${a.activity}`}>
+                        <span className="line-clamp-2">{a.itemNumber}. {a.activity}</span>
+                      </p>
+                      <p className="mt-1 truncate text-xs text-muted" title={`${a.projectName} · ${a.itpNumber} · ${a.checklistNumber}`}>
+                        {a.projectName} · {a.itpNumber} · {a.checklistNumber}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone={a.status === "completed" ? "success" : a.status === "in_progress" ? "gold" : "neutral"}>{STATUS_LABEL[a.status]}</Badge>
+                      {a.overdue && <Badge tone="danger"><T>Overdue</T></Badge>}
+                      {a.dueSoon && <Badge tone="gold"><T>Due soon</T></Badge>}
+                      {a.awaitingHold && a.status !== "completed" && <Badge tone="warning"><T>Awaiting hold release</T></Badge>}
+                      {a.assignedToUserId === session.userId && <Badge tone="info"><T>Assigned to you</T></Badge>}
+                      {a.plannedDate && <span className="text-xs text-muted"><T>Due</T> {a.plannedDate}</span>}
+                    </div>
+                    <Link
+                      href={`/inspect/checklists/${a.templateId}`}
+                      className={buttonVariants({ variant: a.status === "completed" ? "outline" : "primary", size: "lg", className: "mt-auto w-full" })}
+                    >
+                      {a.status === "completed" ? <T>View</T> : a.status === "in_progress" ? <T>Continue</T> : <T>Start</T>}
+                      <span className="sr-only"> {a.itemNumber}. {a.activity}</span>
+                    </Link>
+                  </Card>
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </section>
@@ -336,7 +377,7 @@ function WorkModeCard({
   return (
     <div
       className={cn(
-        "flex flex-col rounded-lg border bg-surface",
+        "flex flex-col rounded-lg border bg-surface shadow-xs",
         emphasized ? "border-burgundy" : "border-border"
       )}
     >
@@ -359,7 +400,7 @@ function WorkModeCard({
       </div>
 
       <details className="group flex-1 px-5 py-3">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
+        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-md border border-control-border px-3 text-sm font-medium text-muted hover:bg-surface-subtle [&::-webkit-details-marker]:hidden">
           <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
           <T>Details</T>
         </summary>
@@ -382,12 +423,7 @@ function WorkModeCard({
       <div className="px-5 pb-5">
         <Link
           href={href}
-          className={cn(
-            "inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            emphasized
-              ? "bg-burgundy text-white hover:bg-burgundy-dark"
-              : "border border-burgundy text-burgundy hover:bg-burgundy/5"
-          )}
+          className={buttonVariants({ variant: emphasized ? "primary" : "outline", size: "lg", className: "w-full" })}
         >
           {cta}
         </Link>

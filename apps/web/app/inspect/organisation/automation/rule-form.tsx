@@ -31,7 +31,7 @@ export function RuleForm({
   const [isEnabled, setIsEnabled] = useState(enabled);
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="rule_type" value={ruleType} />
 

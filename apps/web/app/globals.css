@@ -45,6 +45,10 @@
   --color-info-soft: #e8f0f8;
   --color-overlay: rgb(17 17 19 / 0.45);
   --color-focus: var(--color-burgundy);
+  /* The ONE focus-ring recipe: every :focus-visible outline uses these three tokens (gold on dark surfaces). */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-focus);
 
   /* Layout */
   --header-h: 3.5rem; /* 56px: the single sticky header row */
@@ -99,6 +103,9 @@
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
+  /* Bare `rounded` sits on the same stepped scale as sm/md/lg/xl (each moved up one Tailwind step):
+     = sm (6px) for chips, small boxes and legacy markup. Prefer an explicit step in new code. */
+  --radius: 0.375rem;
   --shadow-xs: 0 1px 2px 0 rgb(28 28 30 / 0.05);
   --shadow-sm: 0 1px 2px 0 rgb(28 28 30 / 0.06), 0 1px 3px 0 rgb(28 28 30 / 0.06);
   --shadow-md: 0 4px 8px -2px rgb(28 28 30 / 0.08), 0 2px 4px -2px rgb(28 28 30 / 0.06);
@@ -111,7 +118,8 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  scroll-padding-top: calc(var(--header-h) + 1rem);
+  /* Anchors and focus scroll clear of the sticky header AND the notch / status bar inset. */
+  scroll-padding-top: calc(var(--header-h) + env(safe-area-inset-top, 0px) + 1rem);
 }
 body {
   background: var(--background);
@@ -198,6 +206,9 @@ input.border-border,
 select.border-border,
 textarea.border-border,
 button.border-border,
+summary.border-border,
+[role="tab"].border-border,
+[role="button"].border-border,
 input:not([class*="border-"]),
 select:not([class*="border-"]),
 textarea:not([class*="border-"]) {
@@ -209,15 +220,16 @@ input[type="radio"] {
 }
 
 /* ---- Accessibility baseline (WCAG 2.1 AA) ---- */
-:where(a, button, input, select, textarea, summary, [role="tab"], [tabindex]):focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
+:where(a, button, input, select, textarea, summary, [role="tab"], [role="button"], [role="menuitem"], [role="option"], [role="switch"], [tabindex]):focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
-/* Burgundy ring vanishes on dark surfaces - use gold there. */
-.on-dark :focus-visible,
-[data-surface="dark"] :focus-visible {
-  outline-color: var(--color-gold);
+/* Burgundy ring vanishes on dark surfaces - use gold there (sidebar sets data-surface="dark"). */
+.on-dark,
+[data-surface="dark"] {
+  --focus-ring-color: var(--color-gold);
 }
+/* Native <details> toggles: use <Disclosure> (components/ui/disclosure.tsx), which hides the marker itself. */
 ::placeholder {
   color: var(--color-muted);
   opacity: 1; /* 0.8 dropped it to 4.4:1 on white (< 4.5:1 AA) */
@@ -240,7 +252,12 @@ main li a:not([class]) {
     radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.18), transparent) left center / 10px 100% no-repeat scroll,
     radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.18), transparent) right center / 10px 100% no-repeat scroll;
 }
+/* Reduced motion: sheets, drawers, popovers and skeletons stop sliding / pulsing (state still changes instantly). */
 @media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-spin {
+    animation: none !important;
+  }
   *,
   *::before,
   *::after {

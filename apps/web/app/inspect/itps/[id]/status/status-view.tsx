@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ViewHeader } from "@/components/domain/view-header";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
@@ -13,6 +14,7 @@ import type { InterventionLevel } from "@jags/shared-types";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const EVIDENCE_LABEL: Record<1 | 2 | 3, string> = {
   1: "Checklist",
@@ -266,20 +268,14 @@ export async function StatusView({
     return map;
   }, new Map());
 
-  const Heading = embedded ? "h2" : "h1";
   return (
     <div>
-      {!embedded && (
-        <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        <T>← Back to ITP</T>
-      </Link>
-      )}
-      <div className={embedded ? "" : "mt-2"}>
-        <p className="text-sm text-muted">{itp.projects?.name}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">
-            <T>Completion roadmap</T> <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
-          </Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/itps/${itp.id}`}
+        backLabel="Back to ITP"
+        title={<><T>Completion roadmap</T> <span className="doc-id text-muted">{itp.itp_number}</span></>}
+        guide={
           <PageGuide
             title={tl("Completion roadmap — how this works")}
             points={[
@@ -289,16 +285,15 @@ export async function StatusView({
               "\"Expected records\" (third-party test records like calibration certs) are tracked separately as received/not-yet-received and shown per activity when any are expected.",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">{itp.title}</p>
-      </div>
+        }
+        subtitle={<>{itp.title} · {itp.projects?.name}</>}
+      />
 
-      <details className="group mt-4">
-        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>How activities count as done</T></summary>
+      <Disclosure variant="pill" summary={<><T>How activities count as done</T></>} className="mt-4">
         <p className="mt-1.5 rounded-md border border-info/60 bg-info/10 px-3 py-2 text-xs text-info">
           <T>Upload activities need one linked document; measurement activities need every result recorded and none failed. Evidence is added on the ITP page.</T>
         </p>
-      </details>
+</Disclosure>
 
       <div className="mt-6 space-y-3">
         {items.map((item) => {

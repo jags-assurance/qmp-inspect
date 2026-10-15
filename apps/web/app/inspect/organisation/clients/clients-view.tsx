@@ -14,6 +14,10 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/section";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface OrganizationRow {
   id: string;
@@ -46,7 +50,6 @@ const ENGAGEMENT_SCOPE_LABEL: Record<string, string> = {
  */
 export async function ClientOrganisationsView({ embedded }: { embedded?: boolean }) {
   const tl = await getTranslator();
-  const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect");
 
@@ -80,16 +83,16 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
   const inactiveOrgs = (organizations ?? []).filter((o) => !o.is_active);
 
   const renderOrg = (org: OrganizationRow) => (
-          <div key={org.id} className="rounded-lg border border-border bg-surface p-4">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-medium text-ink">{org.name}</p>
+          <Card key={org.id} className="p-4">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-ink" title={org.name}>{org.name}</p>
                 <p className="text-xs text-muted">
                   /{org.slug} · {ENGAGEMENT_MODE_LABEL[org.engagement_mode] ?? org.engagement_mode} ·{" "}
                   {projectCountByOrg.get(org.id) ?? 0} <T>project</T>{(projectCountByOrg.get(org.id) ?? 0) === 1 ? "" : "s"}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {!org.is_active && <Badge tone="neutral"><T>Inactive</T></Badge>}
                 <Badge tone={org.engagement_scope === "self_managed" || org.engagement_scope === "client_managed" ? "gold" : "neutral"}>
                   {ENGAGEMENT_SCOPE_LABEL[org.engagement_scope] ?? org.engagement_scope}
@@ -99,11 +102,7 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                 </Badge>
               </div>
             </div>
-            <details className="group mt-3 border-t border-border pt-3">
-              <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
-                <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-                <T>Manage name, status, AI consent, history and delete</T>
-              </summary>
+            <Disclosure variant="inline" summary={<T>Manage name, status, AI consent, history and delete</T>} className="mt-3 border-t border-border pt-3" bodyClassName="mt-2">
                 <OrganizationLifecycleControl organizationId={org.id} name={org.name} isActive={org.is_active} />
                 <AiConsentControl organizationId={org.id} slug={org.slug} consent={org.ai_consent} />
                 <div className="mt-3 text-xs text-muted">
@@ -125,15 +124,15 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
                   loadPreview={getOrganizationDeletePreviewAction}
                   action={deleteOrganizationAction}
                 />
-            </details>
-          </div>
+            </Disclosure>
+          </Card>
   );
 
   return (
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
-      <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Client organisations</T></Heading>
+      {(() => {
+        const guide = (
         <PageGuide
           title={tl("Client organisations — how this works")}
           points={[
@@ -143,28 +142,34 @@ export async function ClientOrganisationsView({ embedded }: { embedded?: boolean
             "Engagement scope shown here as a badge is one of three tiers, set under Numbering (not here): Full-Managed (JAGS runs the whole ITP workflow), Self-Managed/\"Hybrid\" (the client builds, submits and accepts its own ITPs and can self-serve branding/numbering/custom roles, but JAGS still approves ITPs and provisions client logins), or Full Client-Managed (all of that, plus the client's own permission-granted people can approve their own ITPs and provision their own team's logins, with no JAGS involvement day to day).",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        <T>Every client is an organisation here. Create one below when onboarding a new client; open an organisation to manage its AI consent or delete it.</T>
-      </p>
+        );
+        const subtitle = <T>Every client is an organisation here. Create one below when onboarding a new client; open an organisation to manage its AI consent or delete it.</T>;
+        return embedded ? (
+          <div className="mb-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl font-semibold text-text-strong"><T>Client organisations</T></h2>
+              {guide}
+            </div>
+            <p className="mt-1 text-sm text-muted">{subtitle}</p>
+          </div>
+        ) : (
+          <PageHeader title={<T>Client organisations</T>} subtitle={subtitle} guide={guide} />
+        );
+      })()}
 
       <NewOrganizationForm />
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-6 space-y-3">
         {activeOrgs.length === 0 && inactiveOrgs.length === 0 && (
-          <p className="rounded-md border border-dashed border-border bg-off-white p-4 text-sm text-muted">
-            <T>No client organisations yet — create the first one above.</T>
-          </p>
+          <Card>
+            <EmptyState compact title={<T>No client organisations yet — create the first one above.</T>} />
+          </Card>
         )}
         {activeOrgs.map(renderOrg)}
         {inactiveOrgs.length > 0 && (
-          <details className="group pt-2">
-            <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
-              <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-              <T>Inactive organisations</T> ({inactiveOrgs.length})
-            </summary>
-            <div className="mt-2 space-y-3">{inactiveOrgs.map(renderOrg)}</div>
-          </details>
+          <Disclosure variant="inline" summary={<><T>Inactive organisations</T> ({inactiveOrgs.length})</>} className="pt-2" bodyClassName="mt-2">
+            <div className="space-y-3">{inactiveOrgs.map(renderOrg)}</div>
+          </Disclosure>
         )}
       </div>
     </div>

@@ -8,6 +8,8 @@ import { ON_BEHALF_REASON_PREFIX } from "@/lib/signoff/on-behalf";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
+import { CellMenu, type CellMenuItem } from "@/components/domain/cell-menu";
 
 /** "2h 14m left" / "14m left" / "Notice period elapsed" — R77-78's visible countdown, computed from
  *  the same notified_at + noticeHours the server already enforces (proceedWithoutResponseAction),
@@ -43,6 +45,14 @@ const STATUS_TONE: Record<SignoffStatus, string> = {
   proceeded_no_response: "bg-info/10 text-info",
 };
 
+function StatusIcon({ status }: { status: SignoffStatus }) {
+  const common = { "aria-hidden": true, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round", className: "h-3.5 w-3.5 shrink-0" } as const;
+  if (status === "signed_off") return <svg {...common}><path d="M4.5 10.5l3.5 3.5 7.5-8" /></svg>;
+  if (status === "notified") return <svg {...common}><path d="M10 3.5a4.5 4.5 0 00-4.5 4.5v2.5L4 13h12l-1.5-2.5V8A4.5 4.5 0 0010 3.5zM8.5 15.5a1.5 1.5 0 003 0" /></svg>;
+  if (status === "proceeded_no_response") return <svg {...common}><path d="M4 10h11M11 6l4 4-4 4" /></svg>;
+  return <svg {...common}><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.5" /></svg>;
+}
+
 /**
  * Sign-off status badge + contextual actions (Notify / Sign off / Proceed) for one party's H/W/R/S
  * level on an activity (R66-R81). Rendered by the ITP detail page next to that cell's
@@ -59,6 +69,7 @@ export function SignoffCell({
   noticeWarning = null,
   rejectionReason = null,
   signoffComment = null,
+  layout = "stacked",
 }: {
   progressId: string;
   /** Whether this activity's ORGANISATION has configured this level as blocking (Hold-equivalent).
@@ -80,6 +91,9 @@ export function SignoffCell({
   rejectionReason?: string | null;
   /** S4-18: comment the party recorded with the sign-off. */
   signoffComment?: string | null;
+  /** "stacked" = the original centred column of status + buttons (dashboards). "compact" = left-aligned status
+   *  with ONE primary action and the rest in an overflow menu (the ITP sign-off grid). Same actions either way. */
+  layout?: "stacked" | "compact";
 }) {
   const tl = useTranslate();
   const [isPending, startTransition] = useTransition();
@@ -143,6 +157,163 @@ export function SignoffCell({
   const canRequestCorrection = !isJagsStaff && canSignOffForThisParty && optimisticStatus === "signed_off";
   const canRenotify = optimisticStatus === "notified" && canSignOffForThisParty;
 
+  function doNotify() {
+    run(() => notifyPartyAction(progressId), "notified");
+  }
+  function doSignOff() {
+    run(async () => {
+      const first = await signOffAction(progressId);
+      if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
+        const why = await ask({
+          title: "Sign off on behalf of this party",
+          message: "You are signing on behalf of this party. Your reason is recorded.",
+          confirmLabel: "Sign off",
+          reason: { label: "Reason (at least 10 characters)", minLength: 10 },
+        });
+        if (!why) return { error: null };
+        return signOffAction(progressId, why);
+      }
+      return first;
+    }, "signed_off");
+  }
+  function confirmReason() {
+        if (reasonFor === "proceed") return run(() => proceedWithoutResponseAction(progressId, reason), "proceeded_no_response");
+        if (reasonFor === "correction") {
+          const fd = new FormData();
+          fd.set("signoff_progress_id", progressId);
+          fd.set("reason", reason);
+          return run(() => requestCorrectionAction({ error: null }, fd), "signed_off");
+        }
+        if (reasonFor === "reject") return run(() => rejectSignoffAction(progressId, reason), "pending");
+        if (reasonFor === "comment") {
+          const text = reason;
+          return run(async () => {
+            const first = await signOffAction(progressId, undefined, text);
+            if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
+              const why = await ask({
+                title: "Sign off on behalf of this party",
+                message: "You are signing on behalf of this party. Your reason is recorded.",
+                confirmLabel: "Sign off",
+                reason: { label: "Reason (at least 10 characters)", minLength: 10 },
+              });
+              if (!why) return { error: null };
+              return signOffAction(progressId, why, text);
+            }
+            return first;
+          }, "signed_off");
+        }
+        return run(() => withdrawSignoffAction(progressId, reason), "pending");
+  }
+  const reasonPlaceholder =
+    reasonFor === "proceed"
+      ? "Reason for proceeding without response"
+      : reasonFor === "reject"
+        ? "Why is this rejected? (at least 10 characters)"
+        : reasonFor === "comment"
+          ? "Comment to record with the sign-off"
+          : reasonFor === "correction"
+            ? "What needs correcting and why (at least 10 characters)"
+            : "Reason for withdrawing sign-off";
+  const confirmDisabled = isPending || reason.trim().length < (reasonFor === "comment" ? 1 : reasonFor === "reject" || reasonFor === "correction" ? 10 : 5);
+
+  // Compact layout: one primary action (the most likely next step) + the rest in the overflow menu.
+  const tx = (text: string) => <Tx>{text}</Tx>;
+  const all: (CellMenuItem & { show: boolean })[] = [
+    { key: "notify", label: tx("Notify"), show: canNotify, onSelect: doNotify },
+    { key: "signoff", label: tx("Sign off"), show: canSignOff, onSelect: doSignOff },
+    { key: "proceed", label: tx("Proceed"), show: canProceed, onSelect: () => setReasonFor("proceed") },
+    { key: "correction", label: tx("Request correction"), show: canRequestCorrection && reasonFor === null, onSelect: () => setReasonFor("correction") },
+    { key: "withdraw", label: tx("Withdraw"), show: canWithdraw && reasonFor === null, onSelect: () => setReasonFor("withdraw") },
+    { key: "renotify", label: tx("Re-notify"), show: canRenotify, title: "Record another reminder (does not restart the notice period)", onSelect: doNotify },
+    { key: "comment", label: tx("Sign with comment"), show: canSignOff, title: "Sign off and record a comment with it", onSelect: () => setReasonFor("comment") },
+    { key: "reject", label: tx("Reject"), show: canSignOff, title: "Return this release with a reason; the inspector is told what to fix", onSelect: () => setReasonFor("reject") },
+  ];
+  const visible = all.filter((a) => a.show);
+  const actions = { primary: visible[0] ?? null, menu: visible.slice(1) };
+
+  if (layout === "compact") {
+    return (
+      <div className="flex w-full min-w-0 flex-col items-start gap-1.5">
+        {dialog}
+        <span
+          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[optimisticStatus]}`}
+          title={tl(STATUS_HELP[optimisticStatus])}
+        >
+          <StatusIcon status={optimisticStatus} />
+          <Tx>{STATUS_LABEL[optimisticStatus]}</Tx>
+        </span>
+        {deadlineMs != null && now != null && (
+          <span
+            className={`text-xs ${noticeElapsed ? (isBlocking ? "text-danger" : "text-info") : "text-muted"}`}
+            title={isBlocking ? "A Hold always waits for release regardless of elapsed time (R77)" : undefined}
+          >
+            {noticeElapsed && isBlocking ? "Elapsed, still waiting for release" : formatCountdown(deadlineMs, now)}
+          </span>
+        )}
+        {noticeWarning && optimisticStatus === "pending" && (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${noticeWarning.status === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"}`}
+            title={noticeWarning.message ?? undefined}
+          >
+            {noticeWarning.status === "overdue" ? "Planned date passed" : "Short notice"}
+          </span>
+        )}
+        {rejectionReason && optimisticStatus !== "signed_off" && (
+          <span className="max-w-full rounded bg-danger/10 px-1.5 py-0.5 text-xs text-danger [overflow-wrap:anywhere]" title={rejectionReason}>
+            <Tx>Rejected:</Tx> {rejectionReason.length > 60 ? `${rejectionReason.slice(0, 60)}…` : rejectionReason}
+          </span>
+        )}
+        {signoffComment && optimisticStatus === "signed_off" && (
+          <span className="max-w-full text-xs text-muted [overflow-wrap:anywhere]" title={signoffComment}>
+            <Tx>Comment:</Tx> {signoffComment.length > 60 ? `${signoffComment.slice(0, 60)}…` : signoffComment}
+          </span>
+        )}
+        {!canSignOff && (optimisticStatus === "pending" || optimisticStatus === "notified") && !canSignOffForThisParty && (
+          <span className="text-xs text-muted" title={tl("Only this party's own login (or JAGS staff) can sign off")}>
+            <Tx>Awaiting party</Tx>
+          </span>
+        )}
+        {reasonFor === null && actions.primary && (
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant={actions.primary.key === "signoff" || actions.primary.key === "notify" ? "primary" : "outline"}
+              disabled={isPending}
+              title={actions.primary.title ? tl(actions.primary.title) : undefined}
+              onClick={actions.primary.onSelect}
+            >
+              {actions.primary.label}
+            </Button>
+            <CellMenu items={actions.menu} ariaLabel={tl("More sign-off actions")} />
+          </div>
+        )}
+        {reasonFor && (
+          <div className="flex w-full min-w-0 flex-col gap-1.5">
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder={reasonPlaceholder}
+              aria-label={reasonPlaceholder}
+              className="w-full rounded-md border border-control-border bg-surface px-2 py-1.5 text-sm"
+            />
+            <div className="flex gap-1.5">
+              <Button type="button" size="sm" disabled={confirmDisabled} onClick={confirmReason}>
+                <Tx>Confirm</Tx>
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => { setReasonFor(null); setReason(""); }}>
+                <Tx>Cancel</Tx>
+              </Button>
+            </div>
+          </div>
+        )}
+        {error && <span role="alert" className="text-xs text-danger">{error}</span>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col items-center gap-1">
       {dialog}
@@ -197,22 +368,7 @@ export function SignoffCell({
           <button
             type="button"
             disabled={isPending}
-            onClick={() =>
-              run(async () => {
-                const first = await signOffAction(progressId);
-                if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
-                  const why = await ask({
-                    title: "Sign off on behalf of this party",
-                    message: "You are signing on behalf of this party. Your reason is recorded.",
-                    confirmLabel: "Sign off",
-                    reason: { label: "Reason (at least 10 characters)", minLength: 10 },
-                  });
-                  if (!why) return { error: null };
-                  return signOffAction(progressId, why);
-                }
-                return first;
-              }, "signed_off")
-            }
+            onClick={doSignOff}
             className={btn}
           >
             <Tx>Sign off</Tx>
@@ -300,34 +456,7 @@ export function SignoffCell({
             <button
               type="button"
               disabled={isPending || reason.trim().length < (reasonFor === "comment" ? 1 : reasonFor === "reject" || reasonFor === "correction" ? 10 : 5)}
-              onClick={() => {
-                if (reasonFor === "proceed") return run(() => proceedWithoutResponseAction(progressId, reason), "proceeded_no_response");
-                if (reasonFor === "correction") {
-                  const fd = new FormData();
-                  fd.set("signoff_progress_id", progressId);
-                  fd.set("reason", reason);
-                  return run(() => requestCorrectionAction({ error: null }, fd), "signed_off");
-                }
-                if (reasonFor === "reject") return run(() => rejectSignoffAction(progressId, reason), "pending");
-                if (reasonFor === "comment") {
-                  const text = reason;
-                  return run(async () => {
-                    const first = await signOffAction(progressId, undefined, text);
-                    if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {
-                      const why = await ask({
-                        title: "Sign off on behalf of this party",
-                        message: "You are signing on behalf of this party. Your reason is recorded.",
-                        confirmLabel: "Sign off",
-                        reason: { label: "Reason (at least 10 characters)", minLength: 10 },
-                      });
-                      if (!why) return { error: null };
-                      return signOffAction(progressId, why, text);
-                    }
-                    return first;
-                  }, "signed_off");
-                }
-                return run(() => withdrawSignoffAction(progressId, reason), "pending");
-              }}
+              onClick={confirmReason}
               className={btn}
             >
               <Tx>Confirm</Tx>

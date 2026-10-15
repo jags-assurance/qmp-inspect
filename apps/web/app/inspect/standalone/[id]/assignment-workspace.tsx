@@ -33,6 +33,7 @@ import type { StandaloneAssignmentEvidenceDocumentRow } from "@/lib/standalone/a
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
 import { Button } from "@/components/ui/button";
+import { ResponsiveTable } from "@/components/ui/responsive-table";
 
 interface Assignment {
   id: string;
@@ -143,11 +144,19 @@ export function AssignmentWorkspace({
   const canAddEvidence = canEditPunch;
   const openPunchCount = punchItems.filter((p) => p.status === "open").length;
   const { gateSubmit, dialog } = useConfirm();
+  const tabCounts: Record<TabKey, number | null> = {
+    measurements: measurements.length,
+    photos: photos.length,
+    evidence_documents: evidenceDocuments.length,
+    punch_list: punchItems.length,
+    signatures: signatures.length,
+    notes: null,
+  };
 
   return (
     <div>
       {dialog}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard label="Measurements" value={measurements.length} />
         <StatCard label="Photos" value={photos.length} />
         <StatCard label="Open punch items" value={openPunchCount} />
@@ -167,23 +176,26 @@ export function AssignmentWorkspace({
       </div>
 
       {isConditionalOpen && (
-        <div className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
-          <p className="font-medium">
-            {linkedTotalPunchCount - linkedOpenPunchCount} <Tx>of</Tx> {linkedTotalPunchCount} <Tx>linked punch items closed</Tx>
-            {linkedOpenPunchCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
-          </p>
-          <MoreDetails label="Details">
-            <p>
-              {linkedOpenPunchCount > 0
-                ? "This assignment stays conditionally open until every linked punch item on the project punch list is closed."
-                : "All linked punch items are closed. Issue clearance below to complete this assignment."}
+        <div role="status" className="mt-4 flex items-start gap-3 rounded-lg border-2 border-warning bg-warning/10 p-4 text-sm text-ink">
+          <span aria-hidden="true" className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-warning text-sm font-bold text-white">!</span>
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-warning">
+              {linkedTotalPunchCount - linkedOpenPunchCount} <Tx>of</Tx> {linkedTotalPunchCount} <Tx>linked punch items closed</Tx>
+              {linkedOpenPunchCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
             </p>
-          </MoreDetails>
+            <MoreDetails label="Details">
+              <p>
+                {linkedOpenPunchCount > 0
+                  ? "This assignment stays conditionally open until every linked punch item on the project punch list is closed."
+                  : "All linked punch items are closed. Issue clearance below to complete this assignment."}
+              </p>
+            </MoreDetails>
+          </div>
         </div>
       )}
 
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4 text-sm">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+      <div className="mt-4 rounded-lg border border-border bg-surface p-4 text-sm shadow-xs sm:mt-6 sm:p-5">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 min-[420px]:grid-cols-2 lg:grid-cols-4">
           <div>
             <dt className="text-xs text-muted"><Tx>Manufacturer</Tx></dt>
             <dd className="text-ink">{assignment.manufacturer ?? "—"}</dd>
@@ -203,82 +215,85 @@ export function AssignmentWorkspace({
         </dl>
       </div>
 
-      <div className="mt-6 border-b border-border">
-        <nav className="flex gap-1 overflow-x-auto whitespace-nowrap">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "-mb-px rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === tab.key
-                  ? "border-burgundy bg-surface text-burgundy"
-                  : "border-transparent text-muted hover:text-ink"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+      <div className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 mt-6 border-b border-border bg-background/95 px-3 backdrop-blur sm:-mx-6 sm:px-6 lg:mx-0 lg:px-0">
+        <div role="tablist" aria-label="Assignment sections" className="flex snap-x gap-1 overflow-x-auto whitespace-nowrap">
+          {TABS.map((tab) => {
+            const count = tabCounts[tab.key];
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                id={`assignment-tab-${tab.key}`}
+                aria-selected={activeTab === tab.key}
+                aria-controls="assignment-tab-panel"
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "-mb-px inline-flex min-h-12 shrink-0 snap-start items-center gap-2 rounded-t-md border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                  activeTab === tab.key
+                    ? "border-burgundy bg-surface text-burgundy"
+                    : "border-transparent text-muted hover:text-ink"
+                )}
+              >
+                {tab.label}
+                {count !== null && (
+                  <span className={cn("rounded-full px-2 text-xs font-semibold tabular-nums leading-5", activeTab === tab.key ? "bg-brand-soft text-brand" : "bg-surface-sunken text-muted")}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="rounded-b-lg border border-border bg-surface">
+      <div role="tabpanel" id="assignment-tab-panel" aria-labelledby={`assignment-tab-${activeTab}`} className="rounded-b-lg border border-border bg-surface shadow-xs">
         {activeTab === "measurements" && (
           <div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-start text-xs text-muted">
-                    <th className="px-3 py-2 font-medium"><Tx>Description</Tx></th>
-                    <th className="px-3 py-2 font-medium"><Tx>Nominal</Tx></th>
-                    <th className="px-3 py-2 font-medium"><Tx>Tolerance</Tx></th>
-                    <th className="px-3 py-2 font-medium"><Tx>Actual</Tx></th>
-                    <th className="px-3 py-2 font-medium"><Tx>Unit</Tx></th>
-                    <th className="px-3 py-2 font-medium"><Tx>Result</Tx></th>
-                    {canEdit && <th className="px-3 py-2 font-medium">&nbsp;</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {measurements.map((m) => (
-                    <tr key={m.id} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-ink">{m.description}</td>
-                      <td className="px-3 py-2 text-muted">{m.nominal_value ?? "—"}</td>
-                      <td className="px-3 py-2 text-muted">{m.tolerance ?? "—"}</td>
-                      <td className="px-3 py-2 text-muted">{m.actual_value ?? "—"}</td>
-                      <td className="px-3 py-2 text-muted">{m.unit ?? "—"}</td>
-                      <td className="px-3 py-2">
-                        {m.result ? (
-                          <Badge tone={MEASUREMENT_RESULT_TONE[m.result]}>{m.result === "pass" ? "Pass" : "Fail"}</Badge>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      {canEdit && (
-                        <td className="px-3 py-2 text-end">
-                          <form
-                            action={deleteMeasurementAction}
-                            onSubmit={gateSubmit({ title: "Delete this measurement?", confirmLabel: "Delete", destructive: true })}
-                          >
-                            <input type="hidden" name="assignment_id" value={assignment.id} />
-                            <input type="hidden" name="measurement_id" value={m.id} />
-                            <Button type="submit" variant="link-danger" size="sm">
-                              <Tx>Delete</Tx>
-                            </Button>
-                          </form>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {measurements.length === 0 && (
-                    <tr>
-                      <td colSpan={canEdit ? 7 : 6} className="px-3 py-6 text-center text-muted">
-                        <Tx>No measurements recorded yet.</Tx>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="px-4 py-2">
+              <ResponsiveTable
+                breakpoint="md"
+                caption="Measurements"
+                rows={measurements}
+                rowKey={(m) => m.id}
+                empty={<Tx>No measurements recorded yet.</Tx>}
+                columns={[
+                  { key: "description", header: <Tx>Description</Tx>, cardLabel: null, tdClassName: "text-ink font-medium", render: (m) => m.description },
+                  { key: "nominal", header: <Tx>Nominal</Tx>, cardLabel: "Nominal", tdClassName: "text-muted", render: (m) => m.nominal_value ?? "—" },
+                  { key: "tolerance", header: <Tx>Tolerance</Tx>, cardLabel: "Tolerance", tdClassName: "text-muted", render: (m) => m.tolerance ?? "—" },
+                  { key: "actual", header: <Tx>Actual</Tx>, cardLabel: "Actual", tdClassName: "text-muted", render: (m) => m.actual_value ?? "—" },
+                  { key: "unit", header: <Tx>Unit</Tx>, cardLabel: "Unit", tdClassName: "text-muted", render: (m) => m.unit ?? "—" },
+                  {
+                    key: "result",
+                    header: <Tx>Result</Tx>,
+                    cardLabel: "Result",
+                    render: (m) => (m.result ? <Badge tone={MEASUREMENT_RESULT_TONE[m.result]}>{m.result === "pass" ? "Pass" : "Fail"}</Badge> : "—"),
+                  },
+                  ...(canEdit
+                    ? [
+                        {
+                          key: "actions",
+                          header: <Tx>Actions</Tx>,
+                          srOnlyHeader: true,
+                          cardLabel: null,
+                          className: "text-end",
+                          render: (m: (typeof measurements)[number]) => (
+                            <form
+                              action={deleteMeasurementAction}
+                              onSubmit={gateSubmit({ title: "Delete this measurement?", confirmLabel: "Delete", destructive: true })}
+                            >
+                              <input type="hidden" name="assignment_id" value={assignment.id} />
+                              <input type="hidden" name="measurement_id" value={m.id} />
+                              <Button type="submit" variant="link-danger" size="sm">
+                                <Tx>Delete</Tx>
+                              </Button>
+                            </form>
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             </div>
             {canEdit && <SuggestMeasurements assignmentId={assignment.id} />}
             {canEdit && <AddMeasurementForm assignmentId={assignment.id} />}
@@ -316,43 +331,37 @@ export function AssignmentWorkspace({
 
         {activeTab === "punch_list" && (
           <div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-start text-xs text-muted">
-                    <th className="px-3 py-2 font-medium"><Tx>Description</Tx></th>
-                    <th className="px-3 py-2 font-medium"><Tx>Status</Tx></th>
-                    {canEditPunch && <th className="px-3 py-2 font-medium">&nbsp;</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {punchItems.map((item) => (
-                    <tr key={item.id} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 text-ink">{item.description}</td>
-                      <td className="px-3 py-2">
-                        <Badge showIcon tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>
-                      </td>
-                      {canEditPunch && (
-                        <td className="px-3 py-2 text-end">
-                          <PunchToggleButton
-                            assignmentId={assignment.id}
-                            punchItemId={item.id}
-                            status={item.status}
-                            canClose={canClose}
-                          />
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                  {punchItems.length === 0 && (
-                    <tr>
-                      <td colSpan={canEditPunch ? 3 : 2} className="px-3 py-6 text-center text-muted">
-                        <Tx>No punch list items yet.</Tx>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="px-4 py-2">
+              <ResponsiveTable
+                breakpoint="md"
+                caption="Punch list"
+                rows={punchItems}
+                rowKey={(item) => item.id}
+                empty={<Tx>No punch list items yet.</Tx>}
+                columns={[
+                  { key: "description", header: <Tx>Description</Tx>, cardLabel: null, tdClassName: "text-ink font-medium", render: (item) => item.description },
+                  {
+                    key: "status",
+                    header: <Tx>Status</Tx>,
+                    cardLabel: "Status",
+                    render: (item) => <Badge showIcon tone={PUNCH_STATUS_TONE[item.status]}>{item.status === "open" ? "Open" : "Closed"}</Badge>,
+                  },
+                  ...(canEditPunch
+                    ? [
+                        {
+                          key: "actions",
+                          header: <Tx>Actions</Tx>,
+                          srOnlyHeader: true,
+                          cardLabel: null,
+                          className: "text-end",
+                          render: (item: (typeof punchItems)[number]) => (
+                            <PunchToggleButton assignmentId={assignment.id} punchItemId={item.id} status={item.status} canClose={canClose} />
+                          ),
+                        },
+                      ]
+                    : []),
+                ]}
+              />
             </div>
             {canEditPunch && <AddPunchItemForm assignmentId={assignment.id} />}
           </div>

@@ -8,14 +8,29 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
+import { SIDEBAR_PREF_KEY } from "@/lib/ui/sidebar-pref";
+import { lockBodyScroll } from "@/lib/hooks/use-scroll-lock";
 
-const STORAGE_KEY = "jags-sidebar-collapsed";
+const STORAGE_KEY = SIDEBAR_PREF_KEY;
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 const PREF_EVENT = "jags-sidebar-pref";
 
 // In-memory mirror so the toggle still works when storage is blocked (it just will not persist).
 let memoryPref: string | null = null;
 
+function readCookiePref(): string | null {
+  try {
+    const m = document.cookie.match(new RegExp("(?:^|; )" + STORAGE_KEY + "=([01])"));
+    return m ? m[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+// Cookie first (the server rendered from it), then localStorage, then the in-memory mirror.
 function readPref(): string | null {
+  const fromCookie = readCookiePref();
+  if (fromCookie) return fromCookie;
   try {
     return localStorage.getItem(STORAGE_KEY) ?? memoryPref;
   } catch {
@@ -25,6 +40,11 @@ function readPref(): string | null {
 
 function writePref(value: "0" | "1") {
   memoryPref = value;
+  try {
+    document.cookie = `${STORAGE_KEY}=${value}; path=/; max-age=${COOKIE_MAX_AGE}; samesite=lax`;
+  } catch {
+    // Cookies blocked: localStorage / memory below still apply.
+  }
   try {
     localStorage.setItem(STORAGE_KEY, value);
   } catch {
@@ -46,7 +66,8 @@ function subscribePref(onChange: () => void) {
  * The app sidebar. Three behaviours by viewport (see docs/UI_DESIGN_SYSTEM.md):
  *  - desktop (>= 1440px): fixed 256px column with group headings, always expanded.
  *  - laptop (1024-1439px): sticky column that collapses to a 72px icon rail with tooltips. The choice is
- *    remembered in localStorage (safe wrapper; no stored choice = rail, to give content the width).
+ *    remembered in a cookie (read on the server so the first paint is right) with localStorage as a fallback;
+ *    no stored choice = rail, to give content the width. Rail visuals are CSS-only (`lg:max-desk:`).
  *  - tablet / phone (< 1024px): off-canvas drawer with overlay, focus trap, Esc to close, inert page
  *    behind it, safe-area insets. Always full width regardless of the rail preference.
  * The server renders the expanded markup; the client adjusts after hydration (stored preference via
@@ -58,12 +79,15 @@ export function SidebarShell({
   userRole,
   signOutAction,
   orgBranding = null,
+  initialRailPref = null,
 }: {
   navItems: NavItem[];
   userName: string;
   userRole: string;
   signOutAction: (formData: FormData) => void | Promise<void>;
   orgBranding?: OrgBrandingInfo | null;
+  /** The collapsed/expanded cookie read on the server ("1" rail, "0" expanded, null = never chosen) so the first paint is right. */
+  initialRailPref?: "0" | "1" | null;
 }) {
   const tl = useTranslate();
   // Reqs R113-R118: engagement_mode drives visual branding the same way it already drives document
@@ -78,10 +102,13 @@ export function SidebarShell({
 
   const isLg = useMediaQuery("(min-width: 64rem)", true);
   const isDesk = useMediaQuery("(min-width: 90rem)", true);
-  const pref = useSyncExternalStore(subscribePref, readPref, () => null);
-  // Rail only on laptop; desktop is always full; the drawer is always full.
-  const railAllowed = isLg && !isDesk;
-  const rail = railAllowed && pref !== "0";
+  const pref = useSyncExternalStore(subscribePref, readPref, () => initialRailPref);
+  // Rail PREFERENCE (default rail). Visuals are pure CSS: `lg:max-desk:` utilities only apply on laptops
+  // (1024-1439px), so desktop and the drawer are always full and there is no first-paint jump.
+  const railPref = pref !== "0";
+  // Effective rail (JS, used only for labels / toggle state): laptop range and preferred.
+  const rail = railPref && isLg && !isDesk;
+  const rp = (cls: string) => (railPref ? cls : "");
   const { open: mobileOpen, setOpen: setMobileOpen } = useSidebarMobile();
 
   const asideRef = useRef<HTMLElement>(null);
@@ -100,11 +127,10 @@ export function SidebarShell({
     const opener = document.activeElement as HTMLElement | null;
     const targets = Array.from(document.querySelectorAll<HTMLElement>("main, footer"));
     targets.forEach((el) => el.setAttribute("inert", ""));
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     return () => {
       targets.forEach((el) => el.removeAttribute("inert"));
-      document.body.style.overflow = prevOverflow;
+      unlockScroll();
       ((document.querySelector("[data-sidebar-toggle]") as HTMLElement | null) ?? opener)?.focus?.();
     };
   }, [drawerActive]);
@@ -138,6 +164,7 @@ export function SidebarShell({
         inert={drawerHidden}
         aria-hidden={drawerHidden ? true : undefined}
         aria-label={tl("Sidebar")}
+        data-surface="dark"
         role={drawerActive ? "dialog" : undefined}
         aria-modal={drawerActive ? true : undefined}
         className={
@@ -148,16 +175,16 @@ export function SidebarShell({
           (mobileOpen ? "translate-x-0 shadow-xl " : "-translate-x-full rtl:translate-x-full ") +
           // Laptop and up: sticky column in the page flow.
           "lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:shrink-0 lg:translate-x-0 lg:self-start lg:pt-0 lg:pb-0 lg:ps-0 lg:shadow-none lg:rtl:translate-x-0 lg:transition-[width] " +
-          (rail ? "lg:w-[var(--sidebar-rail-w)]" : "lg:w-[var(--sidebar-w)]")
+          (railPref ? "lg:w-[var(--sidebar-rail-w)] desk:w-[var(--sidebar-w)]" : "lg:w-[var(--sidebar-w)]")
         }
       >
-        <div className={"flex h-14 shrink-0 items-center gap-2.5 border-b border-white/10 px-4 " + (rail ? "lg:justify-center lg:px-2" : "")}>
+        <div className={"flex h-14 shrink-0 items-center gap-2.5 border-b border-white/10 px-4 " + rp("lg:max-desk:justify-center lg:max-desk:px-2")}>
           {isWhiteLabel ? (
             // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
             <img
               src={logoUrl!}
               alt="Organisation logo"
-              className={rail ? "h-9 max-w-9 object-contain" : "h-9 max-w-[9.5rem] object-contain"}
+              className={"h-9 max-w-[9.5rem] object-contain " + rp("lg:max-desk:max-w-9")}
             />
           ) : (
             <>
@@ -172,16 +199,16 @@ export function SidebarShell({
                   <Tx>JA</Tx>
                 </span>
               </div>
-              {!rail && <span className="truncate text-[0.95rem] font-semibold tracking-wide"><Tx>JAGS Assurance</Tx></span>}
+              <span className={"truncate text-[0.95rem] font-semibold tracking-wide " + rp("lg:max-desk:hidden")}><Tx>JAGS Assurance</Tx></span>
             </>
           )}
-          {isCoBranded && !rail && (
+          {isCoBranded && (
             // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
-            <img src={logoUrl!} alt="Organisation logo" className="ms-2 h-8 max-w-[6.5rem] border-s border-white/25 ps-2 object-contain" />
+            <img src={logoUrl!} alt="Organisation logo" className={"ms-2 h-8 max-w-[6.5rem] border-s border-white/25 ps-2 object-contain " + rp("lg:max-desk:hidden")} />
           )}
         </div>
 
-        <SidebarNav items={navItems} collapsed={rail} />
+        <SidebarNav items={navItems} collapsed={railPref} railActive={rail} />
 
         {/* Rail toggle: laptop only. Desktop is always expanded and the drawer is always full. */}
         <div className="hidden px-3 pb-2 lg:block desk:hidden">
@@ -193,7 +220,7 @@ export function SidebarShell({
             title={rail ? tl("Expand sidebar") : tl("Collapse sidebar")}
             className={
               "flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-xs font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-gold " +
-              (rail ? "justify-center px-0" : "")
+              rp("lg:max-desk:justify-center lg:max-desk:px-0")
             }
           >
             <svg
@@ -204,17 +231,17 @@ export function SidebarShell({
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={"h-4 w-4 shrink-0 transition-transform rtl:-scale-x-100 " + (rail ? "rotate-180" : "")}
+              className={"h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none rtl:-scale-x-100 " + rp("lg:max-desk:rotate-180")}
             >
               <path d="M12.5 4.5L7 10l5.5 5.5" />
             </svg>
-            {!rail && <span><Tx>Collapse</Tx></span>}
+            <span className={rp("lg:max-desk:hidden")}><Tx>Collapse</Tx></span>
           </button>
         </div>
 
-        <div className={"border-t border-white/10 px-4 py-3 " + (rail ? "lg:px-2 lg:text-center" : "")}>
-          {rail ? (
-            <div className="hidden flex-col items-center gap-2 lg:flex">
+        <div className={"border-t border-white/10 px-4 py-3 " + rp("lg:max-desk:px-2 lg:max-desk:text-center")}>
+          {railPref ? (
+            <div className="hidden flex-col items-center gap-2 lg:max-desk:flex">
               <div
                 title={`${userName} · ${userRole}`}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold"
@@ -238,8 +265,8 @@ export function SidebarShell({
             </div>
           ) : null}
           {/* Full footer: always on the drawer (below lg) and whenever the sidebar is expanded. */}
-          <div className={rail ? "lg:hidden" : ""}>
-            <div className="truncate text-sm font-medium">{userName}</div>
+          <div className={rp("lg:max-desk:hidden")}>
+            <div className="truncate text-sm font-medium" title={userName}>{userName}</div>
             <div className="text-xs text-white/75">{userRole}</div>
             <form action={signOutAction}>
               <button type="submit" className="mt-2 inline-flex min-h-9 items-center text-xs text-white/80 hover:text-white hover:underline focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11">

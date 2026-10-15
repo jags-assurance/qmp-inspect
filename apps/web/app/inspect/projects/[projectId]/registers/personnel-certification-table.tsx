@@ -126,6 +126,7 @@ export function PersonnelCertificationTable({ rows, projectId, canManage, editab
       )}
     <DataTable
       mobileCards
+      breakpoint="md"
       caption="Personnel certification register"
       columns={columns}
       rows={rows}

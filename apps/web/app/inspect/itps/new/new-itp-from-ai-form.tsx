@@ -11,6 +11,8 @@ import type { ItpDraftResult } from "@/lib/ai/provider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FormField } from "@/components/ui/form-field";
+import { FormMessage } from "@/components/ui/form-message";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
@@ -151,7 +153,7 @@ export function NewItpFromAiForm({
 
   if (!draft) {
     return (
-      <form action={genFormAction} className="mt-6 space-y-6">
+      <form action={genFormAction} className="mt-6 space-y-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div>
           <FormField label="Project">
             <select
@@ -181,7 +183,7 @@ export function NewItpFromAiForm({
               <Tx>Pick everything relevant — specs, standards, method statements, drawings notes. The AI reads their actual text and covers every discipline they touch in one draft.</Tx>
             </p>
             {projectVaultDocuments.length === 0 ? (
-              <p className="mt-2 rounded-md border border-dashed border-border bg-off-white p-3 text-xs text-muted">
+              <p className="mt-2 rounded-md border border-dashed border-border bg-surface-subtle p-3 text-xs text-muted">
                 <Tx>No documents in this project&apos;s vault yet — upload specs/standards under Document Vault first, or describe the scope below instead.</Tx>
               </p>
             ) : (
@@ -189,7 +191,7 @@ export function NewItpFromAiForm({
                 {projectVaultDocuments.map((doc) => {
                   const usable = doc.extractionStatus === "done";
                   return (
-                    <li key={doc.id} className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-off-white">
+                    <li key={doc.id} className="flex items-start gap-2 rounded px-1.5 py-1.5 hover:bg-surface-subtle">
                       <input
                         type="checkbox"
                         id={`doc_${doc.id}`}
@@ -240,7 +242,7 @@ export function NewItpFromAiForm({
                 className={`rounded-md border px-2 py-2 text-xs font-medium transition-colors ${
                   countMode === opt.value
                     ? "border-burgundy bg-burgundy text-white"
-                    : "border-border bg-surface text-ink hover:bg-off-white"
+                    : "border-border bg-surface text-ink hover:bg-surface-subtle"
                 }`}
               >
                 {opt.label}
@@ -286,11 +288,13 @@ export function NewItpFromAiForm({
           </p>
         </div>
 
-        {genState.error && <p role="alert" className="text-sm text-danger">{genState.error}</p>}
+        <FormMessage error={genState.error} />
 
-        <Button type="submit" disabled={genPending}>
-          {genPending ? "Generating…" : "Generate draft"}
-        </Button>
+        <StickyActionBar>
+          <Button type="submit" disabled={genPending}>
+            {genPending ? "Generating…" : "Generate draft"}
+          </Button>
+        </StickyActionBar>
       </form>
     );
   }
@@ -365,7 +369,7 @@ export function NewItpFromAiForm({
 
   return (
     <div className="mt-6 space-y-6">
-      <div className="rounded-lg border border-border bg-off-white p-4">
+      <div className="rounded-lg border border-border bg-surface-subtle p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="flex flex-wrap items-center gap-2 text-sm text-muted">
             <span>
@@ -414,11 +418,11 @@ export function NewItpFromAiForm({
         <input type="hidden" name="draft_json" value={JSON.stringify(draft)} readOnly />
         <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
 
-        <div className="rounded-lg border border-border bg-off-white p-4">
-          <p className="text-xs font-medium text-muted">
+        <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+          <p className="text-sm text-muted">
             <Tx>Auto-suggested from the org&apos;s numbering scheme and the source documents — review and edit before creating.</Tx>
           </p>
-          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
               <FormField label="ITP number">
                 <input
@@ -432,7 +436,7 @@ export function NewItpFromAiForm({
               </FormField>
             </div>
 
-            <div className="sm:col-span-2">
+            <div className="md:col-span-2">
               <FormField label="Title">
                 <input
                 name="title"
@@ -463,7 +467,7 @@ export function NewItpFromAiForm({
         <div className="space-y-5">
           {draft.sections.map((section, sectionIdx) => (
             <div key={sectionIdx} className="rounded-lg border border-border">
-              <div className="flex items-center justify-between gap-3 rounded-t-lg border-b border-border bg-off-white px-3 py-2">
+              <div className="flex items-center justify-between gap-3 rounded-t-lg border-b border-border bg-surface-subtle px-3 py-2">
                 <input
                   value={section.title}
                   onChange={(e) => updateSectionTitle(sectionIdx, e.target.value)}
@@ -477,14 +481,14 @@ export function NewItpFromAiForm({
 
               <div className="space-y-3 p-3">
                 {section.items.length === 0 && (
-                  <p className="rounded-md border border-dashed border-border bg-off-white p-3 text-center text-xs text-muted">
+                  <p className="rounded-md border border-dashed border-border bg-surface-subtle p-3 text-center text-xs text-muted">
                     <Tx>No activities in this section yet.</Tx>
                   </p>
                 )}
                 {section.items.map((item, itemIdx) => (
                   <div key={itemIdx} className="rounded-md border border-border bg-surface p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="doc-id rounded bg-off-white px-2 py-1 text-xs font-medium text-ink">
+                      <span className="doc-id rounded bg-surface-subtle px-2 py-1 text-xs font-medium text-ink">
                         <Tx>Item</Tx> {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
                       </span>
                       <Button
@@ -502,7 +506,7 @@ export function NewItpFromAiForm({
                           <input
                           value={item.itemNumber}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { itemNumber: e.target.value })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm doc-id"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm doc-id"
                         />
                         </FormField>
                       </div>
@@ -511,7 +515,7 @@ export function NewItpFromAiForm({
                           <input
                           value={item.activity}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { activity: e.target.value })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                         />
                         </FormField>
                       </div>
@@ -523,7 +527,7 @@ export function NewItpFromAiForm({
                         value={item.acceptanceCriteria}
                         onChange={(e) => updateItem(sectionIdx, itemIdx, { acceptanceCriteria: e.target.value })}
                         rows={2}
-                        className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-sm"
+                        className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                       />
                       </FormField>
                     </div>
@@ -534,7 +538,7 @@ export function NewItpFromAiForm({
                           <input
                           value={item.referenceSpec}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { referenceSpec: e.target.value })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                         />
                         </FormField>
                       </div>
@@ -543,7 +547,7 @@ export function NewItpFromAiForm({
                           <select
                           value={item.disciplineCode ?? ""}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { disciplineCode: e.target.value || null })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                         >
                           <option value=""><Tx>No discipline</Tx></option>
                           {disciplines.map((d) => (
@@ -559,7 +563,7 @@ export function NewItpFromAiForm({
                           <select
                           value={item.evidenceType}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { evidenceType: Number(e.target.value) as 1 | 2 | 3 })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                         >
                           <option value={1}><Tx>Checklist</Tx></option>
                           <option value={2}><Tx>Document upload (certificate, test report, readings)</Tx></option>
@@ -575,7 +579,7 @@ export function NewItpFromAiForm({
                           <input
                           value={item.method}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { method: e.target.value })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                         />
                         </FormField>
                       </div>
@@ -584,14 +588,14 @@ export function NewItpFromAiForm({
                           <input
                           value={item.frequency}
                           onChange={(e) => updateItem(sectionIdx, itemIdx, { frequency: e.target.value })}
-                          className="mt-1 w-full rounded border border-border bg-surface px-2 py-1.5 text-xs"
+                          className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
                         />
                         </FormField>
                       </div>
                     </div>
 
                     {projectParties.length > 0 && interventionLevels.length > 0 && (
-                      <div className="mt-3 rounded-md bg-off-white p-2">
+                      <div className="mt-3 rounded-md bg-surface-subtle p-2">
                         <p className="text-xs font-medium text-muted">
                           <Tx>Sign-off level per party — the AI&apos;s suggestion is pre-selected; change or clear any of them before creating the ITP</Tx>
                         </p>
@@ -599,7 +603,7 @@ export function NewItpFromAiForm({
                           {projectParties.map((party) => {
                             const current = item.suggestedInterventions.find((si) => si.projectPartyId === party.id);
                             return (
-                              <label key={party.id} className="flex items-center justify-between gap-2 text-xs text-ink">
+                              <label key={party.id} className="flex flex-col gap-1 text-sm text-ink sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                                 <span className="min-w-0 truncate" title={current?.reason ? `AI: ${current.reason}` : party.name}>
                                   {party.name}
                                 </span>
@@ -614,7 +618,7 @@ export function NewItpFromAiForm({
                                         : others,
                                     });
                                   }}
-                                  className="rounded border border-border bg-surface px-1.5 py-1 text-xs"
+                                  className="min-h-10 rounded-md border border-border bg-surface px-2 py-1 text-sm sm:max-w-[60%]"
                                 >
                                   <option value=""><Tx>— None —</Tx></option>
                                   {interventionLevels.map((l) => (
@@ -637,21 +641,17 @@ export function NewItpFromAiForm({
                   </div>
                 ))}
 
-                <button
-                  type="button"
-                  onClick={() => addItem(sectionIdx)}
-                  className="w-full rounded-md border border-dashed border-border py-2 text-xs font-medium text-muted hover:border-burgundy hover:text-burgundy"
-                >
+                <Button type="button" variant="outline" onClick={() => addItem(sectionIdx)} className="w-full border-dashed">
                   <Tx>+ Add activity to this section</Tx>
-                </button>
+                </Button>
               </div>
             </div>
           ))}
         </div>
 
-        {createState.error && <p role="alert" className="text-sm text-danger">{createState.error}</p>}
+        <FormMessage error={createState.error} />
 
-        <div className="flex gap-3">
+        <StickyActionBar>
           <Button type="submit" disabled={createPending}>
             {createPending ? "Creating…" : "Create ITP from this draft"}
           </Button>
@@ -670,7 +670,7 @@ export function NewItpFromAiForm({
           >
             <Tx>Discard draft</Tx>
           </Button>
-        </div>
+        </StickyActionBar>
       </form>
     </div>
   );

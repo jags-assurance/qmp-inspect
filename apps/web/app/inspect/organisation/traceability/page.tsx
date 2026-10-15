@@ -13,6 +13,7 @@ import { fetchRegisterUsage } from "@/lib/registers/usage";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { Button } from "@/components/ui/button";
+import { ResponsiveTable } from "@/components/ui/responsive-table";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -171,7 +172,7 @@ export default async function DocumentTraceabilityPage({
     <div>
       <SettingsBackLink href="/inspect/settings?section=insights" />
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Document Traceability</T></h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Document Traceability</T></h1>
         <PageGuide
           title={tl("Document Traceability — how this works")}
           points={[
@@ -336,7 +337,7 @@ function IdentityRow({ label, value }: { label: string; value: ReactNode }) {
 
 function SectionCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="mt-6 rounded-lg border border-border bg-surface p-5">
+    <div className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <h2 className="text-sm font-semibold text-ink">{title}</h2>
       <div className="mt-3">{children}</div>
     </div>
@@ -346,37 +347,33 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
 function AuditTrailTable({ events }: { events: AuditEventRow[] }) {
   if (events.length === 0) return <p className="text-sm text-muted"><T>No audit events recorded for this document.</T></p>;
   return (
-    <div className="overflow-x-auto">
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="border-b border-border text-start text-xs uppercase text-muted">
-          <th className="py-2"><T>Timestamp</T></th>
-          <th className="py-2"><T>Actor</T></th>
-          <th className="py-2"><T>Action</T></th>
-          <th className="py-2"><T>Summary</T></th>
-        </tr>
-      </thead>
-      <tbody>
-        {events.map((event) => (
-          <tr key={event.id} className="border-b border-border last:border-0 align-top">
-            <td className="whitespace-nowrap py-2 text-xs text-muted">{new Date(event.created_at).toLocaleString("en-GB")}</td>
-            <td className="py-2">
-              {event.actor ? (
-                <span>
-                  {event.actor.full_name}
-                  <span className="ms-1 text-xs text-muted">({event.actor.email})</span>
-                </span>
-              ) : (
-                <span className="text-xs text-muted"><T>System</T></span>
-              )}
-            </td>
-            <td className="py-2 text-xs text-muted">{event.action}</td>
-            <td className="py-2 text-ink">{event.summary}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-    </div>
+    <ResponsiveTable
+      breakpoint="md"
+      caption="Audit trail"
+      rows={events}
+      rowKey={(event) => event.id}
+      headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
+      thClassName="py-2 pe-3"
+      tdClassName="py-2 pe-3 align-top"
+      columns={[
+        { key: "ts", header: "Timestamp", className: "whitespace-nowrap text-xs text-muted", render: (event) => new Date(event.created_at).toLocaleString("en-GB") },
+        {
+          key: "actor",
+          header: "Actor",
+          render: (event) =>
+            event.actor ? (
+              <span>
+                {event.actor.full_name}
+                <span className="ms-1 break-all text-xs text-muted">({event.actor.email})</span>
+              </span>
+            ) : (
+              <span className="text-xs text-muted"><T>System</T></span>
+            ),
+        },
+        { key: "action", header: "Action", className: "text-xs text-muted", render: (event) => event.action },
+        { key: "summary", header: "Summary", cardLabel: null, className: "text-ink", render: (event) => event.summary },
+      ]}
+    />
   );
 }
 
@@ -962,43 +959,35 @@ function RegisterHitCard({ hit, usage, cycleCount }: { hit: RegisterHit; usage: 
       {usage.length === 0 ? (
         <p className="mt-1 text-sm text-muted"><T>No inspection checklist answer has been verified against this entry yet.</T></p>
       ) : (
-        <div className="overflow-x-auto">
-        <table className="mt-2 w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-start text-xs uppercase text-muted">
-              <th className="py-2"><T>Record</T></th>
-              <th className="py-2"><T>ITP activity</T></th>
-              <th className="py-2"><T>Checklist item</T></th>
-              <th className="py-2"><T>Date</T></th>
-              <th className="py-2"><T>Answer</T></th>
-              <th className="py-2"><T>Result</T></th>
-            </tr>
-          </thead>
-          <tbody>
-            {usage.map((u) => (
-              <tr key={u.id} className="border-b border-border align-top last:border-0">
-                <td className="py-2">
-                  {u.record ? (
+        <div className="mt-2">
+          <ResponsiveTable
+            breakpoint="md"
+            caption="Inspection answers verified against this entry"
+            rows={usage}
+            rowKey={(u) => u.id}
+            headRowClassName="border-b border-border text-start text-xs uppercase text-muted"
+            thClassName="py-2 pe-3"
+            tdClassName="py-2 pe-3 align-top"
+            columns={[
+              {
+                key: "record",
+                header: "Record",
+                render: (u) =>
+                  u.record ? (
                     <Link href={`/inspect/inspections/${u.record.id}`} className="text-burgundy hover:underline">
                       {u.record.record_number}
                     </Link>
                   ) : (
                     "—"
-                  )}
-                </td>
-                <td className="py-2">{u.record?.activity ?? "—"}</td>
-                <td className="py-2 text-xs text-muted">
-                  {u.checklist_item ? `${u.checklist_item.item_number} ${u.checklist_item.description}` : "—"}
-                </td>
-                <td className="whitespace-nowrap py-2 text-xs text-muted">
-                  {u.record ? new Date(u.record.inspection_date).toLocaleDateString("en-GB") : "—"}
-                </td>
-                <td className="py-2 text-xs uppercase">{u.result}</td>
-                <td className="py-2">{u.record?.overall_result ?? "pending"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  ),
+              },
+              { key: "activity", header: "ITP activity", render: (u) => u.record?.activity ?? "—" },
+              { key: "item", header: "Checklist item", className: "text-xs text-muted", render: (u) => (u.checklist_item ? `${u.checklist_item.item_number} ${u.checklist_item.description}` : "—") },
+              { key: "date", header: "Date", className: "whitespace-nowrap text-xs text-muted", render: (u) => (u.record ? new Date(u.record.inspection_date).toLocaleDateString("en-GB") : "—") },
+              { key: "answer", header: "Answer", className: "text-xs uppercase", render: (u) => u.result },
+              { key: "result", header: "Result", render: (u) => u.record?.overall_result ?? "pending" },
+            ]}
+          />
         </div>
       )}
     </SectionCard>

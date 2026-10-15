@@ -5,6 +5,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { deleteDraftItpAction, withdrawItpAction, type ItpExitState } from "@/lib/itps/lifecycle-actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: ItpExitState = { error: null };
 const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-burgundy";
@@ -44,8 +45,7 @@ export function ItpExitControls({
           {deleteState.error && <p role="alert" className="mt-1 max-w-xs text-xs text-danger">{deleteState.error}</p>}
         </form>
       )}
-      <details>
-        <summary className="cursor-pointer text-xs text-muted hover:underline"><Tx>Withdraw or supersede this ITP…</Tx></summary>
+      <Disclosure variant="inline" summary={<><Tx>Withdraw or supersede this ITP…</Tx></>}>
         <form action={exitAction} className="mt-2 w-80 space-y-2 rounded-md border border-border bg-surface p-3">
           <input type="hidden" name="itp_id" value={itpId} />
           <label className="block text-xs font-medium text-ink">
@@ -82,7 +82,7 @@ export function ItpExitControls({
             {exiting ? "Saving…" : "Confirm"}
           </button>
         </form>
-      </details>
+</Disclosure>
     </div>
   );
 }

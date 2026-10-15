@@ -11,6 +11,7 @@ import {
   type MaterialReceiptStatus,
 } from "@/lib/registers/types";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
@@ -49,10 +50,10 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
   }, [pending, state]);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={formAction} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
 
-      <div className="w-full sm:min-w-56 flex-1">
+      <div className="min-w-0 md:col-span-2">
         <FormField label="Material">
           <input
           name="material_description"
@@ -177,7 +178,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
       )}
 
       {needsDisposition && (
-        <div className="w-full sm:min-w-56 flex-1">
+        <div className="min-w-0 md:col-span-2">
           <label htmlFor="disposition_notes" className="block text-xs font-medium text-ink">
             <Tx>Disposition notes</Tx> <span className="text-danger">*</span>
           </label>
@@ -191,7 +192,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
         </div>
       )}
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Notes">
           <input
           name="notes"
@@ -202,9 +203,11 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
 
       <CertificateUpload key={formKey} projectId={projectId} kind="material" />
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <StickyActionBar className="md:col-span-2">
+        <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add material"}
       </Button>
+      </StickyActionBar>
 
       {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
       <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />

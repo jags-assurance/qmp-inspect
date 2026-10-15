@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
+import { lockBodyScroll } from "@/lib/hooks/use-scroll-lock";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 
@@ -64,11 +65,10 @@ export function FilterBar({
     const mql = window.matchMedia("(min-width: 768px)");
     const onChange = (e: MediaQueryListEvent) => e.matches && setOpen(false);
     mql.addEventListener("change", onChange);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     return () => {
       mql.removeEventListener("change", onChange);
-      document.body.style.overflow = prev;
+      unlockScroll();
     };
   }, [open]);
 

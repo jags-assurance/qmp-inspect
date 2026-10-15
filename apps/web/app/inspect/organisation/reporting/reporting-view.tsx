@@ -68,7 +68,7 @@ export async function ReportingView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Reporting</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Reporting</T></Heading>
         <PageGuide
           title={tl("Reporting — how this works")}
           points={[
@@ -86,7 +86,7 @@ export async function ReportingView({ searchParams, embedded }: {
 
       {selectedOrg && (
         <>
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
             <h2 className="text-sm font-semibold text-ink"><T>Monthly client report pack</T></h2>
             <MoreDetails className="mt-1"><p>
               <T>Generates a PDF + CSV report pack (R109) covering</T> {selectedOrg.name}<T>&rsquo;s first-time pass rate, inspections completed, NCR summary and ITP completion, aggregated across all of their projects (or the one project you choose) for the chosen month. Rendering happens in the background — the table below updates automatically once it completes, no reload needed.</T>
@@ -96,7 +96,7 @@ export async function ReportingView({ searchParams, embedded }: {
             </div>
           </div>
 
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+          <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
             <h2 className="text-sm font-semibold text-ink"><T>Weekly client report pack</T></h2>
             <MoreDetails className="mt-1"><p>
               <T>The same PDF + CSV report pack, on a 7-day cadence instead of a calendar month — covers first-time pass rate, inspections completed, NCR summary and ITP completion for the chosen week, aggregated across all of</T> {selectedOrg.name}<T>&rsquo;s projects. Rendering happens in the background — the table below updates automatically once it completes, no reload needed.</T>

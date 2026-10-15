@@ -1,6 +1,7 @@
 import { diffRevisions, type RevisionDiff } from "@/lib/itps/revision-diff";
 import type { ItpRevisionRow, ItpRevisionSnapshotItem, ItpRevisionSnapshotSection } from "@/lib/itps/revision-types";
 import { T } from "@/components/domain/t";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -121,8 +122,7 @@ export function RevisionHistoryPanel({
   if (revisions.length === 0) return null;
 
   return (
-    <details className="group mt-4">
-      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Revision history</T> ({revisions.length})</summary>
+    <Disclosure variant="pill" summary={<><T>Revision history</T> ({revisions.length})</>} className="mt-4">
       <p className="mt-2 text-xs text-muted">
         {currentRevision !== undefined && (
           <>
@@ -202,6 +202,6 @@ export function RevisionHistoryPanel({
           );
         })}
       </ul>
-    </details>
+</Disclosure>
   );
 }

@@ -11,6 +11,7 @@ export function MobileSidebarToggle() {
       type="button"
       onClick={() => setOpen(!open)}
       aria-label={open ? "Close menu" : "Open menu"}
+      title={open ? "Close menu" : "Open menu"}
       aria-expanded={open}
       aria-controls="app-sidebar"
       data-sidebar-toggle

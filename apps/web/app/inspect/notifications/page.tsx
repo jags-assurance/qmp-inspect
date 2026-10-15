@@ -5,6 +5,11 @@ import { NOTIFICATIONS_TABLE, type NotificationRow } from "@/lib/notifications/t
 import { markAllNotificationsReadAction } from "@/lib/notifications/actions";
 import { T } from "@/components/domain/t";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { EmptyState } from "@/components/ui/empty-state";
+import { getTranslator } from "@/lib/i18n/server";
 
 const PAGE_SIZE = 25;
 
@@ -13,6 +18,7 @@ export default async function NotificationsPage({
 }: {
   searchParams: Promise<{ filter?: string; page?: string }>;
 }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   const { filter, page: pageParam } = await searchParams;
   const unreadOnly = filter === "unread";
@@ -45,54 +51,55 @@ export default async function NotificationsPage({
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-ink"><T>Notifications</T></h1>
-        {(unreadTotal ?? 0) > 0 && (
-          <form action={markAll}>
-            <Button type="submit" variant="outline">
-              <T>Mark all read (</T>{unreadTotal})
-            </Button>
-          </form>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        title={<T>Notifications</T>}
+        subtitle={(unreadTotal ?? 0) > 0 ? <>{unreadTotal} <T>unread</T></> : undefined}
+        primaryAction={
+          (unreadTotal ?? 0) > 0 ? (
+            <form action={markAll}>
+              <Button type="submit" variant="outline">
+                <T>Mark all read (</T>{unreadTotal})
+              </Button>
+            </form>
+          ) : undefined
+        }
+      />
 
-      <div className="mt-4 flex gap-2 text-sm">
-        <Link
-          href="/inspect/notifications"
-          className={"min-h-11 rounded-md border px-3 py-2.5 " + (!unreadOnly ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border text-muted")}
-        >
-          <T>All</T>
-        </Link>
-        <Link
-          href="/inspect/notifications?filter=unread"
-          className={"min-h-11 rounded-md border px-3 py-2.5 " + (unreadOnly ? "border-burgundy bg-burgundy/5 text-burgundy" : "border-border text-muted")}
-        >
-          <T>Unread</T>
-        </Link>
-      </div>
+      <FilterChips
+        label={tl("Filter notifications")}
+        items={[
+          { key: "all", label: tl("All"), href: "/inspect/notifications", active: !unreadOnly },
+          { key: "unread", label: tl("Unread"), count: unreadTotal ?? 0, href: "/inspect/notifications?filter=unread", active: unreadOnly },
+        ]}
+      />
 
       {rows.length === 0 ? (
-        <p className="mt-6 rounded-lg border border-border bg-surface p-6 text-center text-sm text-muted">
-          {unreadOnly ? "You're all caught up - no unread notifications." : "Nothing yet - this fills up as parties act on your projects."}
-        </p>
+        <div className="rounded-lg border border-border bg-surface shadow-xs">
+          <EmptyState
+            title={unreadOnly ? "You're all caught up - no unread notifications." : "Nothing yet - this fills up as parties act on your projects."}
+          />
+        </div>
       ) : (
-        <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface shadow-xs">
           {rows.map((n) => {
             const inner = (
-              <div className="flex items-start gap-2 px-4 py-3">
-                {!n.is_read && <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-burgundy" />}
+              <div className="flex items-start gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className={"text-sm " + (n.is_read ? "text-ink" : "font-semibold text-ink")}>{n.title}</p>
-                  {n.body && <p className="mt-0.5 text-sm text-muted">{n.body}</p>}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className={"text-sm " + (n.is_read ? "text-ink" : "font-semibold text-ink")}>{n.title}</p>
+                    {!n.is_read && <Badge tone="info" showIcon={false}><T>New</T></Badge>}
+                  </div>
+                  {n.body && <p className="mt-0.5 text-sm text-muted [overflow-wrap:anywhere]">{n.body}</p>}
                   <p className="mt-1 text-xs text-muted">{new Date(n.created_at).toLocaleString("en-GB")}</p>
                 </div>
               </div>
             );
             return (
-              <li key={n.id} className={n.is_read ? "" : "bg-burgundy/5"}>
+              <li key={n.id} className={n.is_read ? "" : "bg-brand-soft"}>
                 {n.link ? (
-                  <Link href={`/inspect/notifications/open?id=${n.id}`} className="block hover:bg-off-white">
+                  <Link href={`/inspect/notifications/open?id=${n.id}`} className="block min-h-11 hover:bg-surface-subtle">
                     {inner}
                   </Link>
                 ) : (
@@ -105,9 +112,9 @@ export default async function NotificationsPage({
       )}
 
       {pages > 1 && (
-        <div className="mt-4 flex items-center justify-between text-sm">
+        <div className="flex items-center justify-between gap-2 text-sm">
           {page > 1 ? (
-            <Link href={qs(page - 1)} className="min-h-11 py-2.5 text-burgundy hover:underline">
+            <Link href={qs(page - 1)} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
               <T>Newer</T>
             </Link>
           ) : (
@@ -117,7 +124,7 @@ export default async function NotificationsPage({
             <T>Page</T> {page} <T>of</T> {pages}
           </span>
           {page < pages ? (
-            <Link href={qs(page + 1)} className="min-h-11 py-2.5 text-burgundy hover:underline">
+            <Link href={qs(page + 1)} className="inline-flex min-h-11 items-center font-medium text-brand hover:underline">
               <T>Older</T>
             </Link>
           ) : (

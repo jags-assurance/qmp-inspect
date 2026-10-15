@@ -3,13 +3,13 @@ import type { AssignedActivity } from "@/lib/checklists/assigned-queries";
 import { T } from "@/components/domain/t";
 
 /** "Assigned to me" queue section (Start work page and inspector dashboard). Renders nothing when empty unless told to. */
-export function AssignedToMe({ items, showEmpty = false }: { items: AssignedActivity[]; showEmpty?: boolean }) {
+export function AssignedToMe({ items, showEmpty = false, className = "mt-6" }: { items: AssignedActivity[]; showEmpty?: boolean; className?: string }) {
   if (items.length === 0 && !showEmpty) return null;
   return (
-    <div className="mt-6 rounded-lg border border-border bg-surface p-4" id="assigned-to-me">
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium text-ink"><T>Assigned to me (</T>{items.length})</h2>
-        <Link href="/inspect/start-work?assigned=me" className="text-sm text-burgundy hover:underline">
+    <div className={`scroll-mt-24 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 ${className}`} id="assigned-to-me">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-ink"><T>Assigned to me (</T>{items.length})</h2>
+        <Link href="/inspect/start-work?assigned=me" className="inline-flex min-h-9 items-center text-sm font-medium text-brand hover:underline [@media(pointer:coarse)]:min-h-11">
           <T>Open in Start work</T>
         </Link>
       </div>
@@ -21,12 +21,12 @@ export function AssignedToMe({ items, showEmpty = false }: { items: AssignedActi
             <li key={a.templateId}>
               <Link
                 href={`/inspect/checklists/${a.templateId}`}
-                className="flex min-h-11 flex-col gap-0.5 py-2 hover:bg-off-white sm:flex-row sm:items-center sm:justify-between"
+                className="flex min-h-11 flex-col gap-0.5 rounded-md py-2 hover:bg-surface-subtle sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
-                <span className="min-w-0 truncate text-sm text-ink">
+                <span className="min-w-0 truncate text-sm font-medium text-ink" title={`${a.itemNumber}. ${a.activity}`}>
                   {a.itemNumber}. {a.activity}
                 </span>
-                <span className="text-xs text-muted">
+                <span className="text-xs text-muted [overflow-wrap:anywhere]">
                   {a.projectName} - {a.itpNumber}
                   {a.plannedDate ? ` - due ${a.plannedDate}` : ""} - {a.status === "in_progress" ? "In progress" : "Not started"}
                 </span>

@@ -4,6 +4,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { formatDateOnly, formatSiteDateTime } from "@/lib/ncrs/site-date";
 import { SignOffWalkdownButton } from "./signoff-walkdown-button";
 import { T } from "@/components/domain/t";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface WalkdownRow {
   id: string;
@@ -30,11 +31,7 @@ export async function WalkdownsPanel({ projectId }: { projectId: string }) {
   if (error || !data || data.length === 0) return null;
 
   return (
-    <details className="group mt-6">
-      <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-        <T>Recent walkdowns</T> ({data.length})
-      </summary>
+    <Disclosure variant="pill" summary={<><T>Recent walkdowns</T> ({data.length})</>} className="mt-6">
       <div className="mt-2 rounded-lg border border-border bg-surface p-4">
       <ul className="divide-y divide-border text-sm">
         {data.map((w) => (
@@ -58,6 +55,6 @@ export async function WalkdownsPanel({ projectId }: { projectId: string }) {
         ))}
       </ul>
       </div>
-    </details>
+</Disclosure>
   );
 }

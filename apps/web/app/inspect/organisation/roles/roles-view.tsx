@@ -137,7 +137,7 @@ export async function CustomRolesView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Custom roles</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Custom roles</T></Heading>
         <PageGuide
           title={tl("Custom roles — how this works")}
           points={[

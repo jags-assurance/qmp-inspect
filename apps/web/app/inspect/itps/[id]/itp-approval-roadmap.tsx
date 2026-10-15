@@ -1,5 +1,6 @@
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 import { T } from "@/components/domain/t";
+import { Disclosure } from "@/components/ui/disclosure";
 
 /**
  * The round-table ask: "a separate roadmap for permission and approval — accept, who will approve,
@@ -76,18 +77,21 @@ export function ItpApprovalRoadmap({
   ];
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <h3 className="text-sm font-semibold text-ink"><T>Approval &amp; acceptance roadmap</T></h3>
-      <ol className="mt-3 space-y-2.5">
-        {stages.map((stage) => (
-          <li key={stage.key} className="flex items-start gap-2.5">
+      <ol className="mt-4">
+        {stages.map((stage, idx) => (
+          <li key={stage.key} className="relative flex items-start gap-3 pb-6 last:pb-0">
+            {idx < stages.length - 1 && (
+              <span aria-hidden="true" className={`absolute start-[0.6875rem] top-7 bottom-0 w-0.5 ${stage.done ? "bg-success" : "bg-border-strong"}`} />
+            )}
             <span
-              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                 stage.done
                   ? "bg-success text-white"
                   : stage.current
                     ? "border-2 border-warning bg-surface text-warning"
-                    : "border border-border bg-off-white text-muted"
+                    : "border border-border-strong bg-surface-subtle text-muted"
               }`}
               aria-hidden
             >
@@ -96,24 +100,22 @@ export function ItpApprovalRoadmap({
             <div className="min-w-0">
               <p className={`text-sm ${stage.done || stage.current ? "font-medium text-ink" : "text-muted"}`}>
                 {stage.label}
-                {stage.current && <span className="ms-1.5 text-xs font-normal text-warning"><T>— current stage</T></span>}
+                <span className={`ms-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${stage.done ? "bg-success-soft text-success" : stage.current ? "bg-warning-soft text-warning" : "bg-surface-sunken text-muted"}`}>
+                  {stage.done ? <T>Done</T> : stage.current ? <T>Current stage</T> : <T>Upcoming</T>}
+                </span>
               </p>
               {stage.detail && <p className="text-xs text-muted">{stage.detail}</p>}
               {/* Full per-reviewer detail (with the "Approve step" action) lives in ReviewChainStatus
                   below the button row — this is just enough of a summary to place the review chain
                   on the map without duplicating its actionable UI. */}
               {stage.key === "approved" && (reviewSteps.length > 0 || (!pastReview && plannedReviewers.length > 0)) && (
-                <details className="group mt-0.5" open={stage.current}>
-                  <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-                    <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-                    {reviewSteps.length > 0 ? (
+                <Disclosure variant="pill" summary={<>{reviewSteps.length > 0 ? (
                       <>
                         <T>Approvers</T> {reviewSteps.filter((s) => s.status === "approved").length}/{reviewSteps.length}
                       </>
                     ) : (
                       <T>Expected approvers</T>
-                    )}
-                  </summary>
+                    )}</>} className="mt-0.5" defaultOpen={stage.current}>
                   <ol className="mt-1 space-y-0.5 text-xs">
                     {reviewSteps.length > 0
                       ? reviewSteps.map((step) => (
@@ -132,7 +134,7 @@ export function ItpApprovalRoadmap({
                           </li>
                         ))}
                   </ol>
-                </details>
+</Disclosure>
               )}
               {stage.key === "approved" && !pastReview && reviewSteps.length === 0 && plannedReviewers.length === 0 && (
                 <p className="text-xs text-muted"><T>Any JAGS staff member</T></p>

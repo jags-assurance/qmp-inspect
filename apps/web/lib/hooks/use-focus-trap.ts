@@ -1,11 +1,12 @@
 import { useEffect, type RefObject } from "react";
+import { useEscapeLayer } from "./use-escape-layer";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Modal focus behaviour shared by the drawer, sheets and filter sheet: while `active`, Tab / Shift+Tab
- * cycle inside `ref`, Escape calls `onClose`, focus moves into the container on open and returns to
+ * cycle inside `ref`, Escape calls `onClose` (topmost layer only, see useEscapeLayer), focus moves into the container on open and returns to
  * whatever had it before on close. Pass `restoreFocus={false}` when the caller restores focus itself.
  */
 export function useFocusTrap(
@@ -14,6 +15,8 @@ export function useFocusTrap(
   onClose: () => void,
   { restoreFocus = true }: { restoreFocus?: boolean } = {}
 ) {
+  // Escape goes through the shared layer stack so a nested dropdown can close first.
+  useEscapeLayer(active, onClose);
   useEffect(() => {
     if (!active) return;
     const root = ref.current;
@@ -23,11 +26,6 @@ export function useFocusTrap(
     (first ?? root).focus();
 
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-        return;
-      }
       if (e.key !== "Tab" || !root) return;
       const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null || el === document.activeElement);
       if (items.length === 0) {

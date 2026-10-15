@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { AuthShell } from "@/components/domain/auth-shell";
 
 const initialState: RequestPasswordResetState = { error: null, sent: false };
 
@@ -14,30 +15,20 @@ export default function ForgotPasswordPage() {
   const [state, formAction, pending] = useActionState(requestPasswordResetAction, initialState);
 
   return (
-    <div className="flex min-h-screen">
-      <div className="hidden w-1/2 flex-col justify-center bg-burgundy px-16 text-white md:flex">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-gold text-lg font-semibold">
-          <Tx>JA</Tx>
-        </div>
-        <h1 className="mt-8 text-3xl font-semibold"><Tx>JAGS Assurance</Tx></h1>
-        <p className="mt-3 max-w-sm text-white/80">
-          <Tx>Controlled quality. Assured outcomes. Sign in to the Quality Management Platform.</Tx>
-        </p>
-      </div>
-      <div className="flex w-full flex-col justify-center px-8 md:w-1/2 md:px-20">
+    <AuthShell>
         {state.sent ? (
           <>
-            <h2 className="text-2xl font-semibold text-ink"><Tx>Check your email</Tx></h2>
+            <h1 className="text-2xl font-semibold text-ink"><Tx>Check your email</Tx></h1>
             <p className="mt-2 max-w-sm text-sm text-muted">
               <Tx>If an account exists for that address, we&apos;ve sent a link to reset your password. It expires shortly, so use it soon.</Tx>
             </p>
-            <Link href="/login" className="mt-6 text-sm font-medium text-burgundy hover:underline">
+            <Link href="/login" className="mt-6 inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline">
               <Tx>← Back to sign in</Tx>
             </Link>
           </>
         ) : (
           <>
-            <h2 className="text-2xl font-semibold text-ink"><Tx>Forgot password?</Tx></h2>
+            <h1 className="text-2xl font-semibold text-ink"><Tx>Forgot password?</Tx></h1>
             <p className="mt-1 text-sm text-muted">
               <Tx>Enter your account email and we&apos;ll send you a link to reset it.</Tx>
             </p>
@@ -50,23 +41,22 @@ export default function ForgotPasswordPage() {
                   type="email"
                   required
                   autoComplete="email"
-                  className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+                  className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
                 />
                 </FormField>
               </div>
 
               <FormMessage error={state.error} />
 
-              <Button type="submit" disabled={pending} className="w-full">
+              <Button type="submit" size="lg" disabled={pending} className="w-full">
                 {pending ? "Sending…" : "Send reset link"}
               </Button>
-              <Link href="/login" className="block text-center text-sm font-medium text-burgundy hover:underline">
+              <Link href="/login" className="flex min-h-11 items-center justify-center text-sm font-medium text-burgundy hover:underline">
                 <Tx>← Back to sign in</Tx>
               </Link>
             </form>
           </>
         )}
-      </div>
-    </div>
+    </AuthShell>
   );
 }

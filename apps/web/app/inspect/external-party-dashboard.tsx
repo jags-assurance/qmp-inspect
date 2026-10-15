@@ -5,7 +5,10 @@ import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatTile, StatGrid } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
+import { Disclosure } from "@/components/ui/disclosure";
 import { SignoffCell } from "@/components/domain/signoff-cell";
 import type { SignoffStatus } from "@/lib/signoff/db-types";
 import { PageGuide } from "@/components/domain/page-guide";
@@ -206,33 +209,29 @@ export function ExternalPartyDashboard({
     orgHealth: (
       <>
       {orgHealth && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink"><Tx>Your organisation at a glance</Tx></h2>
-          <p className="mt-1 text-sm text-muted">
-            <Tx>Your organisation at a glance.</Tx>
-          </p>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Link href="/inspect/manage" className="rounded-md border border-border p-3 hover:bg-off-white">
+        <Section className="mt-6" title={<Tx>Your organisation at a glance</Tx>} description={<Tx>Your organisation at a glance.</Tx>}>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Link href="/inspect/manage" className="block min-h-11 rounded-md border border-control-border p-3 hover:bg-surface-subtle">
               <p className="text-xs text-muted"><Tx>Parties with a login</Tx></p>
               <p className="mt-1 text-xl font-semibold text-ink">
                 {orgHealth.partiesWithLogin} <span className="text-sm font-normal text-muted"><Tx>of</Tx> {orgHealth.activeParties}</span>
               </p>
               <p className="mt-0.5 text-xs text-burgundy"><Tx>Manage access →</Tx></p>
             </Link>
-            <Link href="/inspect/ncrs" className="rounded-md border border-border p-3 hover:bg-off-white">
+            <Link href="/inspect/ncrs" className="block min-h-11 rounded-md border border-control-border p-3 hover:bg-surface-subtle">
               <p className="text-xs text-muted"><Tx>Overdue NCRs</Tx></p>
               <p className={"mt-1 text-xl font-semibold " + (orgHealth.overdueNcrs > 0 ? "text-danger" : "text-ink")}>
                 {orgHealth.overdueNcrs}
               </p>
               <p className="mt-0.5 text-xs text-burgundy"><Tx>Open NCRs →</Tx></p>
             </Link>
-            <Link href="/inspect/projects" className="rounded-md border border-border p-3 hover:bg-off-white">
+            <Link href="/inspect/projects" className="block min-h-11 rounded-md border border-control-border p-3 hover:bg-surface-subtle">
               <p className="text-xs text-muted"><Tx>Open punch-list items</Tx></p>
               <p className="mt-1 text-xl font-semibold text-ink">{orgHealth.openPunchItems}</p>
               <p className="mt-0.5 text-xs text-burgundy"><Tx>Projects →</Tx></p>
             </Link>
           </div>
-        </div>
+        </Section>
       )}
 
       </>
@@ -240,22 +239,33 @@ export function ExternalPartyDashboard({
     acceptance: (
       <>
       {itpsAwaitingAcceptance.length > 0 && (
-        <div className="mt-8">
-          <h2 className="font-medium text-ink"><Tx>ITPs awaiting your acceptance</Tx></h2>
-          <p className="mt-1 text-sm text-muted">
-            <Tx>Your acceptance is the last step before work starts.</Tx>
-          </p>
-          <div className="mt-3">
+        <Section className="mt-6" title={<Tx>ITPs awaiting your acceptance</Tx>} description={<Tx>Your acceptance is the last step before work starts.</Tx>}>
+          <div>
             <DataTable
               rows={itpsAwaitingAcceptance}
+              breakpoint="md"
+              caption="ITPs awaiting your acceptance"
+              renderCard={(r) => (
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="doc-id text-base font-semibold text-ink">{r.itpNumber}</span>
+                    <Badge tone="gold" showIcon><Tx>Awaiting acceptance</Tx></Badge>
+                  </div>
+                  <p className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{r.title}</p>
+                  <p className="truncate text-xs text-muted" title={r.projectName}>{r.projectName}</p>
+                  <Button type="button" onClick={() => panel.open(`itp:${r.id}`)} variant="outline" className="w-full">
+                    <Tx>Review & accept →</Tx>
+                  </Button>
+                </div>
+              )}
               searchPlaceholder="Search ITPs…"
               searchKeys={(r) => `${r.itpNumber} ${r.title} ${r.projectName}`}
               emptyMessage="Nothing awaiting your acceptance."
               columns={[
                 { key: "number", header: "ITP", render: (r) => <span className="doc-id text-ink">{r.itpNumber}</span> },
-                { key: "title", header: "Title", render: (r) => r.title },
+                { key: "title", header: "Title", render: (r) => <span className="line-clamp-1 max-w-sm [overflow-wrap:anywhere]" title={r.title}>{r.title}</span> },
                 { key: "project", header: "Project", render: (r) => <span className="text-muted">{r.projectName}</span> },
-                { key: "status", header: "Status", render: () => <Badge tone="gold"><Tx>Awaiting acceptance</Tx></Badge> },
+                { key: "status", header: "Status", render: () => <Badge tone="gold" showIcon><Tx>Awaiting acceptance</Tx></Badge> },
                 {
                   key: "action",
                   header: "",
@@ -273,7 +283,7 @@ export function ExternalPartyDashboard({
             />
           </div>
           {moreLink(itpsAwaitingAcceptance.length, t.acceptance, "/inspect/itps", "See all ITPs")}
-        </div>
+        </Section>
       )}
 
       </>
@@ -308,23 +318,19 @@ export function ExternalPartyDashboard({
     ncrs: (
       <>
       {ncrsAssignedToMe.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink"><Tx>NCRs assigned to you</Tx></h2>
-          <p className="mt-1 text-sm text-muted">
-            <Tx>Raised against your organisation and still open.</Tx>
-          </p>
-          <ul className="mt-4 space-y-2">
+        <Section className="mt-6" title={<Tx>NCRs assigned to you</Tx>} description={<Tx>Raised against your organisation and still open.</Tx>}>
+          <ul className="space-y-2">
             {ncrsAssignedToMe.map((ncr) => (
               <li
                 key={ncr.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+                className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={NCR_SEVERITY_TONE[ncr.severity]}>{NCR_SEVERITY_LABEL[ncr.severity]}</Badge>
                     <span className="doc-id text-ink">{ncr.ncrNumber}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-muted">
+                  <div className="mt-0.5 truncate text-xs text-muted" title={`${ncr.projectName} — ${ncr.description}`}>
                     {ncr.projectName} — {ncr.description}
                     {ncr.dueDate && <span className="ms-2"><Tx>Due</Tx> {ncr.dueDate}</span>}
                   </div>
@@ -339,21 +345,19 @@ export function ExternalPartyDashboard({
             ))}
           </ul>
           {moreLink(ncrsAssignedToMe.length, t.ncrs, "/inspect/ncrs", "See all NCRs")}
-        </div>
+        </Section>
       )}
 
       {punchAssignedToMe.length > 0 && (
-        <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink"><Tx>Punch items assigned to you</Tx></h2>
-          <p className="mt-1 text-sm text-muted"><Tx>Punch-list items you need to fix.</Tx></p>
-          <ul className="mt-4 space-y-2">
+        <Section className="mt-6" title={<Tx>Punch items assigned to you</Tx>} description={<Tx>Punch-list items you need to fix.</Tx>}>
+          <ul className="space-y-2">
             {punchAssignedToMe.map((p) => (
               <li
                 key={p.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+                className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-ink">{p.description}</div>
+                  <div className="truncate text-ink" title={p.description}>{p.description}</div>
                   <div className="mt-0.5 truncate text-xs text-muted">
                     {p.projectName}
                     {p.dueDate && <span className="ms-2"><Tx>Due</Tx> {p.dueDate}</span>}
@@ -371,81 +375,78 @@ export function ExternalPartyDashboard({
           {t.punch > punchAssignedToMe.length && (
             <p className="mt-3 text-sm text-muted">{t.punch - punchAssignedToMe.length} <Tx>more on the project punch lists.</Tx></p>
           )}
-        </div>
+        </Section>
       )}
 
       </>
     ),
     stats: (
       <>
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard
+      <div className="mt-6">
+      <StatGrid max={6}>
+        <StatTile
+          tone="brand"
           label="Active projects"
           value={activeProjects}
           href="/inspect/projects"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="3" y="7" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 7V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 13 5.5V7" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </span>
-          }
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+          <rect x="3" y="7" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M7 7V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 13 5.5V7" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+        }
         />
-        <StatCard
+        <StatTile
+          tone="gold"
           label="Active ITPs"
           value={activeItps}
           href="/inspect/itps"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-[color:var(--color-burgundy-dark)]">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="5" y="3" width="10" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7.5 7h5M7.5 10h5M7.5 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </span>
-          }
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+          <rect x="5" y="3" width="10" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M7.5 7h5M7.5 10h5M7.5 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        }
         />
-        <StatCard
+        <StatTile
+          tone="info"
           label="Inspections in progress"
           value={pendingInspections}
           href="/inspect/inspections?result=in_progress"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          }
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+          <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        }
         />
-        <StatCard
+        <StatTile
+          tone="danger"
           label="Open NCRs"
           value={openNcrs}
           href="/inspect/ncrs"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <path d="M10 3.5l7 12.5H3l7-12.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M10 8.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="10" cy="13.5" r="0.75" fill="currentColor" />
-              </svg>
-            </span>
-          }
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+          <path d="M10 3.5l7 12.5H3l7-12.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M10 8.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="10" cy="13.5" r="0.75" fill="currentColor" />
+          </svg>
+        }
         />
-        <StatCard
+        <StatTile
+          tone="warning"
           label="Needs your attention"
           value={needsAttention}
           href={needsAttention > 0 ? "#today-queue-title" : undefined}
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M10 6.5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                <circle cx="10" cy="13" r="0.75" fill="currentColor" />
-              </svg>
-            </span>
-          }
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+          <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M10 6.5v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle cx="10" cy="13" r="0.75" fill="currentColor" />
+          </svg>
+        }
         />
+      </StatGrid>
       </div>
 
       </>
@@ -453,43 +454,39 @@ export function ExternalPartyDashboard({
     projects: (
       <>
       {myProjects.length > 0 && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h2 className="font-medium text-ink"><Tx>Your projects — reports &amp; documents</Tx></h2>
-          <p className="mt-1 text-sm text-muted">
-            <Tx>Data books, reports and activity per project.</Tx>
-          </p>
-          <ul className="mt-4 space-y-3">
+        <Section className="mt-6" title={<Tx>Your projects — reports &amp; documents</Tx>} description={<Tx>Data books, reports and activity per project.</Tx>}>
+          <ul className="space-y-3">
             {myProjects.slice(0, 3).map((project) => (
               <li key={project.id} className="rounded-md border border-border p-3">
-                <p className="truncate text-sm font-medium text-ink">{project.name}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                <p className="truncate text-sm font-medium text-ink" title={project.name}>{project.name}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 text-sm">
                   <Link
                     href={`/inspect/projects/${project.id}?tab=punch-list`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Punch list →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/reports`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Reports &amp; downloads →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/data-book`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Data book →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/activity`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Activity →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/kpis`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>KPIs →</Tx>
                   </Link>
@@ -498,43 +495,39 @@ export function ExternalPartyDashboard({
             ))}
           </ul>
           {myProjects.length > 3 && (
-            <details className="group mt-3">
-              <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-                <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-                <Tx>Show all</Tx> ({myProjects.length})
-              </summary>
+            <Disclosure variant="pill" className="mt-3" summary={<><Tx>Show all</Tx> ({myProjects.length})</>}>
               <ul className="mt-3 space-y-3">
             {myProjects.slice(3).map((project) => (
               <li key={project.id} className="rounded-md border border-border p-3">
-                <p className="truncate text-sm font-medium text-ink">{project.name}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-sm">
+                <p className="truncate text-sm font-medium text-ink" title={project.name}>{project.name}</p>
+                <div className="mt-1 flex flex-wrap gap-x-4 text-sm">
                   <Link
                     href={`/inspect/projects/${project.id}?tab=punch-list`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Punch list →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/reports`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Reports &amp; downloads →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/data-book`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Data book →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/activity`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>Activity →</Tx>
                   </Link>
                   <Link
                     href={`/inspect/projects/${project.id}/kpis`}
-                    className="font-medium text-burgundy hover:underline"
+                    className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
                   >
                     <Tx>KPIs →</Tx>
                   </Link>
@@ -542,9 +535,9 @@ export function ExternalPartyDashboard({
               </li>
             ))}
               </ul>
-            </details>
+            </Disclosure>
           )}
-        </div>
+        </Section>
       )}
 
       </>
@@ -554,8 +547,10 @@ export function ExternalPartyDashboard({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink">{orgName ? `${orgName} Dashboard` : "Dashboard"}</h1>
+      <PageHeader
+        title={orgName ? `${orgName} Dashboard` : "Dashboard"}
+        subtitle={<>{roleLabel} · {today}</>}
+        guide={
         <PageGuide
           title={tl("Dashboard — how this works")}
           points={[
@@ -566,10 +561,8 @@ export function ExternalPartyDashboard({
             ...(roleKey && ROLE_GUIDE[roleKey] ? ROLE_GUIDE[roleKey] : []),
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {roleLabel} · {today}
-      </p>
+        }
+      />
 
       <TodayQueue
         emptyText="You are all caught up. Check Reports & documents below, or open Inspections to follow progress."
@@ -609,17 +602,15 @@ function SignoffQueuePanel({
 }) {
   const levelByCode = new Map(levels.map((l) => [l.code, l]));
   return (
-    <div className="mt-8 rounded-lg border border-border bg-surface p-5">
-      <h2 className="font-medium text-ink"><Tx>{title}</Tx></h2>
-      <p className="mt-1 text-sm text-muted"><Tx>{description}</Tx></p>
-      <ul className="mt-4 space-y-2">
+    <Section className="mt-6" title={<Tx>{title}</Tx>} description={<Tx>{description}</Tx>}>
+      <ul className="space-y-2">
         {rows.map((row) => {
           const initial = row.activity.trim().charAt(0).toUpperCase() || "?";
           const level = levelByCode.get(row.intervention);
           return (
             <li
               key={row.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
+              className="flex flex-col gap-2 rounded-md border border-border px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-burgundy/10 text-xs font-semibold text-burgundy">
@@ -628,15 +619,15 @@ function SignoffQueuePanel({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={toneForLevel(level)}>{level?.label ?? row.intervention}</Badge>
-                    <span className="truncate text-ink">{row.activity}</span>
+                    <span className="truncate text-ink" title={row.activity}>{row.activity}</span>
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-muted">
+                  <div className="mt-0.5 truncate text-xs text-muted" title={`${row.itpNumber} — ${row.itpTitle}`}>
                     {row.itpNumber} — {row.itpTitle}
                     {row.when && <span className="ms-2">{row.when}</span>}
                   </div>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="flex shrink-0 flex-wrap items-center gap-3">
                 <SignoffCell
                   progressId={row.id}
                   isBlocking={level?.is_blocking ?? false}
@@ -648,7 +639,7 @@ function SignoffQueuePanel({
                 />
                 <Link
                   href={`/inspect/itps/${row.itpId}`}
-                  className="text-xs font-medium text-burgundy hover:underline"
+                  className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline"
                 >
                   <Tx>View ITP →</Tx>
                 </Link>
@@ -659,6 +650,6 @@ function SignoffQueuePanel({
         {rows.length === 0 && emptyMessage && <li className="text-sm text-muted">{emptyMessage}</li>}
       </ul>
       {footer}
-    </div>
+    </Section>
   );
 }

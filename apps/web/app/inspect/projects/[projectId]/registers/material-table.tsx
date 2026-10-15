@@ -139,6 +139,7 @@ export function MaterialTable({ rows, projectId, canManage, editableIds = [] }: 
   return (
     <DataTable
       mobileCards
+      breakpoint="md"
       caption="Material register"
       columns={columns}
       rows={rows}

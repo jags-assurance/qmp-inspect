@@ -12,6 +12,7 @@ import { LIFECYCLE_LABELS } from "@/lib/registers/lifecycle";
 import { CertificateUpload } from "./certificate-upload";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: ManageRegisterState = { error: null };
 const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy";
@@ -68,8 +69,7 @@ export function RegisterLifecycleActions({
       )}
 
       {kind === "calibration" && !inactive && (
-        <details className="relative">
-          <summary className="cursor-pointer text-xs text-burgundy hover:underline"><Tx>Recalibrate</Tx></summary>
+        <Disclosure variant="inline" summary={<><Tx>Recalibrate</Tx></>} className="relative">
           <form action={recalAction} className="mt-1 w-72 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="project_id" value={projectId} />
@@ -106,11 +106,10 @@ export function RegisterLifecycleActions({
               {recalibrating ? "Saving…" : "Record recalibration"}
             </Button>
           </form>
-        </details>
+</Disclosure>
       )}
 
-      <details className="relative">
-        <summary className="cursor-pointer text-xs text-muted hover:underline">{inactive ? "Reactivate" : "Retire"}</summary>
+      <Disclosure variant="inline" summary={<>{inactive ? "Reactivate" : "Retire"}</>} className="relative">
         <form action={lifeAction} className="mt-1 w-64 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="id" value={id} />
@@ -138,7 +137,7 @@ export function RegisterLifecycleActions({
             {changing ? "Saving…" : inactive ? "Reactivate entry" : "Retire entry"}
           </button>
         </form>
-      </details>
+</Disclosure>
       {verifyState.error && <span className="block max-w-xs text-xs text-danger">{verifyState.error}</span>}
     </div>
   );

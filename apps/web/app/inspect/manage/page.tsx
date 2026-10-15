@@ -13,6 +13,9 @@ import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsi
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Manage" };
 
@@ -136,10 +139,10 @@ export default async function ManageHubPage() {
       header: "ITP",
       render: (row) => (
         <div className="text-start">
-          <Link href={`/inspect/itps/${row.id}`} className="doc-id text-burgundy hover:underline">
+          <Link href={`/inspect/itps/${row.id}`} className="doc-id inline-flex min-h-11 items-center text-burgundy hover:underline">
             {row.itp_number}
           </Link>
-          <div className="text-xs text-muted">{row.title}</div>
+          <div className="line-clamp-2 max-w-md text-xs text-muted [overflow-wrap:anywhere]" title={row.title}>{row.title}</div>
         </div>
       ),
     },
@@ -147,7 +150,7 @@ export default async function ManageHubPage() {
     {
       key: "status",
       header: "Status",
-      render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"}>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
+      render: (row) => <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>,
     },
     {
       key: "action",
@@ -163,96 +166,110 @@ export default async function ManageHubPage() {
     },
   ];
 
+  const settingsLinks = [
+    { href: "/inspect/organisation/client-teams", title: "Client Teams", desc: "Group your own people by team" },
+    { href: "/inspect/organisation/roles", title: "Custom Roles", desc: "Delegate permissions within your org" },
+    { href: "/inspect/organisation/numbering", title: "Numbering", desc: "Your own document numbering format" },
+    { href: "/inspect/organisation/branding", title: "Brand Colors", desc: "Accent colour on your generated PDFs" },
+  ];
+
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Manage —</T> {org.name}</h1>
-        <PageGuide
-          title={tl("Manage — how this works")}
-          points={[
-            "Only shown to Self-Managed and Full Client-Managed client organisations, and only for your own org — JAGS staff never see this page, they use the ordinary nav instead.",
-            "\"Needs your action\" surfaces exactly what's waiting on you: submitting your own draft ITPs, generating checklists once an ITP you can create for is approved, accepting an ITP if you're the client party, and — Full Client-Managed only, and only if you hold the approve_itp custom permission — approving an ITP yourself.",
-            "Nothing here grants a new permission — it's the same RLS-scoped data and the same gated actions the ITP detail/checklists pages already expose, just gathered in one place.",
-            "Closing an NCR and issuing an IRN are never self-service, even here — those stay JAGS-only by design, as the independent check. Approving is JAGS-only on Self-Managed (Hybrid); it becomes self-service only on Full Client-Managed, and only for whoever's granted that permission.",
-          ]}
-        />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {isClientManaged ? "Full Client-Managed" : "Self-Managed"} <T>organisation. JAGS still closes every NCR and issues every IRN.</T>
-        {!isClientManaged && " JAGS also still approves every ITP."}
-      </p>
+      <PageHeader
+        title={<><T>Manage —</T> {org.name}</>}
+        subtitle={
+          <>
+            {isClientManaged ? "Full Client-Managed" : "Self-Managed"} <T>organisation. JAGS still closes every NCR and issues every IRN.</T>
+            {!isClientManaged && " JAGS also still approves every ITP."}
+          </>
+        }
+        guide={
+          <PageGuide
+            title={tl("Manage — how this works")}
+            points={[
+              "Only shown to Self-Managed and Full Client-Managed client organisations, and only for your own org — JAGS staff never see this page, they use the ordinary nav instead.",
+              "\"Needs your action\" surfaces exactly what's waiting on you: submitting your own draft ITPs, generating checklists once an ITP you can create for is approved, accepting an ITP if you're the client party, and — Full Client-Managed only, and only if you hold the approve_itp custom permission — approving an ITP yourself.",
+              "Nothing here grants a new permission — it's the same RLS-scoped data and the same gated actions the ITP detail/checklists pages already expose, just gathered in one place.",
+              "Closing an NCR and issuing an IRN are never self-service, even here — those stay JAGS-only by design, as the independent check. Approving is JAGS-only on Self-Managed (Hybrid); it becomes self-service only on Full Client-Managed, and only for whoever's granted that permission.",
+            ]}
+          />
+        }
+      />
 
-      <section className="mt-6">
-        <h2 className="text-lg font-semibold text-ink"><T>Needs your action</T></h2>
-        {actionQueue.length === 0 ? (
-          <p className="mt-2 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-            <T>Nothing waiting on you right now.</T>
-          </p>
-        ) : (
-          <div className="mt-2 overflow-x-auto rounded-lg border border-border bg-surface">
+      <div className="space-y-5">
+        <Section title={<T>Needs your action</T>} flush={actionQueue.length > 0} description={actionQueue.length > 0 ? `${actionQueue.length}` : undefined}>
+          {actionQueue.length === 0 ? (
+            <EmptyState compact title={<T>Nothing waiting on you right now.</T>} />
+          ) : (
             <ResponsiveTable
               columns={queueColumns}
               rows={actionQueue}
               rowKey={(row) => row.id}
               caption="ITPs needing action"
-              wrapperClassName=""
-              theadClassName="border-b border-border bg-off-white text-start text-xs uppercase tracking-wide text-muted"
+              breakpoint="md"
+              scrollRegionLabel="ITPs needing action"
+              wrapperClassName="overflow-x-auto"
+              theadClassName="border-b border-border bg-surface-subtle text-start text-xs uppercase tracking-wide text-muted"
               headRowClassName=""
               thClassName="px-4 py-2"
               tdClassName="px-4 py-2"
               cardClassName="px-4"
             />
-          </div>
-        )}
-      </section>
+          )}
+        </Section>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-ink"><T>Your projects</T></h2>
-        {(projects ?? []).length === 0 ? (
-          <p className="mt-2 rounded-lg border border-border bg-off-white p-4 text-sm text-muted">
-            <T>No projects yet —</T> <Link href="/inspect/projects/new" className="text-burgundy hover:underline"><T>create one</T></Link>.
-          </p>
-        ) : (
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            {(projects ?? []).map((project) => (
-              <div key={project.id} className="rounded-lg border border-border bg-surface p-4">
-                <p className="doc-id text-sm text-muted">{project.project_number}</p>
-                <p className="font-medium text-ink">{project.name}</p>
-                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-burgundy">
-                  <Link href={`/inspect/projects/${project.id}`} className="hover:underline"><T>Parties</T></Link>
-                  <Link href={`/inspect/projects/${project.id}/kpis`} className="hover:underline"><T>KPIs</T></Link>
-                  <Link href={`/inspect/projects/${project.id}/reports`} className="hover:underline"><T>Reports</T></Link>
-                  <Link href={`/inspect/projects/${project.id}/registers`} className="hover:underline"><T>Registers</T></Link>
-                  <Link href={`/inspect/projects/${project.id}/punch-list`} className="hover:underline"><T>Punch List</T></Link>
-                  <Link href={`/inspect/projects/${project.id}/data-book`} className="hover:underline"><T>Data Book</T></Link>
+        <Section title={<T>Your projects</T>}>
+          {(projects ?? []).length === 0 ? (
+            <EmptyState
+              compact
+              title={<T>No projects yet</T>}
+              action={
+                <Link href="/inspect/projects/new" className={buttonVariants({ variant: "outline", size: "sm" })}>
+                  <T>Create one</T>
+                </Link>
+              }
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {(projects ?? []).map((project) => (
+                <div key={project.id} className="rounded-lg border border-border bg-surface p-4">
+                  <p className="doc-id text-sm text-muted">{project.project_number}</p>
+                  <p className="truncate font-medium text-ink" title={project.name}>{project.name}</p>
+                  <div className="mt-2 flex flex-wrap gap-x-4 text-sm text-burgundy">
+                    {[
+                      ["", "Parties"],
+                      ["/kpis", "KPIs"],
+                      ["/reports", "Reports"],
+                      ["/registers", "Registers"],
+                      ["/punch-list", "Punch List"],
+                      ["/data-book", "Data Book"],
+                    ].map(([path, label]) => (
+                      <Link key={label} href={`/inspect/projects/${project.id}${path}`} className="inline-flex min-h-11 items-center hover:underline">
+                        <T>{label}</T>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Section title={<T>Organisation settings</T>}>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {settingsLinks.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="block min-h-11 rounded-lg border border-control-border bg-surface p-4 transition-colors hover:bg-surface-subtle"
+              >
+                <p className="font-medium text-ink"><T>{l.title}</T></p>
+                <p className="mt-1 text-sm text-muted"><T>{l.desc}</T></p>
+              </Link>
             ))}
           </div>
-        )}
-      </section>
-
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-ink"><T>Organisation settings</T></h2>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Link href="/inspect/organisation/client-teams" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink"><T>Client Teams</T></p>
-            <p className="mt-1 text-sm text-muted"><T>Group your own people by team</T></p>
-          </Link>
-          <Link href="/inspect/organisation/roles" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink"><T>Custom Roles</T></p>
-            <p className="mt-1 text-sm text-muted"><T>Delegate permissions within your org</T></p>
-          </Link>
-          <Link href="/inspect/organisation/numbering" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink"><T>Numbering</T></p>
-            <p className="mt-1 text-sm text-muted"><T>Your own document numbering format</T></p>
-          </Link>
-          <Link href="/inspect/organisation/branding" className="rounded-lg border border-border bg-surface p-4 hover:border-burgundy hover:bg-off-white">
-            <p className="font-medium text-ink"><T>Brand Colors</T></p>
-            <p className="mt-1 text-sm text-muted"><T>Accent colour on your generated PDFs</T></p>
-          </Link>
-        </div>
-      </section>
+        </Section>
+      </div>
     </div>
   );
 }

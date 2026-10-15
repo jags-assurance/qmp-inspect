@@ -27,7 +27,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
 
   if (verifiedFactorId || confirmState.success) {
     return (
-      <section className="mt-6 rounded-lg border border-border bg-surface p-4">
+      <section className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <p className="text-sm text-ink"><Tx>✓ Two-step sign-in is on for your account.</Tx></p>
         {verifiedFactorId && (
           <form action={removeAction} className="mt-3">
@@ -44,7 +44,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
   }
 
   return (
-    <section className="mt-6 rounded-lg border border-border bg-surface p-4">
+    <section className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       {!enrol?.factorId ? (
         <>
           <p className="text-sm text-ink"><Tx>Two-step sign-in is off.</Tx></p>

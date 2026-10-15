@@ -16,6 +16,7 @@ import {
 import { notifyOutboxChanged, onOutboxChanged, syncOutbox } from "@/lib/offline/sync-client";
 import { getLocalUserId } from "@/lib/offline/user";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Disclosure } from "@/components/ui/disclosure";
 import { STALE_QUEUE_DAYS, formatQueueAge, isStaleItem, queueAgeDays } from "@/lib/offline/policy";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -311,8 +312,13 @@ export function OfflineBanner() {
         </span>
       </div>
       {pendingCount > 0 && (
-        <details className="border-b border-border bg-surface text-sm">
-          <summary className="cursor-pointer px-4 py-2 text-muted"><Tx>View everything in the queue (</Tx>{pendingCount})</summary>
+        <Disclosure
+          variant="inline"
+          className="border-b border-border bg-surface px-4 py-1 text-sm"
+          summaryClassName="text-muted hover:text-ink"
+          bodyClassName="-mx-4 mt-1"
+          summary={<><Tx>View everything in the queue (</Tx>{pendingCount})</>}
+        >
           <ul className="divide-y divide-border">
             {allItems.map((item) => (
               <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5">
@@ -340,7 +346,7 @@ export function OfflineBanner() {
               </li>
             ))}
           </ul>
-        </details>
+        </Disclosure>
       )}
       {reviewItems.length > 0 && (
         <ul className="divide-y divide-border border-b border-border bg-surface text-sm" aria-label={tl("Changes that need review")}>

@@ -46,7 +46,12 @@ function isItemActive(pathname: string, href: string, activePrefixes: string[] =
   return href === "/inspect" || href === "/platform" ? pathname === href : pathname.startsWith(href);
 }
 
-function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed: boolean; indent?: boolean }) {
+/**
+ * `collapsed` is the rail PREFERENCE: markup carries both layouts and `lg:max-desk:` utilities (laptop
+ * range only) switch to the icon rail, so the server render and first paint are right at every width.
+ * `railActive` is the JS view of "rail is showing now" (only used for the hover tooltip).
+ */
+function NavLink({ item, collapsed, railActive = false, indent = false }: { item: NavItem; collapsed: boolean; railActive?: boolean; indent?: boolean }) {
   const pathname = usePathname();
   const { setOpen } = useSidebarMobile();
   const isActive = isItemActive(pathname, item.href, item.activePrefixes);
@@ -54,7 +59,7 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
   // Icon-rail tooltip: rendered in a portal (the sidebar scrolls, which would clip an absolute tooltip).
   const [tip, setTip] = useState<{ top: number; left: number } | null>(null);
   function showTip(el: HTMLElement) {
-    if (!collapsed) return;
+    if (!railActive) return;
     const rect = el.getBoundingClientRect();
     setTip({ top: rect.top + rect.height / 2, left: rect.right + 8 });
   }
@@ -66,7 +71,8 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
       <Link
         href={item.href}
         prefetch={false}
-        aria-label={collapsed ? text : undefined}
+        aria-label={railActive ? text : undefined}
+        title={railActive ? undefined : text}
         aria-current={isActive ? "page" : undefined}
         onClick={() => {
           setTip(null);
@@ -78,23 +84,24 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
         onBlur={() => setTip(null)}
         className={
           "relative flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11 " +
-          (collapsed ? "justify-center px-0 " : indent ? "ps-9 " : "") +
+          (indent ? "ps-9 " : "") +
+          (collapsed ? "lg:max-desk:justify-center lg:max-desk:px-0 " + (indent ? "lg:max-desk:ps-0 " : "") : "") +
           (isActive
             ? "bg-white/15 text-white before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-full before:bg-gold"
             : "text-white/85 hover:bg-white/10 hover:text-white")
         }
       >
-        {!indent && <span className={isActive ? "text-gold" : ""}><NavIcon label={item.label} /></span>}
-        {!collapsed && <span className="min-w-0 flex-1 truncate">{text}</span>}
+        {/* Nested rows show no icon when expanded, but need one in the rail. */}
+        <span className={(isActive ? "text-gold " : "") + (indent ? (collapsed ? "hidden lg:max-desk:inline " : "hidden ") : "")}><NavIcon label={item.label} /></span>
+        <span className={"min-w-0 flex-1 truncate " + (collapsed ? "lg:max-desk:hidden" : "")}>{text}</span>
         {item.badge !== undefined && item.badge !== 0 && (
-          collapsed ? (
-            <span aria-hidden="true" className="absolute end-2 top-1.5 h-2 w-2 rounded-full bg-gold" />
-          ) : (
-            <span className="ms-auto shrink-0 rounded-full bg-gold px-1.5 text-xs font-semibold leading-5 text-burgundy-dark">{item.badge}</span>
-          )
+          <>
+            {collapsed && <span aria-hidden="true" className="absolute end-2 top-1.5 hidden h-2 w-2 rounded-full bg-gold lg:max-desk:block" />}
+            <span className={"ms-auto shrink-0 rounded-full bg-gold px-1.5 text-xs font-semibold leading-5 text-burgundy-dark " + (collapsed ? "lg:max-desk:hidden" : "")}>{item.badge}</span>
+          </>
         )}
       </Link>
-      {collapsed && tip && typeof document !== "undefined" &&
+      {railActive && tip && typeof document !== "undefined" &&
         createPortal(
           <span
             role="tooltip"
@@ -128,7 +135,7 @@ function hasActiveDescendant(pathname: string, item: NavItem): boolean {
  * further) instead of a plain link — this is what lets the 6 "Organisation" theme groups fold under
  * one top-level "Settings" entry (plan Phase 8) without flattening their own sub-items.
  */
-function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: boolean; depth?: number }) {
+function NavGroup({ item, collapsed, railActive, depth = 0 }: { item: NavItem; collapsed: boolean; railActive: boolean; depth?: number }) {
   const pathname = usePathname();
   const children = item.children ?? [];
   const hasActiveChild = children.some((c) => hasActiveDescendant(pathname, c));
@@ -150,32 +157,19 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
 
   if (children.length === 0) return null;
 
-  // A collapsed (icon-only) sidebar has no room for a nested group — fall back to just showing
-  // every leaf link flush with the top-level items (recursing through any nested groups too),
-  // rather than a group header that can't itself be labelled or expanded in that width.
-  if (collapsed) {
-    return (
-      <>
-        {children.map((child) =>
-          child.children ? (
-            <NavGroup key={child.label} item={child} collapsed={collapsed} />
-          ) : (
-            <NavLink key={child.href} item={child} collapsed={collapsed} />
-          )
-        )}
-      </>
-    );
-  }
-
+  // In the icon rail (collapsed preference, laptop widths only) a group header cannot be labelled or
+  // expanded, so its header is hidden and every leaf shows flush with the top-level items.
   return (
     <div>
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
+        title={item.displayLabel ?? item.label}
         style={depth > 0 ? { paddingInlineStart: `${12 + depth * 20}px` } : undefined}
         className={
           "flex min-h-10 w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11 " +
+          (collapsed ? "lg:max-desk:hidden " : "") +
           (hasActiveChild ? "text-white" : "text-white/85 hover:bg-white/10 hover:text-white")
         }
       >
@@ -189,27 +183,26 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={"h-3.5 w-3.5 shrink-0 transition-transform rtl:-scale-x-100 " + (open ? "rotate-90" : "")}
+          className={"h-3.5 w-3.5 shrink-0 transition-transform motion-reduce:transition-none rtl:-scale-x-100 " + (open ? "rotate-90" : "")}
         >
           <path d="M7 4.5l5.5 5.5-5.5 5.5" />
         </svg>
       </button>
-      {open && (
-        <div className="mt-0.5 space-y-0.5">
-          {children.map((child) =>
-            child.children ? (
-              <NavGroup key={child.label} item={child} collapsed={collapsed} depth={depth + 1} />
-            ) : (
-              <NavLink key={child.href} item={child} collapsed={collapsed} indent />
-            )
-          )}
-        </div>
-      )}
+      <div className={"mt-0.5 space-y-0.5 " + (open ? "" : "hidden ") + (collapsed ? "lg:max-desk:block" : "")}>
+        {children.map((child) =>
+          child.children ? (
+            <NavGroup key={child.label} item={child} collapsed={collapsed} railActive={railActive} depth={depth + 1} />
+          ) : (
+            <NavLink key={child.href} item={child} collapsed={collapsed} railActive={railActive} indent />
+          )
+        )}
+      </div>
     </div>
   );
 }
 
-export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: boolean }) {
+/** `collapsed` = rail preference (CSS applies it on laptops only); `railActive` = the rail is showing right now (tooltips). */
+export function SidebarNav({ items, collapsed, railActive = false }: { items: NavItem[]; collapsed: boolean; railActive?: boolean }) {
   const tl = useTranslate();
   return (
     <nav aria-label={tl("Main")} className="flex-1 space-y-0.5 px-3 py-3">
@@ -217,18 +210,18 @@ export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: 
         const showHeading = item.group && item.group !== items[i - 1]?.group;
         return (
           <div key={item.label + item.href}>
-            {showHeading &&
-              (collapsed ? (
-                <div role="separator" className="mx-3 my-2 border-t border-white/15 first:hidden" />
-              ) : (
-                <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-white/70">
+            {showHeading && (
+              <>
+                {collapsed && <div role="separator" className="mx-3 my-2 hidden border-t border-white/15 first:hidden lg:max-desk:block" />}
+                <p className={"px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-white/70 " + (collapsed ? "lg:max-desk:hidden" : "")}>
                   {item.displayGroup ?? item.group}
                 </p>
-              ))}
+              </>
+            )}
             {item.children ? (
-              <NavGroup item={item} collapsed={collapsed} />
+              <NavGroup item={item} collapsed={collapsed} railActive={railActive} />
             ) : (
-              <NavLink item={item} collapsed={collapsed} />
+              <NavLink item={item} collapsed={collapsed} railActive={railActive} />
             )}
           </div>
         );

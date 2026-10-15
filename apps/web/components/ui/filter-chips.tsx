@@ -28,7 +28,7 @@ export function FilterChips({ items, label, className }: { items: FilterChip[]; 
               aria-current={c.active ? "true" : undefined}
               className={cn(
                 "inline-flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-sm font-medium transition-colors [@media(pointer:coarse)]:min-h-11",
-                c.active ? "border-brand bg-brand text-white" : "border-border bg-surface text-ink hover:bg-surface-subtle"
+                c.active ? "border-brand bg-brand text-white" : "border-control-border bg-surface text-ink hover:bg-surface-subtle"
               )}
             >
               {c.active && (

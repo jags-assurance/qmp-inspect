@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/ui/page-header";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -170,15 +171,13 @@ export default async function StandaloneAssignmentDetailPage({
   return (
     <div>
       <RealtimeRefresh table="standalone_assignments" filter={`id=eq.${id}`} />
-      <Link href="/inspect/standalone" className="text-sm text-burgundy hover:underline">
-        <T>← Back to Standalone Assignments</T>
-      </Link>
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="doc-id text-2xl font-semibold text-ink">{assignment.assignment_number}</h1>
-            <Badge tone={TYPE_TONE[assignment.assignment_type]}>{TYPE_LABEL[assignment.assignment_type]}</Badge>
-            <PageGuide
+      <PageHeader
+        backHref="/inspect/standalone"
+        backLabel="Back to Standalone Assignments"
+        title={<span className="doc-id">{assignment.assignment_number}</span>}
+        badges={<Badge tone={TYPE_TONE[assignment.assignment_type]}>{TYPE_LABEL[assignment.assignment_type]}</Badge>}
+        guide={
+          <PageGuide
               title={tl("Standalone assignment — how this works")}
               points={[
                 "Executing this assignment — measurements, photos, punch items, signatures, finalizing, evidence linking — is JAGS-staff-only by default; a person specifically granted the run_standalone_assignment permission (Full Client-Managed tier only), or an active subcontractor/main-contractor party on a project a JAGS Admin has opted into contractor-run assignments, can do all of it themselves too.",
@@ -187,17 +186,18 @@ export default async function StandaloneAssignmentDetailPage({
                 "The FAT report PDF and narrative (AI-assisted draft, when AI is configured) are generated from this record's own data — the narrative editor only shows for JAGS staff.",
               ]}
             />
-          </div>
-          <p className="mt-1 text-lg text-ink">{assignment.equipment_description}</p>
-          <p className="mt-1 text-sm text-muted">
+        }
+        subtitle={<span className="text-base text-ink">{assignment.equipment_description}</span>}
+        meta={
+          <>
             {assignment.projects?.organizations?.name} · {assignment.projects?.name}
             {assignment.standard_reference ? ` · ${assignment.standard_reference}` : ""}
-          </p>
-        </div>
-        <FatReportPdfButton assignmentId={assignment.id} latest={latestReportPdf} />
-      </div>
+          </>
+        }
+        primaryAction={<FatReportPdfButton assignmentId={assignment.id} latest={latestReportPdf} />}
+      />
 
-      <div className="mt-8">
+      <div>
         <AssignmentWorkspace
           assignment={assignment}
           measurements={measurements ?? []}

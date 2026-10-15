@@ -54,20 +54,20 @@ export default async function VerifyPage({ params }: { params: Promise<{ kind: s
 
   const banner = verifyBanner(result);
   return (
-    <main className="mx-auto max-w-md px-4 py-10">
-      <h1 className="text-xl font-semibold text-ink"><T>Document verification</T></h1>
+    <main className="mx-auto w-full max-w-md px-4 py-6 sm:py-10">
+      <h1 className="text-2xl font-semibold tracking-tight text-text-strong"><T>Document verification</T></h1>
       {unavailable ? (
         <p className="mt-4 rounded-md bg-warning/10 px-3 py-2 text-sm text-ink"><T>Verification is not available right now. Try again later.</T></p>
       ) : banner === "rejected" ? (
-        <div className="mt-4 rounded-lg border border-danger bg-surface p-4">
-          <p className="text-sm font-semibold text-danger"><T>Rejected by the client</T></p>
+        <div className="mt-4 rounded-lg border border-danger bg-surface p-4 shadow-xs sm:p-5">
+          <p className="text-sm font-semibold text-danger"><span aria-hidden="true">✕ </span><T>Rejected by the client</T></p>
           <p className="mt-2 text-sm text-ink"><T>This handover certificate was rejected by the client and is not valid. Do not rely on it. A corrected certificate must be issued.</T></p>
           {result?.number && <p className="doc-id mt-3 text-sm font-medium text-ink">{result.number}</p>}
         </div>
       ) : result?.valid ? (
-        <div className="mt-4 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <p className={`text-sm font-semibold ${result.status === "void" || result.status === "superseded" ? "text-danger" : "text-success"}`}>
-            {result.status === "void" ? "This document is VOID" : result.status === "superseded" ? "This document has been superseded" : "This document is genuine"}
+            <span aria-hidden="true">{result.status === "void" || result.status === "superseded" ? "✕ " : "✓ "}</span>{result.status === "void" ? "This document is VOID" : result.status === "superseded" ? "This document has been superseded" : "This document is genuine"}
           </p>
           <dl className="mt-3 space-y-2 text-sm">
             <div>

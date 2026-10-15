@@ -1,5 +1,6 @@
 "use client";
 
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { useActionState, useRef, useState, type FormEvent } from "react";
 import { compileDataBookAction, type CompileDataBookState } from "@/lib/databook/actions";
@@ -120,21 +121,23 @@ export function CompileDataBookForm({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder={tl("Reason for compiling with open items outstanding…")}
-            className="w-full rounded-md border border-border bg-surface px-2 py-1.5 text-xs outline-none focus:border-burgundy"
+            className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy"
           />
         </>
       )}
 
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
 
+      <StickyActionBar className="w-full">
       <Button
         type="submit"
-        size="sm"
+        size="lg" className="w-full sm:w-auto"
         variant={isReady ? "primary" : "outline"}
         disabled={pending || (!isReady && (!isAdmin || !useOverride || !reason.trim()))}
       >
         {pending ? "Compiling…" : "Compile Data Book"}
       </Button>
+      </StickyActionBar>
     </form>
     {confirming && (
       <ConfirmTypeDialog

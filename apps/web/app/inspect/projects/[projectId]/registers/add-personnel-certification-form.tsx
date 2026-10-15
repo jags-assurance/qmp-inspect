@@ -6,6 +6,7 @@ import {
   type AddPersonnelCertificationEntryState,
 } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 import { FormField } from "@/components/ui/form-field";
@@ -54,10 +55,10 @@ export function AddPersonnelCertificationForm({
   }, [pending, state]);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={formAction} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Person">
           <select name="project_party_id" required defaultValue="" className={inputClass}>
           <option value="" disabled>
@@ -73,7 +74,7 @@ export function AddPersonnelCertificationForm({
       </div>
 
       {partyMembers.length > 0 && (
-        <div className="min-w-40 flex-1">
+        <div className="min-w-0">
           <FormField label="Named holder (optional)">
             <select name="holder_user_id" defaultValue="" className={inputClass}>
             <option value=""><Tx>Whole party</Tx></option>
@@ -87,7 +88,7 @@ export function AddPersonnelCertificationForm({
         </div>
       )}
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Certification">
           <input
           name="certification_type"
@@ -122,7 +123,7 @@ export function AddPersonnelCertificationForm({
         </FormField>
       </div>
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Notes">
           <input name="notes" className={inputClass} />
         </FormField>
@@ -130,9 +131,11 @@ export function AddPersonnelCertificationForm({
 
       <CertificateUpload key={formKey} projectId={projectId} kind="personnel" />
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <StickyActionBar className="md:col-span-2">
+        <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add certification"}
       </Button>
+      </StickyActionBar>
 
       {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
       <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />

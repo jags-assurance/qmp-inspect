@@ -69,7 +69,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
   const invalidCount = rows?.filter((r) => r.validationError).length ?? 0;
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       {!rows && (
         <form action={parseFormAction} className="space-y-2">
           <input type="hidden" name="template_id" value={templateId} />

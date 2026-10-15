@@ -4,6 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { lockBodyScroll } from "@/lib/hooks/use-scroll-lock";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -62,17 +64,12 @@ export function ConfirmDialog({
     cancelCb.current = onCancel;
   }, [onCancel]);
 
+  useEscapeLayer(true, () => cancelCb.current());
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlockScroll = lockBodyScroll();
     (reasonRef.current ?? cancelRef.current)?.focus();
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        cancelCb.current();
-        return;
-      }
       if (e.key !== "Tab") return;
       // Keep a host SidePanel's own Tab trap from also acting on this event.
       e.stopPropagation();
@@ -95,7 +92,7 @@ export function ConfirmDialog({
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("keydown", onKeyDown, true);
-      document.body.style.overflow = prevOverflow;
+      unlockScroll();
       if (opener && opener.isConnected) opener.focus?.();
     };
   }, []);

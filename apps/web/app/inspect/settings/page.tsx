@@ -26,6 +26,7 @@ import { PlansSettingsView } from "../organisation/plans/plans-view";
 import { RetentionSettingsView } from "../organisation/retention/retention-view";
 import { SystemHealthView } from "../organisation/system-health/system-health-view";
 import { T } from "@/components/domain/t";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -191,10 +192,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-ink"><T>Settings</T></h1>
-      <p className="mt-1 text-sm text-muted">
-        {DESCRIPTIONS[current.key] ?? "Manage your organisation."}
-      </p>
+      <PageHeader
+        className="mb-0"
+        title={<T>Settings</T>}
+        subtitle={DESCRIPTIONS[current.key] ?? "Manage your organisation."}
+      />
       <div className="lg:flex lg:gap-8">
         <SettingsNav groups={groups} active={current.key} />
         <section className="mt-6 min-w-0 flex-1 lg:mt-6" aria-label={current.label}>

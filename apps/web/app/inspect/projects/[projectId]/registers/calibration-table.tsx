@@ -99,6 +99,7 @@ export function CalibrationTable({ rows, projectId, canManage, editableIds = [] 
   return (
     <DataTable
       mobileCards
+      breakpoint="md"
       caption="Calibration register"
       columns={columns}
       rows={rows}

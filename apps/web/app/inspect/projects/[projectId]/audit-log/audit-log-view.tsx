@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ViewHeader } from "@/components/domain/view-header";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -122,7 +123,6 @@ export async function AuditLogView({
   if (filters.actor) exportParams.set("actor", filters.actor);
   const csvHref = `/inspect/projects/${projectId}/audit-log/export${exportParams.size ? `?${exportParams.toString()}` : ""}`;
 
-  const Heading = embedded ? "h2" : "h1";
   const auditColumns: ResponsiveColumn<(typeof events)[number]>[] = [
     {
       key: "timestamp",
@@ -164,14 +164,11 @@ export async function AuditLogView({
 
   return (
     <div>
-      {!embedded && (
-        <Link href={`/inspect/projects/${projectId}`} className="text-sm text-burgundy hover:underline">
-          <T>← Back to Project</T>
-        </Link>
-      )}
-      <div className="mt-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink"><T>Audit Log</T></Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/projects/${projectId}`}
+        title={<T>Audit Log</T>}
+        guide={
           <PageGuide
             title={tl("Audit Log — how this works")}
             points={[
@@ -181,10 +178,10 @@ export async function AuditLogView({
               "A row with no actor recorded (a system-triggered change) shows as \"System\".",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          {project.organizations?.name ?? "—"} · <span className="doc-id">{project.project_number}</span> {project.name}
-        </p>
+        }
+        subtitle={<>{project.organizations?.name ?? "—"} · <span className="doc-id">{project.project_number}</span> {project.name}</>}
+      />
+      <div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <DateRangeFilter />
           <p className="text-xs text-muted">

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { acceptItpOnBehalfAction, type AcceptItpState } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const initialState: AcceptItpState = { error: null };
 
@@ -11,8 +12,7 @@ const initialState: AcceptItpState = { error: null };
 export function AcceptOnBehalfForm({ itpId }: { itpId: string }) {
   const [state, formAction, pending] = useActionState(acceptItpOnBehalfAction, initialState);
   return (
-    <details className="group mt-3">
-      <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><Tx>Accept on the client&apos;s behalf</Tx></summary>
+    <Disclosure variant="pill" summary={<><Tx>Accept on the client&apos;s behalf</Tx></>} className="mt-3">
       <div className="mt-2 rounded-lg border border-border bg-surface p-4">
         <p className="text-xs text-muted">
           <Tx>Use this only when the client accepted outside the app (email or signed document) or has no login. It is recorded under your name with the reference and reason.</Tx>
@@ -27,6 +27,6 @@ export function AcceptOnBehalfForm({ itpId }: { itpId: string }) {
         </form>
         {state.error && <p role="alert" className="mt-1 text-xs text-danger">{state.error}</p>}
       </div>
-    </details>
+</Disclosure>
   );
 }

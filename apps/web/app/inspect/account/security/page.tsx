@@ -15,7 +15,7 @@ export default async function AccountSecurityPage() {
   const verified = factors?.totp?.[0] ?? null;
   return (
     <div className="max-w-xl">
-      <h1 className="text-2xl font-semibold text-ink"><T>Account security</T></h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Account security</T></h1>
       <p className="mt-1 text-sm text-muted"><T>Two-step sign-in asks for a code from an authenticator app after your password.</T></p>
       <SecuritySettings verifiedFactorId={verified?.id ?? null} />
     </div>

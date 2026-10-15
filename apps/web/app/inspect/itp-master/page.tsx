@@ -5,7 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ITP_MASTER_TEMPLATES_TABLE } from "@/lib/itp-master/types";
 import { TemplatesTable, type MasterTemplateRow } from "./templates-table";
 import { PageGuide } from "@/components/domain/page-guide";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatGrid, StatTile } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/ui/page-header";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -31,11 +32,11 @@ export default async function ItpMasterLibraryPage() {
   return (
     <div>
       <SettingsBackLink href="/inspect/settings?section=checklist-library" />
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>Master ITP Library</T></h1>
-            <PageGuide
+      <PageHeader
+        className="mt-2"
+        title={<T>Master ITP Library</T>}
+        guide={
+          <PageGuide
               title={tl("Master ITP Library — how this works")}
               points={[
                 "JAGS-staff-only at every level — RLS-enforced, not just a UI redirect; a client or contractor login can never see this library or its templates.",
@@ -44,25 +45,21 @@ export default async function ItpMasterLibraryPage() {
                 "Each template keeps a version history — see a template's own page for its past revisions as frozen snapshots.",
               ]}
             />
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            <T>JAGS-internal ITP templates, never shown to clients.</T>
-          </p>
-        </div>
-        <Link
-          href="/inspect/itp-master/proposals"
-          className={buttonVariants({ variant: "outline" })}
-        >
-          <T>Review proposals →</T>
-        </Link>
-      </div>
+        }
+        subtitle={<T>JAGS-internal ITP templates, never shown to clients.</T>}
+        primaryAction={
+          <Link href="/inspect/itp-master/proposals" className={buttonVariants({ variant: "outline" })}>
+            <T>Review proposals →</T>
+          </Link>
+        }
+      />
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Templates" value={(templates ?? []).length} />
-        <StatCard label="Active" value={activeCount} />
-        <StatCard label="Inactive" value={(templates ?? []).length - activeCount} />
-        <StatCard label="Disciplines covered" value={disciplineCount} />
-      </div>
+      <StatGrid max={4}>
+        <StatTile label="Templates" value={(templates ?? []).length} />
+        <StatTile label="Active" value={activeCount} />
+        <StatTile label="Inactive" value={(templates ?? []).length - activeCount} />
+        <StatTile label="Disciplines covered" value={disciplineCount} />
+      </StatGrid>
 
       <div className="mt-6">
         <TemplatesTable rows={templates ?? []} />

@@ -122,8 +122,37 @@ export function DataBookIndex({ parts }: { parts: Part[] }) {
         <T>Index</T>
       </h2>
       <MoreDetails label="Show all sections" bare className="mt-1">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] text-sm">
+      <div className="space-y-4 md:hidden">
+        {parts.map((part) => (
+          <div key={part.id} className="scroll-mt-24">
+            <h3 className="bg-surface-subtle px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{part.title}</h3>
+            <ul className="divide-y divide-border">
+              {part.rows.map((row) => {
+                const chip = chipOf(row);
+                return (
+                  <li key={row.no} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-sm">
+                    <span className="font-mono text-xs text-muted">{row.no}</span>
+                    <span className="min-w-0 flex-1 text-ink">{row.title}</span>
+                    <Badge tone={CHIP_TONE[chip]}>{chipLabel(row, chip)}</Badge>
+                    <span className="text-xs tabular-nums text-muted">{pct(row)}</span>
+                    {row.href.startsWith("#") ? (
+                      <a href={row.href} className="inline-flex min-h-11 items-center text-burgundy hover:underline" aria-label={`Jump to ${row.title}`}>
+                        <T>Jump ↓</T>
+                      </a>
+                    ) : (
+                      <Link href={row.href} className="inline-flex min-h-11 items-center text-burgundy hover:underline" aria-label={`Open source for ${row.title}`}>
+                        <T>Open →</T>
+                      </Link>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full text-sm">
           <thead className="text-start text-xs uppercase tracking-wide text-muted">
             <tr>
               <th scope="col" className="w-12 py-1.5 pe-2 font-medium"><T>No.</T></th>
@@ -188,14 +217,14 @@ const NAV: { href: string; label: string }[] = [
 /** Sticky mini-nav: a left rail on desktop, a horizontally scrolling bar on mobile. */
 export function DataBookMiniNav() {
   return (
-    <nav aria-label="Data Book sections" className="sticky top-0 z-10 -mx-1 overflow-x-auto bg-off-white/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:overflow-visible lg:bg-transparent lg:p-0">
+    <nav aria-label="Data Book sections" className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-1 overflow-x-auto bg-off-white/95 px-1 py-2 backdrop-blur lg:static lg:mx-0 lg:overflow-visible lg:bg-transparent lg:p-0">
       <ul className="flex gap-1 lg:sticky lg:top-4 lg:flex-col">
         {NAV.map((n) => (
           <li key={n.href} className="shrink-0">
             <a
               href={n.href}
               className={cn(
-                "block whitespace-nowrap rounded-md px-2.5 py-1 text-sm text-muted hover:bg-surface hover:text-burgundy",
+                "block whitespace-nowrap inline-flex min-h-11 items-center rounded-md px-3 text-sm text-muted hover:bg-surface hover:text-burgundy",
                 "focus:outline-none focus:ring-2 focus:ring-burgundy"
               )}
             >

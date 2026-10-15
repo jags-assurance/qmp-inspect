@@ -367,7 +367,7 @@ export default async function AppGuidePage() {
                 <Link
                   key={m.title}
                   href={m.href}
-                  className={`rounded-lg border border-border border-l-4 bg-surface p-4 transition-colors hover:bg-off-white ${CATEGORY_ACCENT[m.category]}`}
+                  className={`rounded-lg border border-border border-l-4 bg-surface p-4 transition-colors hover:bg-surface-subtle ${CATEGORY_ACCENT[m.category]}`}
                 >
                   <h3 className="text-sm font-semibold text-ink">{m.title}</h3>
                   <p className="mt-1 text-sm text-muted">{m.body}</p>

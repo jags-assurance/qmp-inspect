@@ -15,6 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { FormField } from "@/components/ui/form-field";
+import { FormMessage } from "@/components/ui/form-message";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -162,7 +164,7 @@ export function NewNcrForm({
   }
 
   return (
-    <form action={submitWithCompressedPhotos} className="mt-6 space-y-6">
+    <form action={submitWithCompressedPhotos} className="space-y-5">
       {onCreated && <input type="hidden" name="stay_on_page" value="true" />}
       <input type="hidden" name="request_id" value={requestId} />
       <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
@@ -170,8 +172,8 @@ export function NewNcrForm({
       {itpItemId && <input type="hidden" name="itp_item_id" value={itpItemId} />}
       {inspectionRecordId && <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />}
       {checklistItemId && <input type="hidden" name="checklist_item_id" value={checklistItemId} />}
-      <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Details</Tx></h2>
+      <section className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <h2 className="text-base font-semibold text-ink"><Tx>Details</Tx></h2>
 
         <div>
           <FormField label="Project" id="project_id" required error={state.fieldErrors?.project_id}>
@@ -226,10 +228,8 @@ export function NewNcrForm({
         </fieldset>
       </section>
 
-      <hr className="border-border" />
-
-      <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Description</Tx></h2>
+      <section className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <h2 className="text-base font-semibold text-ink"><Tx>Description</Tx></h2>
 
         <div className="rounded-md border border-border bg-off-white p-3">
           <label htmlFor="ai_notes" className="block text-sm font-medium text-ink">
@@ -301,12 +301,10 @@ export function NewNcrForm({
         </div>
       </section>
 
-      <hr className="border-border" />
+      <section className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <h2 className="text-base font-semibold text-ink"><Tx>Assignment</Tx></h2>
 
-      <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><Tx>Assignment</Tx></h2>
-
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="assigned_to" className="block text-sm font-medium text-ink">
               <Tx>Assigned to</Tx>
@@ -366,7 +364,7 @@ export function NewNcrForm({
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-1 gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:grid-cols-3 sm:p-5">
         <div>
           <label htmlFor="location" className="block text-sm font-medium text-ink">
             <Tx>Location / area</Tx> <span className="font-normal text-muted"><Tx>(optional)</Tx></span>
@@ -418,12 +416,13 @@ export function NewNcrForm({
         </div>
       )}
 
-      {photoError && <p role="alert" className="text-sm text-danger">{photoError}</p>}
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      <FormMessage error={photoError || state.error} />
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Raising…" : severity === "observation" ? "Raise Observation" : "Raise NCR"}
-      </Button>
+      <StickyActionBar>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Raising…" : severity === "observation" ? "Raise Observation" : "Raise NCR"}
+        </Button>
+      </StickyActionBar>
     </form>
   );
 }

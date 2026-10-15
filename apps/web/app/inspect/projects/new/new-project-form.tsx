@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import { suggestProjectNumber } from "@/lib/projects/suggest-number";
 import { createProjectAction, type CreateProjectState } from "@/lib/projects/actions";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Section } from "@/components/ui/section";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
+import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
@@ -42,14 +45,15 @@ export function NewProjectForm({
   }
 
   return (
-    <form action={formAction} className="mt-6 space-y-4">
+    <form action={formAction} className="space-y-5">
+      <Section title={<Tx>Project details</Tx>} bodyClassName="space-y-4">
       <div>
         <div className="flex items-center justify-between">
           <label htmlFor="organization_id" className="block text-sm font-medium text-ink">
             <Tx>Client organisation</Tx>
           </label>
           {allowCreateOrg && (
-            <Link href="/inspect/organisation/clients" className="text-xs font-medium text-burgundy hover:underline">
+            <Link href="/inspect/organisation/clients" className="inline-flex min-h-9 items-center text-sm font-medium text-burgundy hover:underline">
               <Tx>+ New organisation</Tx>
             </Link>
           )}
@@ -114,7 +118,10 @@ export function NewProjectForm({
         </FormField>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      </Section>
+
+      <Section title={<Tx>Schedule and site</Tx>} bodyClassName="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <div>
           <FormField label="Country (optional)">
             <input name="country" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
@@ -157,7 +164,10 @@ export function NewProjectForm({
         <textarea id="locations" name="locations" rows={3} placeholder={"Block A\nBlock B\nPump house"} className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />
         <p className="mt-1 text-xs text-muted"><Tx>These appear in the location dropdown when an inspection is started on this project.</Tx></p>
       </div>
+      </Section>
+
       {staffUsers.length > 0 && (
+        <Section title={<Tx>Responsibility</Tx>}>
         <div>
           <FormField label="Responsible person (optional)">
             <select name="responsible_person_id" defaultValue="" className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy">
@@ -170,13 +180,19 @@ export function NewProjectForm({
           </select>
           </FormField>
         </div>
+        </Section>
       )}
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      <FormMessage error={state.error} />
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Creating…" : "Create project"}
-      </Button>
+      <StickyActionBar>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Creating…" : "Create project"}
+        </Button>
+        <Link href="/inspect/projects" className={buttonVariants({ variant: "link-muted" })}>
+          <Tx>Cancel</Tx>
+        </Link>
+      </StickyActionBar>
     </form>
   );
 }

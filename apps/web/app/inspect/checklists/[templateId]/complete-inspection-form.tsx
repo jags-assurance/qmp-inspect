@@ -94,7 +94,7 @@ export function CompleteInspectionForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface p-6">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       {dialog}
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
@@ -116,7 +116,7 @@ export function CompleteInspectionForm({
         onChange={(e) => setSignerName(e.target.value)}
         placeholder={tl("Defaults to your account name")}
         maxLength={120}
-        className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+        className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
       />
       <p className="mt-1 text-xs text-muted">
         <Tx>The date and time are stamped automatically when you complete. The record is also stamped with your signed-in account, whatever name you type.</Tx>
@@ -129,8 +129,8 @@ export function CompleteInspectionForm({
       )}
 
       <div className="mt-4 rounded-md border border-border p-3">
-        <label className="flex items-center gap-2 text-sm font-medium text-ink">
-          <input type="checkbox" checked={witnessOpen} onChange={(e) => setWitnessOpen(e.target.checked)} />
+        <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-ink">
+          <input type="checkbox" className="h-5 w-5" checked={witnessOpen} onChange={(e) => setWitnessOpen(e.target.checked)} />
           <Tx>Add a witness signature (optional)</Tx>
         </label>
         {witnessOpen && (
@@ -141,7 +141,7 @@ export function CompleteInspectionForm({
               onChange={(e) => setWitnessName(e.target.value)}
               placeholder={tl("Witness name and company")}
               maxLength={120}
-              className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11"
             />
             <SignaturePad onChange={setWitnessSignature} />
           </div>
@@ -156,10 +156,10 @@ export function CompleteInspectionForm({
         name="notes"
         rows={3}
         disabled={queued}
-        className="mt-1 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy disabled:opacity-60"
+        className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm [@media(pointer:coarse)]:min-h-11 disabled:opacity-60"
       />
 
-      <Button type="submit" disabled={pending || !signature || queued || (witnessOpen && !!witnessSignature && !witnessName.trim())} className="mt-4">
+      <Button type="submit" disabled={pending || !signature || queued || (witnessOpen && !!witnessSignature && !witnessName.trim())} size="lg" className="mt-4 w-full">
         {queued ? "Queued — will complete when back online" : pending ? "Completing…" : "Complete inspection"}
       </Button>
       {queued && (

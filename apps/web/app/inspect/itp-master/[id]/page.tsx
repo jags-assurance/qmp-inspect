@@ -15,9 +15,11 @@ import { MasterAdminPanel } from "./admin-panel";
 import Link from "next/link";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -125,11 +127,11 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
   return (
     <div>
       <SettingsBackLink href="/inspect/itp-master" label="Master ITP Library" />
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold text-ink">{template.title}</h1>
-        <Badge tone={template.is_active ? "success" : "neutral"}>{template.is_active ? "Active" : "Inactive"}</Badge>
-        <span className="text-sm text-muted"><T>v</T>{template.version}</span>
-        <PageGuide
+      <PageHeader
+        className="mt-2"
+        title={template.title}
+        guide={
+          <PageGuide
           title={tl("Master template — how this works")}
           points={[
             "Sections and activities are read-only here. The one thing a JAGS Admin can set directly is each activity's default sign-off level per party type (Client, Main contractor, Subcontractor, TPI / Lab) — applied to the matching parties whenever a project ITP is created from this template.",
@@ -138,20 +140,27 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
             "\"Inactive\" means this version is no longer offered when starting a new project ITP from a template, but it's kept for record-keeping.",
           ]}
         />
-      </div>
-      <p className="mt-1 text-sm text-muted">
-        {template.industry || "—"} · {template.master_disciplines?.name ?? "—"}
-        {template.applicable_standard ? ` · ${template.applicable_standard}` : ""}
-      </p>
-
-      {template.is_active && (
-        <Link
-          href={`/inspect/itps/new?tab=template&template=${template.id}`}
-          className={buttonVariants({ className: "mt-3" })}
-        >
-          <T>Use this template</T>
-        </Link>
-      )}
+        }
+        badges={
+          <>
+            <Badge tone={template.is_active ? "success" : "neutral"}>{template.is_active ? "Active" : "Inactive"}</Badge>
+            <span className="text-sm text-muted"><T>v</T>{template.version}</span>
+          </>
+        }
+        subtitle={
+          <>
+            {template.industry || "—"} · {template.master_disciplines?.name ?? "—"}
+            {template.applicable_standard ? ` · ${template.applicable_standard}` : ""}
+          </>
+        }
+        primaryAction={
+          template.is_active ? (
+            <Link href={`/inspect/itps/new?tab=template&template=${template.id}`} className={buttonVariants()}>
+              <T>Use this template</T>
+            </Link>
+          ) : undefined
+        }
+      />
       {canEditDefaults && (
         <MasterAdminPanel
           templateId={template.id}
@@ -188,8 +197,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
 
       <VersionHistoryPanel revisions={revisions ?? []} />
 
-      <details className="group mt-6">
-        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Change log</T></summary>
+      <Disclosure variant="pill" summary={<><T>Change log</T></>} className="mt-6">
         <div className="mt-2 rounded-lg border border-border bg-surface p-4">
         {(auditRows ?? []).length === 0 ? (
           <p className="mt-1 text-xs text-muted"><T>No administrative changes recorded yet.</T></p>
@@ -207,7 +215,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
           </ul>
         )}
         </div>
-      </details>
+</Disclosure>
     </div>
   );
 }

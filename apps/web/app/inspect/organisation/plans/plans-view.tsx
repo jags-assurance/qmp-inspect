@@ -65,7 +65,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>Plans & seats</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Plans & seats</T></Heading>
         <PageGuide
           title={tl("Plans & seats — how this works")}
           points={[
@@ -86,7 +86,7 @@ export async function PlansSettingsView({ embedded }: { embedded?: boolean }) {
           const seatsUsed = seatsUsedByOrgId.get(org.id)?.size ?? 0;
           const usage = summariseSeatUsage(seatsUsed, plan?.seat_limit);
           return (
-            <div key={org.id} className="rounded-lg border border-border bg-surface p-4">
+            <div key={org.id} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
               <div className="flex items-baseline justify-between">
                 <h2 className="text-sm font-semibold text-ink">{org.name}</h2>
                 <span className="text-xs text-muted">

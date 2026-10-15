@@ -19,6 +19,7 @@ import { countPunchByStatus, listHitCap } from "@/lib/projects/open-counts";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 // Outstanding (open / resolved) items are always loaded — they block the Data Book and are the
 // working set. Only the CLOSED history is windowed ("Load more"), newest first.
@@ -196,13 +197,9 @@ export async function PunchListView({
 
       <WalkdownsPanel projectId={projectId} />
 
-      <details className="group mt-6">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Status legend</T>
-        </summary>
+      <Disclosure variant="pill" summary={<><T>Status legend</T></>} className="mt-6">
         <StatusLegend className="mt-2" />
-      </details>
+</Disclosure>
       <div className="mt-2">
         <PunchListTable
           projectId={projectId}

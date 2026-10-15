@@ -20,7 +20,7 @@ export function ActivityEvidenceToggle({ label, children }: { label: string; chi
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-muted hover:border-burgundy/40 hover:text-burgundy"
+        className="min-h-8 rounded-full border border-control-border bg-surface px-3 py-1 text-xs font-medium text-muted hover:text-burgundy [@media(pointer:coarse)]:min-h-11"
       >
         {label}
       </button>

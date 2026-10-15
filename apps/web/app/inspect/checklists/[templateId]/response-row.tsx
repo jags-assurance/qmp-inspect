@@ -19,10 +19,10 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 
-const PILLS: { value: ChecklistResponseResult; label: string; activeClass: string }[] = [
-  { value: "yes", label: "Yes", activeClass: "bg-success text-white border-success" },
-  { value: "no", label: "No", activeClass: "bg-danger text-white border-danger" },
-  { value: "na", label: "N/A", activeClass: "bg-muted text-white border-muted" },
+const PILLS: { value: ChecklistResponseResult; label: string; icon: string; activeClass: string }[] = [
+  { value: "yes", label: "Yes", icon: "✓", activeClass: "bg-success text-white border-success" },
+  { value: "no", label: "No", icon: "✕", activeClass: "bg-danger text-white border-danger" },
+  { value: "na", label: "N/A", icon: "–", activeClass: "bg-muted text-white border-muted" },
 ];
 
 // Register overrides are stored inline in checklist_responses.comment (a minimal-schema-footprint
@@ -306,19 +306,53 @@ export function ResponseRow({
     save(p.nextResult, p.nextComment, p.nextOverrideReason, p.nextCalibrationAssetId, p.nextMaterialId, p.nextWelderId);
   }
 
+  const evidenceHint = evidenceRequirementHint(isMandatory, result, photos.length > 0 || (itemDocuments?.length ?? 0) > 0);
+  // One short reason an item needs the inspector's eyes (never colour alone: icon + words).
+  const attentionReason = saveError
+    ? "Not saved"
+    : needsOverrideReason && !overrideSatisfied
+      ? "Reason needed"
+      : result === "no" && !comment.trim()
+        ? "Comment needed"
+        : evidenceHint && !evidenceHint.met
+          ? "Evidence needed"
+          : null;
+
   return (
-    <div className="border-b border-border p-4 last:border-0">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-medium text-ink">
-            <span className="doc-id text-muted">{itemNumber}.</span> {description}
-            {isMandatory && (
-              <span className="ms-1 text-danger" title={tl("Mandatory item")}>
-                * <span className="sr-only"><Tx>mandatory</Tx></span>
-              </span>
-            )}
-          </p>
-        </div>
+    <div
+      id={`item-${checklistItemId}`}
+      data-answered={result ? "true" : "false"}
+      className={cn(
+        "scroll-mt-[calc(var(--header-h)+env(safe-area-inset-top)+7.5rem)] rounded-lg border bg-surface p-4 shadow-xs sm:p-5",
+        attentionReason ? "border-warning" : result ? "border-border" : "border-border"
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-base font-medium leading-snug text-ink">
+          <span className="doc-id text-muted">{itemNumber}.</span> {description}
+          {isMandatory && (
+            <span className="ms-1 text-danger" title={tl("Mandatory item")}>
+              * <span className="sr-only"><Tx>mandatory</Tx></span>
+            </span>
+          )}
+        </p>
+        <span className="shrink-0">
+          {attentionReason ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning" role="status">
+              <span aria-hidden="true">⚠</span>
+              <Tx>{attentionReason}</Tx>
+            </span>
+          ) : result ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+              <span aria-hidden="true">✓</span>
+              <Tx>Answered</Tx>
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-surface-sunken px-2 py-0.5 text-xs font-medium text-muted">
+              <Tx>Unanswered</Tx>
+            </span>
+          )}
+        </span>
       </div>
 
       <div className="mt-3 space-y-2">
@@ -482,7 +516,7 @@ export function ResponseRow({
           </div>
         )}
 
-        <div className="flex gap-2" role="radiogroup" aria-label={`Result for item ${itemNumber}`}>
+        <div className={cn("grid gap-2", numeric ? "grid-cols-1" : "grid-cols-3")} role="radiogroup" aria-label={`Result for item ${itemNumber}`}>
           {(numeric ? PILLS.filter((p) => p.value === "na") : PILLS).map((pill) => (
             <button
               key={pill.value}
@@ -499,26 +533,23 @@ export function ResponseRow({
                 save(pill.value, comment, overrideReason, calibrationAssetId);
               }}
               className={cn(
-                "min-h-12 min-w-0 flex-1 rounded-lg border-2 px-4 py-3 text-base font-bold transition-colors disabled:opacity-60 sm:flex-none sm:min-w-24 sm:px-6",
-                result === pill.value ? pill.activeClass : "border-border bg-surface text-ink hover:bg-off-white"
+                "inline-flex min-h-14 min-w-0 items-center justify-center gap-1.5 rounded-lg border-2 px-3 py-3 text-base font-bold transition-colors disabled:opacity-60",
+                result === pill.value ? pill.activeClass : "border-control-border bg-surface text-ink hover:bg-surface-subtle"
               )}
             >
-              {result === pill.value && <span aria-hidden="true">✓ </span>}
+              <span aria-hidden="true">{pill.icon}</span>
+              {result === pill.value && <span className="sr-only"><Tx>Selected:</Tx> </span>}
               {pill.label}
             </button>
           ))}
         </div>
 
-        {(() => {
-          const hint = evidenceRequirementHint(isMandatory, result, photos.length > 0 || (itemDocuments?.length ?? 0) > 0);
-          if (!hint) return null;
-          return (
-            <p className={`text-xs ${hint.met ? "text-muted" : "text-warning"}`} role="note">
-              {hint.met ? "✓ " : "⚠ "}
-              {hint.text}
-            </p>
-          );
-        })()}
+        {evidenceHint && (
+          <p className={`text-sm ${evidenceHint.met ? "text-muted" : "text-warning"}`} role="note">
+            {evidenceHint.met ? "✓ " : "⚠ "}
+            {evidenceHint.text}
+          </p>
+        )}
 
         {result === "no" && !comment.trim() && (
           <p className="rounded-md bg-danger/10 px-3 py-2 text-xs text-danger">

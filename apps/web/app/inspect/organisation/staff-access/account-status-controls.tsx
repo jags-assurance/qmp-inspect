@@ -50,7 +50,7 @@ export function AccountStatusButton({ userId, active, name }: { userId: string; 
 export function OffboardByEmailForm() {
   const [state, formAction, pending] = useActionState(accountLifecycleByEmailAction, initialState);
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <h2 className="text-sm font-semibold text-ink"><Tx>Offboard or restore an account</Tx></h2>
       <p className="mt-1 text-xs text-muted">
         <Tx>Works on any account by email — JAGS staff or an external party user. Deactivating signs the person out, stops them signing in again and removes every access grant (recorded, so Reactivate restores them).</Tx>
@@ -84,7 +84,7 @@ export function BulkOffboardForm() {
   const [state, formAction, pending] = useActionState(bulkAccountLifecycleAction, bulkInitialState);
   const { askThenSubmit, dialog } = useConfirm();
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       {dialog}
       <h2 className="text-sm font-semibold text-ink"><Tx>Bulk offboard or restore accounts</Tx></h2>
       <p className="mt-1 text-xs text-muted">

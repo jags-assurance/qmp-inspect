@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { setLocaleAction } from "@/lib/i18n/actions";
 import { LOCALE_LABELS, SUPPORTED_LOCALES } from "@/lib/i18n/direction";
 import { Tx } from "@/components/domain/tx";
 import { TermsMenuSection } from "@/components/domain/terms-menu-section";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { PopoverPanel } from "@/components/ui/popover-panel";
 
 /**
  * The top-right profile control. A real menu (not a static badge): shows who is signed in and their
@@ -31,7 +32,8 @@ export function UserMenu({
   const [open, setOpen] = useState(false);
   const [canInstall, setCanInstall] = useState(false);
   const [termsPending, setTermsPending] = useState(needsTerms);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = useCallback(() => setOpen(false), []);
 
   // The browser's install prompt is captured by OfflineBanner; offer it here as an account-menu entry.
   useEffect(() => {
@@ -52,22 +54,6 @@ export function UserMenu({
     setCanInstall(false);
   }
 
-  useEffect(() => {
-    if (!open) return;
-    function onDown(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
   const initials = userName
     .split(" ")
     .map((part) => part[0])
@@ -76,38 +62,41 @@ export function UserMenu({
     .toUpperCase();
 
   return (
-    <div ref={rootRef} className="relative">
+    <div className="relative">
       <button
+        ref={buttonRef}
         type="button"
+        title={`${userName} (${userRole})`}
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${userName} (${userRole})`}
-        className="flex h-11 items-center gap-2 rounded-full py-1 ps-1 pe-1 hover:bg-surface-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-burgundy lg:pe-3"
+        className="flex h-11 items-center gap-2 rounded-full py-1 ps-1 pe-1 hover:bg-surface-subtle lg:pe-3"
       >
         <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
           {initials}
           {termsPending && <span aria-label={tl("Terms of use to accept")} className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-surface bg-danger" />}
         </span>
         <span className="hidden max-w-[11rem] text-start leading-tight lg:block">
-          <span className="block truncate whitespace-nowrap text-sm font-medium text-ink">{userName}</span>
-          <span className="block truncate whitespace-nowrap text-xs text-muted">{userRole}</span>
+          <span className="block truncate whitespace-nowrap text-sm font-medium text-ink" title={userName}>{userName}</span>
+          <span className="block truncate whitespace-nowrap text-xs text-muted" title={userRole}>{userRole}</span>
         </span>
         <span aria-hidden="true" className="hidden text-xs text-muted lg:inline">
           ▾
         </span>
       </button>
 
-      {open && (
-        <div role="menu" className="absolute end-0 z-30 mt-2 w-[min(16rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+      {/* Portalled to <body> (PopoverPanel) so floating notices can never cover the account menu. */}
+      <PopoverPanel open={open} onClose={closeMenu} anchorRef={buttonRef} role="menu" className="overflow-hidden overflow-y-auto sm:w-64">
+        <div>
           <div className="border-b border-border px-4 py-3">
-            <p className="truncate text-sm font-medium text-ink">{userName}</p>
+            <p className="truncate text-sm font-medium text-ink" title={userName}>{userName}</p>
             <p className="text-xs text-muted">{userRole}</p>
           </div>
           {termsPending && <TermsMenuSection onAccepted={() => setTermsPending(false)} />}
           {canInstall && (
             <div className="border-b border-border py-1">
-              <button type="button" role="menuitem" onClick={installApp} className="block w-full px-4 py-2.5 text-start text-sm text-ink hover:bg-off-white">
+              <button type="button" role="menuitem" onClick={installApp} className="block min-h-11 w-full px-4 py-2.5 text-start text-sm text-ink hover:bg-surface-subtle">
                 <Tx>Install app on this device</Tx>
               </button>
             </div>
@@ -120,7 +109,7 @@ export function UserMenu({
                     href={l.href}
                     role="menuitem"
                     onClick={() => setOpen(false)}
-                    className="block px-4 py-2.5 text-sm text-ink hover:bg-off-white"
+                    className="block min-h-11 px-4 py-2.5 text-sm text-ink hover:bg-surface-subtle"
                   >
                     {l.label}
                   </Link>
@@ -139,7 +128,7 @@ export function UserMenu({
                 value={code}
                 role="menuitem"
                 lang={code}
-                className="min-h-8 rounded-md border border-border px-2 text-xs text-ink hover:bg-off-white"
+                className="min-h-8 rounded-md border border-control-border px-2 text-xs text-ink hover:bg-surface-subtle [@media(pointer:coarse)]:min-h-11"
               >
                 {LOCALE_LABELS[code]}
               </button>
@@ -147,12 +136,12 @@ export function UserMenu({
           </form>
           )}
           <form action={signOutAction} className="border-t border-border">
-            <button type="submit" role="menuitem" className="block w-full px-4 py-2.5 text-start text-sm font-medium text-danger hover:bg-off-white">
+            <button type="submit" role="menuitem" className="block min-h-11 w-full px-4 py-2.5 text-start text-sm font-medium text-danger hover:bg-surface-subtle">
               <Tx>Sign out</Tx>
             </button>
           </form>
         </div>
-      )}
+      </PopoverPanel>
     </div>
   );
 }

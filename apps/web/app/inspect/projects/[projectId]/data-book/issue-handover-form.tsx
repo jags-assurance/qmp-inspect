@@ -1,5 +1,6 @@
 "use client";
 
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { useRef, useState, type FormEvent } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { issueHandoverAction } from "@/lib/handover/actions";
@@ -165,7 +166,7 @@ export function IssueHandoverForm({
             maxLength={60}
             placeholder={tl("blank = next HC-###")}
             disabled={pending}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50 sm:w-40"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy disabled:opacity-50 sm:w-40"
           />
         </div>
 
@@ -179,7 +180,7 @@ export function IssueHandoverForm({
             rows={2}
             maxLength={1500}
             disabled={pending}
-            className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy disabled:opacity-50"
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none sm:text-sm [@media(pointer:coarse)]:min-h-11 focus:border-burgundy disabled:opacity-50"
           />
         </div>
 
@@ -187,9 +188,11 @@ export function IssueHandoverForm({
           </MoreDetails>
         </div>
 
-        <Button type="submit" size="sm" disabled={pending}>
+        <StickyActionBar className="w-full">
+        <Button type="submit" size="lg" className="w-full sm:w-auto" disabled={pending}>
           {pending ? "Issuing…" : "Issue for handover"}
         </Button>
+        </StickyActionBar>
 
         {status && (
           <p className="w-full text-xs text-muted" role="status" aria-live="polite">

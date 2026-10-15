@@ -1,3 +1,5 @@
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -95,17 +97,16 @@ export default async function VaultPendingApprovalsPage({ params }: { params: Pr
 
   return (
     <div>
-      <Link href={`/inspect/vault?project=${projectId}`} className="text-sm text-burgundy hover:underline">
-        <T>← Back to Document Vault</T>
-      </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-ink"><T>My pending approvals</T></h1>
-      <p className="mt-1 text-sm text-muted">
-        <T>Waiting for you, oldest first. Rejecting needs a reason.</T>
-      </p>
-      <div className="mt-6">
+      <PageHeader
+        backHref={`/inspect/vault?project=${projectId}`}
+        backLabel="Back to Document Vault"
+        title={<T>My pending approvals</T>}
+        subtitle={<T>Waiting for you, oldest first. Rejecting needs a reason.</T>}
+      />
+      <div>
         <VaultDocumentsTable rows={rows} canApprove={canApprove} viewerId={session.userId} isAdmin={isAdminStaff(session)} />
       </div>
-      {rows.length === 0 && <p className="mt-3 text-sm text-muted"><T>Nothing is waiting for you. You are all caught up.</T></p>}
+      {rows.length === 0 && <EmptyState compact title={<T>All caught up</T>} description={<T>Nothing is waiting for you.</T>} />}
     </div>
   );
 }

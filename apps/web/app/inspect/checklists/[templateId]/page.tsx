@@ -648,7 +648,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
   const RESULT_TONE: Record<string, "success" | "danger" | "warning"> = { pass: "success", fail: "danger", partial: "warning" };
 
   return (
-    <div className="max-w-3xl">
+    <div className={draft ? "max-w-6xl" : "max-w-3xl"}>
       {/* Scoped to the draft's own answers: unfiltered, every answer saved on ANY checklist re-ran
           this whole page (layout included) for every viewer who had one open. The app only ever
           upserts answers (a filtered subscription gets no DELETE events), so the filter loses no
@@ -656,7 +656,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       <RealtimeRefresh table="checklist_responses" filter={draft ? `inspection_record_id=eq.${draft.id}` : undefined} />
       {/* Was linking to the full ITP page — most people reach this checklist FROM the ITP's
           Checklists list, so "back" now returns there instead of the much heavier ITP detail page. */}
-      <Link href={`/inspect/itps/${itp.id}/checklists`} className="text-sm text-burgundy hover:underline">
+      <Link href={`/inspect/itps/${itp.id}/checklists`} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
         <T>← Back to</T> {itp.itp_number} <T>checklists</T>
       </Link>
       <p className="mt-2 text-sm text-muted">
@@ -827,7 +827,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
             vaultFolders={vaultFolderOptions}
             hasNcr={hasNcr}
             photoSlot={
-              <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4">
+              <div id="photo-evidence-section" className="rounded-lg border border-border bg-surface p-4 shadow-xs">
                 <h2 className="text-sm font-medium text-ink">
                   <T>Photo evidence</T> <span className="text-danger">*</span>
                 </h2>

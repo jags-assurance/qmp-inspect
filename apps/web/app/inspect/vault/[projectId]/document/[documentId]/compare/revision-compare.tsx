@@ -49,7 +49,7 @@ function RevisionColumn({
       <select
         value={selectedId}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy sm:text-sm"
       >
         {revisions.map((r) => (
           <option key={r.id} value={r.id}>
@@ -95,7 +95,7 @@ function RevisionColumn({
               href={revision.url}
               target="_blank"
               rel="noreferrer"
-              className={buttonVariants({ variant: "outline", size: "sm", className: "inline-block" })}
+              className={buttonVariants({ variant: "outline", size: "md", className: "w-full sm:w-auto" })}
             >
               <Tx>Open file ↗</Tx>
             </a>

@@ -9,6 +9,7 @@ import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 
 interface ChecklistItem {
   id: string;
@@ -151,30 +152,61 @@ export function ChecklistExecutionPanel({
       ? { label: "Saving…", className: "text-muted" }
       : { label: "All changes saved", className: "text-success" };
 
+  const unansweredCount = totalCount - answeredCount;
+  // One-line reason the Complete action is not available yet (shown beside the disabled button).
+  const completeBlockedReason = !allAnswered
+    ? mandatoryRemaining > 0
+      ? `${mandatoryRemaining} mandatory ${mandatoryRemaining === 1 ? "item" : "items"} still to answer`
+      : `${unansweredCount} ${unansweredCount === 1 ? "item" : "items"} still to answer`
+    : !hasEvidencePhoto
+      ? "Add at least one photo or document first"
+      : null;
+
+  function jumpToNextUnanswered() {
+    const next = items.find((i) => !answeredIds.has(i.id));
+    if (!next) return;
+    const el = document.getElementById(`item-${next.id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   return (
     <>
       {totalCount > 0 && (
-        <div className="sticky top-0 z-10 -mx-1 bg-surface/95 px-1 py-2 backdrop-blur" aria-live="polite">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium text-ink">
+        <div
+          className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 border-b border-border bg-surface/95 px-3 py-2.5 backdrop-blur sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-lg lg:border lg:shadow-xs"
+          aria-live="polite"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+            <span className="font-semibold text-ink">
               {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
-              {mandatoryTotal > 0 && (
-                <span className={mandatoryRemaining > 0 ? "ms-2 text-danger" : "ms-2 text-success"}>
-                  {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory remaining` : "all mandatory done"}
-                </span>
-              )}
+              <span className="ms-2 font-normal text-muted tabular-nums">{answeredPct}%</span>
             </span>
-            <span className="text-muted">{answeredPct}%</span>
+            {mandatoryTotal > 0 && (
+              <span className={mandatoryRemaining > 0 ? "font-medium text-danger" : "font-medium text-success"}>
+                {mandatoryRemaining > 0 ? `⚠ ${mandatoryRemaining} mandatory remaining` : "✓ All mandatory done"}
+              </span>
+            )}
           </div>
-          <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-off-white">
-            <div className="h-full rounded-full bg-gold transition-[width]" style={{ width: `${answeredPct}%` }} />
+          <div
+            className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-surface-sunken"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={totalCount}
+            aria-valuenow={answeredCount}
+            aria-label="Items answered"
+          >
+            <div className="h-full rounded-full bg-brand transition-[width]" style={{ width: `${answeredPct}%` }} />
           </div>
           {canExecute && (
-            <p className={"mt-1.5 text-xs font-medium " + syncStatus.className}>{syncStatus.label}</p>
+            <p className={"mt-1.5 text-xs font-medium " + syncStatus.className}>
+              {!isOnline ? "⚠ " : savingCount > 0 ? "" : "✓ "}
+              {syncStatus.label}
+            </p>
           )}
         </div>
       )}
-      <div className="rounded-lg border border-border bg-surface">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+      <div className="space-y-3">
         {items.map((item) => (
           <ResponseRow
             key={item.id}
@@ -220,42 +252,45 @@ export function ChecklistExecutionPanel({
             vaultFolders={vaultFolders}
           />
         ))}
-        {items.length === 0 && <p className="p-4 text-sm text-muted"><Tx>This checklist has no items yet.</Tx></p>}
+        {items.length === 0 && <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted"><Tx>This checklist has no items yet.</Tx></p>}
       </div>
-      {photoSlot}
-      {canExecute && (
-        <div id="complete-section" className="scroll-mt-16">
-          {allAnswered ? (hasEvidencePhoto ? completeSlot : missingPhotoSlot) : incompleteSlot}
-        </div>
-      )}
-      {canExecute && totalCount > 0 && (
-        <>
-          {/* Spacer so the fixed bar never covers the last content on mobile. */}
-          <div className="h-24 md:hidden" aria-hidden="true" />
-          <div
-            className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface/95 px-4 pt-2 shadow-[0_-2px_8px_rgba(0,0,0,0.08)] backdrop-blur md:hidden"
-            style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="min-w-0 flex-1 text-sm" aria-live="polite">
-                <p className="font-medium text-ink">
-                  {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
-                </p>
-                <p className={mandatoryRemaining > 0 ? "truncate text-xs text-danger" : "truncate text-xs " + syncStatus.className}>
-                  {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory left` : syncStatus.label}
-                </p>
-              </div>
-              <Button
-                type="button"
-                disabled={!allAnswered}
-                onClick={() => document.getElementById("complete-section")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                size="lg" className="shrink-0"
-              >
-                {allAnswered ? (hasEvidencePhoto ? "Complete" : "Add evidence") : "Complete"}
-              </Button>
-            </div>
+      {/* Right column from lg (summary + evidence + sign-off); stacks under the items on phones/tablets. */}
+      <aside className="space-y-4 lg:sticky lg:top-[calc(var(--header-h)+env(safe-area-inset-top)+6rem)] lg:max-h-[calc(100dvh-var(--header-h)-8rem)] lg:overflow-y-auto">
+        {photoSlot}
+        {canExecute && (
+          <div id="complete-section" className="scroll-mt-[calc(var(--header-h)+env(safe-area-inset-top)+7rem)]">
+            {allAnswered ? (hasEvidencePhoto ? completeSlot : missingPhotoSlot) : incompleteSlot}
           </div>
-        </>
+        )}
+      </aside>
+      </div>
+      {canExecute && totalCount > 0 && (
+        <StickyActionBar className="lg:hidden" justify="between">
+          <div className="min-w-0 flex-1 basis-full text-sm sm:basis-auto" aria-live="polite">
+            <p className="font-medium text-ink">
+              {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
+            </p>
+            <p className={completeBlockedReason ? "text-xs text-muted" : "text-xs text-success"}>
+              {completeBlockedReason ?? "✓ Ready to complete"}
+            </p>
+          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            {!allAnswered && (
+              <Button type="button" variant="outline" size="lg" className="flex-1 sm:flex-none" onClick={jumpToNextUnanswered}>
+                <Tx>Next unanswered</Tx>
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="lg"
+              className="flex-1 sm:flex-none"
+              disabled={!allAnswered}
+              onClick={() => document.getElementById("complete-section")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              {allAnswered ? (hasEvidencePhoto ? "Complete inspection" : "Add evidence") : "Complete inspection"}
+            </Button>
+          </div>
+        </StickyActionBar>
       )}
     </>
   );

@@ -72,7 +72,7 @@ export default async function OrphanPhotosPage() {
     <div className="max-w-4xl">
       <SettingsBackLink />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-semibold text-ink"><T>Orphaned photos</T></h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Orphaned photos</T></h1>
         <PageGuide
           title={tl("Orphaned photos — how this works")}
           points={[

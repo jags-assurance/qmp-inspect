@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const field = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
 
@@ -48,8 +49,7 @@ export function EditNcrDetailsForm({
     if (state.done) doneRef.current?.();
   }, [state]);
   return (
-    <details className="mt-3 text-sm">
-      <summary className="cursor-pointer font-medium text-burgundy"><Tx>Correct the description</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Correct the description</Tx></>} className="mt-3 text-sm">
       <form action={action} className="mt-2 space-y-3">
         <input type="hidden" name="ncr_id" value={ncrId} />
         <textarea name="description" rows={3} required minLength={10} defaultValue={description} className={field} aria-label={tl("Description")} />
@@ -66,7 +66,7 @@ export function EditNcrDetailsForm({
           {pending ? "Saving…" : "Save corrections"}
         </Button>
       </form>
-    </details>
+</Disclosure>
   );
 }
 
@@ -83,8 +83,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
     if (state.done) doneRef.current?.();
   }, [state]);
   return (
-    <details className="mt-4 border-t border-border pt-4 text-sm">
-      <summary className="cursor-pointer font-medium text-ink"><Tx>Withdraw (raised in error / duplicate)</Tx></summary>
+    <Disclosure variant="inline" summary={<><Tx>Withdraw (raised in error / duplicate)</Tx></>} className="mt-4 border-t border-border pt-4 text-sm">
       <form action={action} className="mt-2 space-y-2">
         {dialog}
         <input type="hidden" name="ncr_id" value={ncrId} />
@@ -104,7 +103,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
           {pending ? "Withdrawing…" : "Withdraw NCR"}
         </Button>
       </form>
-    </details>
+</Disclosure>
   );
 }
 

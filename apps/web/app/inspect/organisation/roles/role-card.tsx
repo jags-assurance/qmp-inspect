@@ -65,7 +65,7 @@ export function RoleCard({
   const [assignState, assignAction, assignPending] = useActionState(assignCustomRoleAction, assignInitial);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
+    <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -110,7 +110,7 @@ export function RoleCard({
                   title={disabled ? "Only a JAGS Admin can grant this permission." : undefined}
                   className={
                     "rounded-full border px-2.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 " +
-                    (granted ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border text-muted hover:bg-off-white")
+                    (granted ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border text-muted hover:bg-surface-subtle")
                   }
                 >
                   {PERMISSION_LABEL[key]}

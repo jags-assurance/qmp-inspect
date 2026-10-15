@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { addCalibrationEntryAction, type AddCalibrationEntryState } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 import { FormField } from "@/components/ui/form-field";
@@ -39,10 +40,10 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
   }, [pending, state]);
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={formAction} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
 
-      <div className="min-w-48 flex-1">
+      <div className="min-w-0">
         <FormField label="Instrument">
           <input name="instrument_name" required className={inputClass} />
         </FormField>
@@ -60,7 +61,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
         </FormField>
       </div>
 
-      <div className="min-w-36 flex-1">
+      <div className="min-w-0">
         <FormField label="Calibration lab">
           <input name="calibration_lab" className={inputClass} />
         </FormField>
@@ -84,7 +85,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
         </FormField>
       </div>
 
-      <div className="min-w-40 flex-1">
+      <div className="min-w-0">
         <FormField label="Notes">
           <input name="notes" className={inputClass} />
         </FormField>
@@ -92,9 +93,11 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
 
       <CertificateUpload key={formKey} projectId={projectId} kind="calibration" />
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <StickyActionBar className="md:col-span-2">
+        <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add instrument"}
       </Button>
+      </StickyActionBar>
 
       {/* Live regions stay mounted so the result is announced; the leading ✓ means it is not colour-only. */}
       <FormMessage error={state.error} success={added ? "✓ Added" : null} className="w-full" />

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -8,6 +7,7 @@ import { resolveSiteTimeZone, siteToday } from "@/lib/ncrs/site-date";
 import { fetchProjectTimeZone } from "@/lib/projects/timezone";
 import { buildVendorScorecard, type ScorecardNcr } from "@/lib/ncrs/scorecard";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { PageHeader } from "@/components/ui/page-header";
 import { T } from "@/components/domain/t";
 
 interface Row extends ScorecardNcr {
@@ -53,6 +53,7 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
     {
       key: "party",
       header: "Responsible party",
+      cardHidden: true,
       tdClassName: "text-ink",
       render: (s) => (s.partyId ? partyNames.get(s.partyId) ?? "Unknown party" : "No responsible party set"),
     },
@@ -80,22 +81,22 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
 
   return (
     <div className="max-w-6xl">
-      <Link href="/inspect/ncrs" className="text-sm text-burgundy hover:underline">
-        <T>← Back to NCR Register</T>
-      </Link>
-      <h1 className="mt-2 text-2xl font-semibold text-ink"><T>Vendor NCR scorecard</T></h1>
-      <p className="mt-1 text-sm text-muted">
-        <T>Per responsible party, worst first. Withdrawn NCRs and observations are not counted.</T>
-      </p>
+      <PageHeader
+        backHref="/inspect/ncrs"
+        backLabel="Back to NCR Register"
+        title={<T>Vendor NCR scorecard</T>}
+        subtitle={<T>Per responsible party, worst first. Withdrawn NCRs and observations are not counted.</T>}
+      />
       {scores.length === 0 ? (
-        <p className="mt-6 rounded-md bg-off-white p-4 text-sm text-muted"><T>No NCRs to score yet.</T></p>
+        <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted shadow-xs"><T>No NCRs to score yet.</T></p>
       ) : (
-        <div className="mt-4 rounded-lg border border-border bg-surface">
+        <div className="rounded-lg border border-border bg-surface shadow-xs">
           <ResponsiveTable
             columns={scoreColumns}
             rows={scores}
             rowKey={(s) => s.partyId ?? "none"}
             caption="Vendor NCR scorecard"
+            breakpoint="md"
             scrollRegionLabel="Vendor NCR scorecard"
             wrapperClassName="table-scroll"
             theadClassName="text-start text-xs text-muted"
@@ -103,7 +104,8 @@ export default async function NcrScorecardPage({ searchParams }: { searchParams:
             thClassName="px-3 py-2 font-medium"
             tdClassName="px-3 py-2"
             rowClassName="border-t border-border"
-            cardClassName="px-3"
+            cardClassName="px-4"
+            cardTitle={(r) => <span className="font-medium text-ink">{r.partyId ? partyNames.get(r.partyId) ?? "Unknown party" : "No responsible party set"}</span>}
           />
         </div>
       )}

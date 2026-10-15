@@ -10,6 +10,7 @@ import { translateText } from "@/lib/i18n/dictionary";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 import { Tx } from "@/components/domain/tx";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export interface ProjectRow {
   id: string;
@@ -48,12 +49,26 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
+function StatusBadges({ row }: { row: ProjectRow }) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <Badge tone={STATUS_TONE[row.status] ?? "neutral"} showIcon>{STATUS_LABEL[row.status] ?? row.status}</Badge>
+      {isClosedStatus(row.status) && (
+        <>
+          <Badge tone="neutral"><Tx>Closed</Tx></Badge>
+          {row.closed_at && <span className="text-xs text-muted">{formatDateOnly(row.closed_at.slice(0, 10))}</span>}
+        </>
+      )}
+    </span>
+  );
+}
+
 const COLUMNS: DataTableColumn<ProjectRow>[] = [
   {
     key: "project_number",
     header: "Project No.",
     render: (row) => (
-      <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="doc-id text-burgundy hover:underline">
+      <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="doc-id inline-flex min-h-11 items-center text-burgundy hover:underline">
         {row.project_number}
       </Link>
     ),
@@ -62,26 +77,18 @@ const COLUMNS: DataTableColumn<ProjectRow>[] = [
     key: "name",
     header: "Name",
     render: (row) => (
-      <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="hover:underline">
+      <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="line-clamp-1 max-w-xs hover:underline" title={row.name}>
         {row.name}
       </Link>
     ),
   },
-  { key: "organization", header: "Client", render: (row) => row.organizations?.name ?? "—" },
-  { key: "site_location", header: "Location", render: (row) => row.site_location ?? "—" },
+  { key: "organization", header: "Client", render: (row) => <span className="line-clamp-1 max-w-48" title={row.organizations?.name ?? ""}>{row.organizations?.name ?? "—"}</span> },
+  { key: "site_location", header: "Location", render: (row) => <span className="line-clamp-1 max-w-48" title={row.site_location ?? ""}>{row.site_location ?? "—"}</span> },
   {
     key: "status",
     header: "Status",
     render: (row) => (
-      <span className="inline-flex flex-wrap items-center gap-1.5">
-        <Badge tone={STATUS_TONE[row.status] ?? "neutral"}>{STATUS_LABEL[row.status] ?? row.status}</Badge>
-        {isClosedStatus(row.status) && (
-          <>
-            <Badge tone="neutral"><Tx>Closed</Tx></Badge>
-            {row.closed_at && <span className="text-xs text-muted">{formatDateOnly(row.closed_at.slice(0, 10))}</span>}
-          </>
-        )}
-      </span>
+      <StatusBadges row={row} />
     ),
   },
   {
@@ -129,13 +136,18 @@ export function ProjectsTable({ rows, canCreate = false, locale }: { rows: Proje
   const loc = locale ?? contextLocale;
   if (rows.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-border p-8 text-center">
-        <p className="text-sm text-muted">{translateText(loc, "No projects to show.")}</p>
-        {canCreate && (
-          <Link href="/inspect/projects/new" className={buttonVariants({ className: "mt-3" })}>
-            {translateText(loc, "Create project")}
-          </Link>
-        )}
+      <div className="rounded-lg border border-border bg-surface shadow-xs">
+        <EmptyState
+          title={translateText(loc, "No projects to show.")}
+          description={translateText(loc, "Projects you have access to appear here.")}
+          action={
+            canCreate ? (
+              <Link href="/inspect/projects/new" className={buttonVariants({ size: "sm" })}>
+                {translateText(loc, "Create project")}
+              </Link>
+            ) : undefined
+          }
+        />
       </div>
     );
   }
@@ -144,6 +156,42 @@ export function ProjectsTable({ rows, canCreate = false, locale }: { rows: Proje
       columns={COLUMNS}
       locale={locale}
       rows={rows}
+      caption="Projects"
+      breakpoint="md"
+      renderCard={(row) => (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <Link prefetch={false} href={`/inspect/projects/${row.id}`} className="doc-id inline-flex min-h-11 items-center text-base font-semibold text-burgundy hover:underline">
+              {row.project_number}
+            </Link>
+            <StatusBadges row={row} />
+          </div>
+          <p className="line-clamp-2 text-sm font-medium text-ink [overflow-wrap:anywhere]">{row.name}</p>
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+            <span className="min-w-0 truncate" title={row.organizations?.name ?? ""}>{row.organizations?.name ?? "—"}</span>
+            {row.site_location && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="min-w-0 truncate" title={row.site_location}>{row.site_location}</span>
+              </>
+            )}
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            {row.itpCompletionPct !== null && (
+              <Badge tone={row.itpCompletionPct === 100 ? "success" : "neutral"} showIcon={false}><Tx>ITPs</Tx> {row.itpCompletionPct}%</Badge>
+            )}
+            <Link prefetch={false} href={`/inspect/projects/${row.id}?tab=ncrs`} className="inline-flex min-h-11 items-center">
+              <Badge tone={row.openNcrCount > 0 ? "danger" : "success"} showIcon><Tx>NCRs</Tx> {row.openNcrCount}</Badge>
+            </Link>
+            <Link prefetch={false} href={`/inspect/projects/${row.id}?tab=punch-list`} className="inline-flex min-h-11 items-center">
+              <Badge tone={row.openPunchCount > 0 ? "warning" : "success"} showIcon><Tx>Punch</Tx> {row.openPunchCount}</Badge>
+            </Link>
+            {row.overdueHoldCount > 0 && (
+              <Badge tone="danger" showIcon>{row.overdueHoldCount} <Tx>overdue holds</Tx></Badge>
+            )}
+          </div>
+        </div>
+      )}
       searchPlaceholder="Search projects…"
       searchKeys={(row) => `${row.project_number} ${row.name} ${row.site_location ?? ""} ${row.organizations?.name ?? ""} ${row.status}`}
       emptyMessage="No projects yet."

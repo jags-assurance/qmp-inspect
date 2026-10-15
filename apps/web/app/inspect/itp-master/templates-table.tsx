@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { FilterBar, FilterField } from "@/components/ui/toolbar";
+import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
 
 export interface MasterTemplateRow {
   id: string;
@@ -21,7 +23,7 @@ const COLUMNS: DataTableColumn<MasterTemplateRow>[] = [
     key: "title",
     header: "Title",
     render: (row) => (
-      <Link href={`/inspect/itp-master/${row.id}`} className="font-medium text-burgundy hover:underline">
+      <Link href={`/inspect/itp-master/${row.id}`} className="line-clamp-2 inline-flex min-h-11 max-w-md items-center font-medium text-burgundy hover:underline" title={row.title}>
         {row.title}
       </Link>
     ),
@@ -32,7 +34,7 @@ const COLUMNS: DataTableColumn<MasterTemplateRow>[] = [
   {
     key: "is_active",
     header: "Status",
-    render: (row) => <Badge tone={row.is_active ? "success" : "neutral"}>{row.is_active ? "Active" : "Inactive"}</Badge>,
+    render: (row) => <Badge tone={row.is_active ? "success" : "neutral"} showIcon>{row.is_active ? "Active" : "Inactive"}</Badge>,
   },
 ];
 
@@ -52,11 +54,16 @@ export function TemplatesTable({ rows }: { rows: MasterTemplateRow[] }) {
       (!discipline || r.master_disciplines?.name === discipline) &&
       (!active || (active === "active") === r.is_active)
   );
-  const sel = "min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
+  const sel = FILTER_CONTROL_CLASS;
+  const activeCount = [industry, discipline, active].filter(Boolean).length;
   return (
-    <>
-      <div className="mb-3 flex flex-wrap gap-2">
-        <select aria-label={tl("Industry")} value={industry} onChange={(e) => setIndustry(e.target.value)} className={sel}>
+    <div className="space-y-3">
+      <FilterBar
+        activeCount={activeCount}
+        filters={
+          <>
+        <FilterField label={tl("Industry")}>
+        <select value={industry} onChange={(e) => setIndustry(e.target.value)} className={sel}>
           <option value=""><Tx>All industries</Tx></option>
           {industries.map((i) => (
             <option key={i} value={i}>
@@ -64,7 +71,9 @@ export function TemplatesTable({ rows }: { rows: MasterTemplateRow[] }) {
             </option>
           ))}
         </select>
-        <select aria-label={tl("Discipline")} value={discipline} onChange={(e) => setDiscipline(e.target.value)} className={sel}>
+        </FilterField>
+        <FilterField label={tl("Discipline")}>
+        <select value={discipline} onChange={(e) => setDiscipline(e.target.value)} className={sel}>
           <option value=""><Tx>All disciplines</Tx></option>
           {disciplines.map((i) => (
             <option key={i} value={i}>
@@ -72,19 +81,43 @@ export function TemplatesTable({ rows }: { rows: MasterTemplateRow[] }) {
             </option>
           ))}
         </select>
-        <select aria-label={tl("Status")} value={active} onChange={(e) => setActive(e.target.value)} className={sel}>
+        </FilterField>
+        <FilterField label={tl("Status")}>
+        <select value={active} onChange={(e) => setActive(e.target.value)} className={sel}>
           <option value=""><Tx>Active and inactive</Tx></option>
           <option value="active"><Tx>Active only</Tx></option>
           <option value="inactive"><Tx>Inactive only</Tx></option>
         </select>
-      </div>
+        </FilterField>
+          </>
+        }
+      />
     <DataTable
       columns={COLUMNS}
       rows={filtered}
+      caption="Master ITP templates"
+      breakpoint="md"
+      renderCard={(row) => (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <Link href={`/inspect/itp-master/${row.id}`} className="inline-flex min-h-11 items-center text-base font-semibold text-burgundy hover:underline [overflow-wrap:anywhere]">
+              {row.title}
+            </Link>
+            <Badge tone={row.is_active ? "success" : "neutral"} showIcon>{row.is_active ? "Active" : "Inactive"}</Badge>
+          </div>
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+            <span>{row.industry || "—"}</span>
+            <span aria-hidden="true">·</span>
+            <span className="min-w-0 truncate" title={row.master_disciplines?.name ?? ""}>{row.master_disciplines?.name ?? "—"}</span>
+            <span aria-hidden="true">·</span>
+            <span>v{row.version}</span>
+          </p>
+        </div>
+      )}
       searchPlaceholder="Search master templates…"
       searchKeys={(row) => `${row.title} ${row.industry} ${row.master_disciplines?.name ?? ""}`}
       emptyMessage={rows.length === 0 ? "No master templates yet. Approve a proposal to add the first one." : "No templates match these filters."}
     />
-    </>
+    </div>
   );
 }

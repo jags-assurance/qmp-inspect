@@ -408,10 +408,12 @@ export function VaultDocumentsTable({
         rows={visible}
         rowKey={(row) => row.id}
         caption="Documents in this folder"
+        breakpoint="md"
+        bordered
         thClassName="px-3 py-2 font-medium"
         tdClassName="px-3 py-3 align-top"
         rowClassName={(row) => `border-b border-border last:border-0 hover:bg-off-white ${row.status === "superseded" ? "opacity-70" : ""}`}
-        cardClassName={(row) => `px-3 ${row.status === "superseded" ? "opacity-70" : ""}`}
+        cardClassName={(row) => `${row.status === "superseded" ? "opacity-70" : ""}`}
         emptyCellClassName="px-4 py-10 text-center text-sm text-muted"
         empty={
           rows.length === 0

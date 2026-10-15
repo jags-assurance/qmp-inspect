@@ -26,7 +26,7 @@ import { ExpiringClearancesCard } from "@/components/domain/expiring-clearances-
 import { AdminDashboard } from "./admin-dashboard";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatTile } from "@/components/ui/stat-tile";
 import type { OrgHealth } from "@/lib/dashboard/widgets";
 import { planDashboardQueries } from "@/lib/dashboard/query-plan";
 import { getTranslator } from "@/lib/i18n/server";
@@ -1004,7 +1004,7 @@ export default async function InspectDashboardPage() {
       recentActivity={recentActivity}
       openNcrItems={openNcrItems}
       overdueHoldsTile={
-        <Suspense fallback={<StatCard label="Overdue hold points" value="…" />}>
+        <Suspense fallback={<StatTile label="Overdue hold points" value="…" tone="danger" />}>
           <OverdueHoldsTile />
         </Suspense>
       }

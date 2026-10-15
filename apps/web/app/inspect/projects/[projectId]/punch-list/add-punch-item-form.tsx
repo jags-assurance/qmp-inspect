@@ -5,6 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
+import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
@@ -49,11 +50,11 @@ export function AddPunchItemForm({
   }
 
   return (
-    <form ref={formRef} action={submit} encType="multipart/form-data" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form ref={formRef} action={submit} encType="multipart/form-data" className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="request_id" value={requestId} />
 
-      <div className="w-full sm:min-w-56 flex-1">
+      <div className="min-w-0 md:col-span-2">
         <FormField label="Description" error={state.fieldErrors?.description}>
           <input
           name="description"
@@ -64,7 +65,7 @@ export function AddPunchItemForm({
         </FormField>
       </div>
 
-      <div className="w-full sm:w-40">
+      <div className="min-w-0">
         <FormField label="Location" error={state.fieldErrors?.location}>
           <input
           name="location"
@@ -73,7 +74,7 @@ export function AddPunchItemForm({
         </FormField>
       </div>
 
-      <div className="w-full sm:w-48">
+      <div className="min-w-0">
         <FormField label="Responsible party" error={state.fieldErrors?.responsible_party_id}>
           <select
           name="responsible_party_id"
@@ -90,7 +91,7 @@ export function AddPunchItemForm({
         </FormField>
       </div>
 
-      <div className="w-full sm:w-36">
+      <div className="min-w-0">
         <FormField label="Due date" error={state.fieldErrors?.due_date}>
           <input
           name="due_date"
@@ -100,7 +101,7 @@ export function AddPunchItemForm({
         </FormField>
       </div>
 
-      <div className="w-full sm:w-32">
+      <div className="min-w-0">
         <FormField label="Priority">
           <select
           name="priority"
@@ -114,7 +115,7 @@ export function AddPunchItemForm({
         </FormField>
       </div>
 
-      <div className="w-full sm:w-56">
+      <div className="min-w-0">
         <label htmlFor="photos" className="block text-xs font-medium text-ink">
           <Tx>Photo (optional)</Tx>
         </label>
@@ -129,13 +130,15 @@ export function AddPunchItemForm({
         />
       </div>
 
-      <Button type="submit" size="sm" disabled={pending}>
+      <StickyActionBar className="md:col-span-2">
+        <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add punch item"}
       </Button>
+      </StickyActionBar>
 
-      {photoError && <p role="alert" className="w-full text-sm text-danger">{photoError}</p>}
-      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
-      {confirmed && <p role="status" className="w-full text-sm text-success"><Tx>Punch item added.</Tx></p>}
+      {photoError && <p role="alert" className="md:col-span-2 text-sm text-danger">{photoError}</p>}
+      {state.error && <p role="alert" className="md:col-span-2 text-sm text-danger">{state.error}</p>}
+      {confirmed && <p role="status" className="md:col-span-2 text-sm text-success"><Tx>Punch item added.</Tx></p>}
     </form>
   );
 }

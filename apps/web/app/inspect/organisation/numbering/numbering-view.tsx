@@ -116,7 +116,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink">
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}>
           {numberingOnly ? "Document numbering" : "Numbering & engagement mode"}
         </Heading>
         <PageGuide
@@ -152,7 +152,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
         <>
           {!numberingOnly && (
             <>
-              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
                 <h2 className="text-sm font-semibold text-ink"><T>Engagement mode</T></h2>
                 <div className="mt-3">
                   <EngagementModeForm
@@ -162,7 +162,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
                 </div>
               </div>
 
-              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
                 <h2 className="text-sm font-semibold text-ink"><T>Engagement scope</T></h2>
                 <div className="mt-3">
                   <EngagementScopeForm
@@ -174,7 +174,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
                 </div>
               </div>
 
-              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
                 <h2 className="text-sm font-semibold text-ink"><T>Party sign-off sequencing (R67)</T></h2>
                 <MoreDetails className="mt-1">
                   <p><T>Controls whether non-blocking intervention levels (e.g. Witness, Review) must also clear in sort_order, the same way blocking levels like Hold already do.</T></p>
@@ -189,12 +189,12 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
             </>
           )}
 
-          <div className="mt-8 rounded-lg border border-border bg-surface p-4">
-            <h2 className="text-sm font-semibold text-ink"><T>Document numbering formats</T></h2>
+          <div className="mt-8">
+            <h2 className="text-base font-semibold text-ink"><T>Document numbering formats</T></h2>
             <MoreDetails className="mt-1">
               <p><T>Org-wide defaults per document type. Leave a type unconfigured to use the default format:</T> {"{project number}-JAGS-{TYPE}-{seq}"}.</p>
             </MoreDetails>
-            <div className="mt-4">
+            <div className="mt-4 space-y-3">
               {NUMBERING_DOC_TYPES.map((docType) => {
                 const config = configsByDocType.get(docType);
                 return (
@@ -222,7 +222,7 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
 
           {!numberingOnly && (
             <>
-              <div className="mt-8 rounded-lg border border-border bg-surface p-4">
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
                 <h2 className="text-sm font-semibold text-ink"><T>ITP approval workflow</T></h2>
                 <MoreDetails className="mt-1">
                   <p><T>By default, any JAGS staff login can submit an ITP for review or approve it once under review (R79). Pin either step to one specific person if this client&rsquo;s process requires a named reviewer or approver — leave a slot on &ldquo;Unrestricted&rdquo; to keep today&rsquo;s behaviour. A JAGS Admin can always act regardless of this setting.</T></p>

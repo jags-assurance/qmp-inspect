@@ -5,7 +5,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { renameItpSectionAction, deleteItpSectionAction, moveSectionUpAction, moveSectionDownAction } from "@/lib/itps/sections";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
-import { Button } from "@/components/ui/button";
+import { CellMenu, type CellMenuItem } from "@/components/domain/cell-menu";
 
 /**
  * R24: inline rename + delete + move-up/move-down for a single section header, shown in place of
@@ -45,11 +45,11 @@ export function SectionControls({
   // Applies the action; on an issued ITP first asks (in an accessible dialog) why, and starts a new
   // revision with that reason. `confirm` adds the destructive-action warning to the same dialog.
   async function gate(
-    form: HTMLFormElement,
+    form: HTMLFormElement | FormData,
     action: (formData: FormData) => Promise<{ error: string | null }>,
     opts: { confirm?: string } = {}
   ): Promise<boolean> {
-    const formData = new FormData(form);
+    const formData = form instanceof FormData ? form : new FormData(form);
     if (isIssued) {
       const reason = await ask({
         title: opts.confirm ? "Delete section?" : "Change an issued ITP",
@@ -93,6 +93,25 @@ export function SectionControls({
     };
   }
 
+  function runMenu(action: (formData: FormData) => Promise<{ error: string | null }>, confirmText?: string) {
+    const fd = new FormData();
+    fd.set("itp_id", itpId);
+    fd.set("section_id", sectionId);
+    void gate(fd, action, { confirm: confirmText });
+  }
+  // Reorder and delete live in one overflow menu so the section header stays a single calm row.
+  const menuItems: CellMenuItem[] = [
+    ...(!isFirst ? [{ key: "up", label: <Tx>Move section up</Tx>, onSelect: () => runMenu(moveSectionUpAction) }] : []),
+    ...(!isLast ? [{ key: "down", label: <Tx>Move section down</Tx>, onSelect: () => runMenu(moveSectionDownAction) }] : []),
+    ...(!isOnlySection
+      ? [{
+          key: "delete",
+          label: <span className="text-danger"><Tx>Delete section</Tx></span>,
+          onSelect: () => runMenu(deleteItpSectionAction, `Delete section "${sectionNumber}. ${title}"? This also deletes every activity in it. This cannot be undone.`),
+        }]
+      : []),
+  ];
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {dialog}
@@ -105,39 +124,11 @@ export function SectionControls({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onBlur={handleRenameBlur}
-          className="w-full rounded-md border border-transparent bg-transparent px-1 py-0.5 font-medium text-ink outline-none hover:border-border focus:border-burgundy focus:bg-surface"
+          className="w-full rounded-md border border-transparent bg-transparent px-1 py-1 font-medium text-ink hover:border-control-border focus:bg-surface [@media(pointer:coarse)]:min-h-11"
         />
       </form>
 
-      <div className="flex items-center gap-1">
-        {!isFirst && (
-          <form onSubmit={submitWith(moveSectionUpAction)}>
-            <input type="hidden" name="itp_id" value={itpId} />
-            <input type="hidden" name="section_id" value={sectionId} />
-            <Button type="submit" title={tl("Move section up")} variant="outline" size="sm">
-              ↑
-            </Button>
-          </form>
-        )}
-        {!isLast && (
-          <form onSubmit={submitWith(moveSectionDownAction)}>
-            <input type="hidden" name="itp_id" value={itpId} />
-            <input type="hidden" name="section_id" value={sectionId} />
-            <Button type="submit" title={tl("Move section down")} variant="outline" size="sm">
-              ↓
-            </Button>
-          </form>
-        )}
-        {!isOnlySection && (
-          <form onSubmit={submitWith(deleteItpSectionAction, `Delete section "${sectionNumber}. ${title}"? This also deletes every activity in it. This cannot be undone.`)}>
-            <input type="hidden" name="itp_id" value={itpId} />
-            <input type="hidden" name="section_id" value={sectionId} />
-            <Button type="submit" title={tl("Delete section")} variant="danger-outline" size="sm">
-              <Tx>Delete</Tx>
-            </Button>
-          </form>
-        )}
-      </div>
+      <CellMenu items={menuItems} ariaLabel={tl("Section actions")} />
       {error && (
         <p role="alert" className="w-full text-xs text-danger">
           {error}

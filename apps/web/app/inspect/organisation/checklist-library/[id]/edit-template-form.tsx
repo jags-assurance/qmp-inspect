@@ -34,7 +34,7 @@ export function EditTemplateForm({
   const [state, formAction, pending] = useActionState(updateLibraryTemplateAction, initialState);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="template_id" value={templateId} />
       <div>
         <FormField label="Title">

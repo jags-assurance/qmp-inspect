@@ -51,7 +51,7 @@ export async function RootCausesView({ searchParams, embedded }: { searchParams:
     <div className={embedded ? undefined : "max-w-4xl"}>
       <SettingsBackLink embedded={embedded} />
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Heading className="text-2xl font-semibold text-ink"><T>NCR root causes</T></Heading>
+        <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>NCR root causes</T></Heading>
         <PageGuide
           title={tl("NCR root causes — how this works")}
           points={[

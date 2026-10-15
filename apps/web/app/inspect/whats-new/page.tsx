@@ -10,7 +10,7 @@ function ReleaseSections({ release }: { release: (typeof RELEASES)[number] }) {
   return (
     <>
       {release.sections.map((section) => (
-        <section key={section.heading} className="rounded-lg border border-border bg-surface p-4">
+        <section key={section.heading} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <h3 className="text-sm font-semibold text-ink">{section.heading}</h3>
           <ul className="mt-2 list-disc space-y-1 ps-5 text-sm text-ink">
             {section.items.map((item) => (
@@ -30,7 +30,7 @@ export default async function WhatsNewPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-ink"><T>What&apos;s new</T></h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>What&apos;s new</T></h1>
         <p className="mt-1 text-sm text-muted"><T>Changes to QMP Inspect, newest first.</T></p>
       </header>
 

@@ -5,7 +5,12 @@ import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
 import { GENERATED_DOCUMENTS_BUCKET } from "@/lib/reports/types";
 import { T } from "@/components/domain/t";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge, type Tone } from "@/components/ui/badge";
+import { Section } from "@/components/ui/section";
+import { FilterBar, FilterField } from "@/components/ui/toolbar";
+import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const DOC_PAGE_SIZE = 50;
 const GENERATED_PREFIX = "generated-documents:";
@@ -147,11 +152,11 @@ function pageHref(sp: DocSearchParams, page: number): string {
   return `/inspect/reports-documents?${p.toString()}`;
 }
 
-const STATUS_TONE: Record<string, string> = {
-  approved: "bg-success/10 text-success",
-  for_review: "bg-warning/10 text-warning",
-  superseded: "bg-gray-200 text-gray-700",
-  rejected: "bg-danger/10 text-danger",
+const STATUS_TONE: Record<string, Tone> = {
+  approved: "success",
+  for_review: "warning",
+  superseded: "neutral",
+  rejected: "danger",
 };
 
 export function DocumentsSection({
@@ -166,94 +171,105 @@ export function DocumentsSection({
   selectedProject: string | null;
 }) {
   const lastPage = Math.max(1, Math.ceil(docs.total / DOC_PAGE_SIZE));
-  const inputCls = "w-full rounded-md border border-border bg-surface px-2 py-2 text-sm";
+  const activeFilterCount = [sp.q, sp.type, sp.status, sp.from, sp.to, sp.project === "all" ? "all" : ""].filter(Boolean).length;
+  const pagerLink = "inline-flex min-h-11 items-center font-medium text-brand hover:underline";
   return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold text-ink"><T>Generated documents</T></h2>
-      <p className="mt-1 text-sm text-muted">
-        <T>Newest first. Links expire; reload for a fresh one.</T>
-      </p>
-
+    <Section
+      title={<T>Generated documents</T>}
+      description={<T>Newest first. Links expire; reload for a fresh one.</T>}
+      className="scroll-mt-24"
+    >
       {/* Keyed on the filters: Reset is a client-side navigation, so without a remount the uncontrolled
           selects kept showing the old Project/Type/Status values. */}
-      <form key={JSON.stringify(sp)} method="get" className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title" className={inputCls} aria-label="Search" />
-        <select name="project" defaultValue={sp.project === "all" ? "all" : (selectedProject ?? "")} className={inputCls} aria-label="Project">
-          <option value="all"><T>All projects</T></option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.project_number} - {p.name}
-            </option>
-          ))}
-        </select>
-        <select name="type" defaultValue={sp.type ?? ""} className={inputCls} aria-label="Type">
-          <option value=""><T>All types</T></option>
-          {TYPE_OPTIONS.map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <select name="status" defaultValue={sp.status ?? ""} className={inputCls} aria-label="Status">
-          <option value=""><T>Any status</T></option>
-          <option value="for_review"><T>For review</T></option>
-          <option value="approved"><T>Approved</T></option>
-          <option value="superseded"><T>Superseded</T></option>
-          <option value="rejected"><T>Rejected</T></option>
-        </select>
-        <input type="date" name="from" defaultValue={sp.from ?? ""} className={inputCls} aria-label="From date" />
-        <input type="date" name="to" defaultValue={sp.to ?? ""} className={inputCls} aria-label="To date" />
-        <div className="flex gap-2 sm:col-span-3 lg:col-span-6">
-          <Button type="submit" >
-            <T>Apply filters</T>
-          </Button>
-          <Link href="/inspect/reports-documents?project=all" className="rounded-md border border-border px-4 py-2 text-sm text-ink">
-            <T>Reset</T>
-          </Link>
-        </div>
-      </form>
+      <FilterBar
+        className="mb-4 shadow-none"
+        activeCount={activeFilterCount}
+        clearHref="/inspect/reports-documents?project=all"
+        filters={
+          <form key={JSON.stringify(sp)} method="get" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
+            <FilterField label={<T>Search</T>}>
+              <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title" className={FILTER_CONTROL_CLASS} />
+            </FilterField>
+            <FilterField label={<T>Project</T>}>
+              <select name="project" defaultValue={sp.project === "all" ? "all" : (selectedProject ?? "")} className={FILTER_CONTROL_CLASS}>
+                <option value="all"><T>All projects</T></option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.project_number} - {p.name}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label={<T>Type</T>}>
+              <select name="type" defaultValue={sp.type ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>All types</T></option>
+                {TYPE_OPTIONS.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+            <FilterField label={<T>Status</T>}>
+              <select name="status" defaultValue={sp.status ?? ""} className={FILTER_CONTROL_CLASS}>
+                <option value=""><T>Any status</T></option>
+                <option value="for_review"><T>For review</T></option>
+                <option value="approved"><T>Approved</T></option>
+                <option value="superseded"><T>Superseded</T></option>
+                <option value="rejected"><T>Rejected</T></option>
+              </select>
+            </FilterField>
+            <FilterField label={<T>From date</T>}>
+              <input type="date" name="from" defaultValue={sp.from ?? ""} className={FILTER_CONTROL_CLASS} />
+            </FilterField>
+            <FilterField label={<T>To date</T>}>
+              <input type="date" name="to" defaultValue={sp.to ?? ""} className={FILTER_CONTROL_CLASS} />
+            </FilterField>
+            <Button type="submit" variant="outline">
+              <T>Apply filters</T>
+            </Button>
+          </form>
+        }
+      />
 
       {docs.rows.length === 0 ? (
-        <p className="mt-4 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
-          <T>No generated documents match. Documents appear here automatically once a PDF is requested from an ITP, inspection, NCR, FAT or Data Book.</T>
-        </p>
+        <EmptyState
+          compact
+          title={<T>No generated documents match.</T>}
+          description={<T>Documents appear here automatically once a PDF is requested from an ITP, inspection, NCR, FAT or Data Book.</T>}
+        />
       ) : (
-        <ul className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
           {docs.rows.map((d) => (
-            <li key={d.id} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <li key={d.id} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="truncate font-medium text-ink">{d.title}</p>
+                <p className="line-clamp-2 font-medium text-ink [overflow-wrap:anywhere]" title={d.title}>{d.title}</p>
                 <p className="mt-0.5 text-xs text-muted">
                   {d.projectLabel} - {new Date(d.createdAt).toLocaleDateString()}
                 </p>
-                <div className="mt-1 flex flex-wrap gap-1 text-xs">
-                  <span className="rounded bg-off-white px-2 py-0.5 text-ink">{d.typeLabel}</span>
-                  <span className="rounded bg-off-white px-2 py-0.5 text-ink"><T>Rev</T> {d.revision}</span>
-                  <span className={`rounded px-2 py-0.5 ${STATUS_TONE[d.status] ?? "bg-gray-100 text-gray-700"}`}>
-                    {d.status.replace("_", " ")}
-                  </span>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <Badge tone="neutral" showIcon={false}>{d.typeLabel}</Badge>
+                  <Badge tone="neutral" showIcon={false}><T>Rev</T> {d.revision}</Badge>
+                  <Badge tone={STATUS_TONE[d.status] ?? "neutral"}>{d.status.replace("_", " ")}</Badge>
                 </div>
               </div>
-              <div className="flex shrink-0 gap-2 text-sm">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 {d.url ? (
                   <>
-                    <a href={d.url} target="_blank" rel="noreferrer" className="rounded-md border border-border px-3 py-2 text-burgundy">
+                    <a href={d.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: "outline", size: "sm" })}>
                       <T>View</T>
                     </a>
                     {/* The download attribute is ignored on a cross-origin storage link; Supabase's own
                         download parameter makes the file save instead of opening. */}
-                    <a href={`${d.url}${d.url.includes("?") ? "&" : "?"}download=`} download className="rounded-md border border-border px-3 py-2 text-burgundy">
+                    <a href={`${d.url}${d.url.includes("?") ? "&" : "?"}download=`} download className={buttonVariants({ variant: "outline", size: "sm" })}>
                       <T>Download</T>
                     </a>
                   </>
                 ) : (
-                  <span className="text-xs text-muted"><T>File unavailable</T></span>
+                  <span className="inline-flex min-h-8 items-center text-xs text-muted"><T>File unavailable</T></span>
                 )}
                 {d.projectId && (
-                  <Link
-                    href={`/inspect/vault/${d.projectId}/document/${d.id}`}
-                    className="rounded-md border border-border px-3 py-2 text-ink"
-                  >
+                  <Link href={`/inspect/vault/${d.projectId}/document/${d.id}`} className={buttonVariants({ variant: "outline", size: "sm" })}>
                     <T>Open</T>
                   </Link>
                 )}
@@ -264,19 +280,19 @@ export function DocumentsSection({
       )}
 
       {lastPage > 1 && (
-        <div className="mt-3 flex items-center justify-between text-sm">
+        <div className="mt-3 flex items-center justify-between gap-2 text-sm">
           {docs.page > 1 ? (
-            <Link href={pageHref(sp, docs.page - 1)} className="text-burgundy hover:underline">
+            <Link href={pageHref(sp, docs.page - 1)} className={pagerLink}>
               <T>Previous</T>
             </Link>
           ) : (
             <span />
           )}
-          <span className="text-muted">
+          <span className="text-center text-muted">
             <T>Page</T> {docs.page} <T>of</T> {lastPage} ({docs.total} <T>documents)</T>
           </span>
           {docs.page < lastPage ? (
-            <Link href={pageHref(sp, docs.page + 1)} className="text-burgundy hover:underline">
+            <Link href={pageHref(sp, docs.page + 1)} className={pagerLink}>
               <T>Next</T>
             </Link>
           ) : (
@@ -284,6 +300,6 @@ export function DocumentsSection({
           )}
         </div>
       )}
-    </section>
+    </Section>
   );
 }

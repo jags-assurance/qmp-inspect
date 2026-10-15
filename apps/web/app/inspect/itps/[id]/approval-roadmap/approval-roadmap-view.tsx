@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ViewHeader } from "@/components/domain/view-header";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -237,20 +238,14 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
   const plannedChain = itpReviewChainOverride.length > 0 ? itpReviewChainOverride : projectReviewChain;
   const usingProjectDefault = itpReviewChainOverride.length === 0;
 
-  const Heading = embedded ? "h2" : "h1";
   return (
     <div>
-      {!embedded && (
-        <Link href={`/inspect/itps/${itp.id}`} className="text-sm text-burgundy hover:underline">
-        <T>← Back to ITP</T>
-      </Link>
-      )}
-      <div className={embedded ? "" : "mt-2"}>
-        <p className="text-sm text-muted">{itp.projects?.name}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <Heading className="text-2xl font-semibold text-ink">
-            <T>Approval roadmap</T> <span className="doc-id text-lg text-muted">{itp.itp_number}</span>
-          </Heading>
+      <ViewHeader
+        embedded={embedded}
+        backHref={`/inspect/itps/${itp.id}`}
+        backLabel="Back to ITP"
+        title={<><T>Approval roadmap</T> <span className="doc-id text-muted">{itp.itp_number}</span></>}
+        guide={
           <PageGuide
             title={tl("Approval roadmap — how this works")}
             points={[
@@ -259,9 +254,9 @@ export async function ApprovalRoadmapView({ id, embedded = false }: { id: string
               "This is the document's own approval lifecycle, not field-execution progress — see the separate Completion roadmap for checklist/evidence/measurement completion.",
             ]}
           />
-        </div>
-        <p className="mt-1 break-words text-sm text-muted">{itp.title}</p>
-      </div>
+        }
+        subtitle={<span className="break-words">{itp.title} · {itp.projects?.name}</span>}
+      />
 
       <div className="mt-6 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink"><T>1. The plan — who approves, who accepts</T></h2>

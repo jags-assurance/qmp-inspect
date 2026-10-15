@@ -5,6 +5,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ProjectPickerForm, type ProjectOption } from "../vault/project-picker-form";
 import { DocumentsSection, loadDocuments, type DocSearchParams } from "./documents-section";
 import { PageGuide } from "@/components/domain/page-guide";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
+import { FilterBar } from "@/components/ui/toolbar";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getTranslator } from "@/lib/i18n/server";
 import { withActiveProject } from "@/lib/projects/active-project";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
@@ -97,15 +101,14 @@ export default async function ReportsDocumentsPage({
   const docs = await loadDocuments(supabase, sp, selectedProject);
 
   return (
-    <div>
-      {selectedProject && (
-        <Link href={`/inspect/projects/${selectedProject}`} className="text-sm text-burgundy hover:underline">
-          <T>← Back to Project</T>
-        </Link>
-      )}
-      <div className={selectedProject ? "mt-2" : undefined}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-ink"><T>Reports &amp; Documents</T></h1>
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        backHref={selectedProject ? `/inspect/projects/${selectedProject}` : undefined}
+        backLabel="Back to Project"
+        title={<T>Reports &amp; Documents</T>}
+        subtitle={<T>Pick a project below.</T>}
+        guide={
           <PageGuide
             title={tl("Reports & Documents — how this works")}
             points={[
@@ -114,29 +117,19 @@ export default async function ReportsDocumentsPage({
               "\"Audit Log\" only appears for JAGS staff — it's not part of what a client or contractor can open.",
             ]}
           />
-        </div>
-        <p className="mt-1 text-sm text-muted">
-          <T>Pick a project below.</T>
-        </p>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(session.isJagsStaff || isClientRole) && (
-          <ReportsCard
-            href="/inspect/handover"
-            title={tl("Handover Portal")}
-            description="Issued handover certificates and Data Books."
-          />
-        )}
-      </div>
+        }
+      />
 
       {attention.length > 0 && (
-        <div className="mt-6 rounded-lg border border-warning/40 bg-warning/10 p-4">
-          <p className="font-medium text-ink"><T>Needs attention (</T>{attention.length})</p>
-          <ul className="mt-2 space-y-1 text-sm">
+        <div role="status" className="rounded-lg border border-warning/40 bg-warning-soft p-4">
+          <p className="flex items-center gap-2 font-medium text-ink">
+            <span aria-hidden="true" className="font-bold text-warning">!</span>
+            <span><T>Needs attention (</T>{attention.length})</span>
+          </p>
+          <ul className="mt-1 text-sm">
             {attention.map((a) => (
               <li key={a.key}>
-                <Link href={a.href} className="text-burgundy hover:underline">
+                <Link href={a.href} className="inline-flex min-h-9 items-center font-medium text-brand hover:underline [@media(pointer:coarse)]:min-h-11">
                   {a.label}
                 </Link>
               </li>
@@ -145,20 +138,24 @@ export default async function ReportsDocumentsPage({
         </div>
       )}
 
-      <DocumentsSection docs={docs} sp={sp} projects={projects ?? []} selectedProject={selectedProject} />
-
       {projects && projects.length > 0 ? (
-        <ProjectPickerForm projects={projects} selectedProject={selectedProject} />
+        <FilterBar search={<ProjectPickerForm projects={projects} selectedProject={selectedProject} />} />
       ) : (
-        <p className="mt-6 text-sm text-muted"><T>No projects available to you yet.</T></p>
+        <div className="rounded-lg border border-border bg-surface shadow-xs">
+          <EmptyState title={<T>No projects available to you yet.</T>} />
+        </div>
       )}
 
       {selectedProject && selectedProjectRow && (
-        <div className="mt-6">
-          <p className="text-sm text-muted">
-            {selectedProjectRow.project_number} — {selectedProjectRow.name}
-          </p>
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Section
+          title={<T>Project reports</T>}
+          description={
+            <span className="[overflow-wrap:anywhere]">
+              {selectedProjectRow.project_number} — {selectedProjectRow.name}
+            </span>
+          }
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <ReportsCard
               href={`/inspect/projects/${selectedProject}/reports`}
               title={tl("Reports & Downloads")}
@@ -186,9 +183,18 @@ export default async function ReportsDocumentsPage({
                 description="Who did what and when."
               />
             )}
+            {(session.isJagsStaff || isClientRole) && (
+              <ReportsCard
+                href="/inspect/handover"
+                title={tl("Handover Portal")}
+                description="Issued handover certificates and Data Books."
+              />
+            )}
           </div>
-        </div>
+        </Section>
       )}
+
+      <DocumentsSection docs={docs} sp={sp} projects={projects ?? []} selectedProject={selectedProject} />
     </div>
   );
 }
@@ -197,7 +203,7 @@ function ReportsCard({ href, title, description }: { href: string; title: string
   return (
     <Link
       href={href}
-      className="rounded-lg border border-border bg-surface p-4 transition-colors hover:border-burgundy hover:bg-off-white"
+      className="block min-h-11 rounded-lg border border-control-border bg-surface p-4 transition-colors hover:bg-surface-subtle"
     >
       <p className="font-medium text-ink">{title}</p>
       <p className="mt-1 text-sm text-muted">{description}</p>

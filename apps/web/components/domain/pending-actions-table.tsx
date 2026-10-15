@@ -38,7 +38,7 @@ const columns: ResponsiveColumn<PendingActionItem>[] = [
     tdClassName: "text-ink",
     render: (action) => (
       <>
-        {action.activity}
+        <span className="line-clamp-2 max-w-md [overflow-wrap:anywhere]" title={action.activity}>{action.activity}</span>
         <div className="doc-id text-xs text-muted">{action.checklistNumber}</div>
       </>
     ),
@@ -58,15 +58,9 @@ const columns: ResponsiveColumn<PendingActionItem>[] = [
     key: "status",
     header: "Status",
     render: (action) => (
-      <span
-        className={
-          action.status === "in_progress"
-            ? "rounded bg-warning/10 px-1.5 py-0.5 text-xs font-medium text-warning"
-            : "rounded bg-muted/15 px-1.5 py-0.5 text-xs font-medium text-muted"
-        }
-      >
+      <Badge tone={action.status === "in_progress" ? "warning" : "neutral"}>
         {action.status === "in_progress" ? "In progress" : "Not started"}
-      </span>
+      </Badge>
     ),
   },
   {
@@ -76,7 +70,7 @@ const columns: ResponsiveColumn<PendingActionItem>[] = [
     cardLabel: null,
     tdClassName: "text-end",
     render: (action) => (
-      <Link href={`/inspect/checklists/${action.templateId}`} className="inline-flex min-h-11 items-center text-burgundy hover:underline sm:min-h-0">
+      <Link href={`/inspect/checklists/${action.templateId}`} className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline">
         {action.status === "in_progress" ? "Continue →" : "Start →"}
       </Link>
     ),
@@ -108,14 +102,15 @@ export function PendingActionsTable({
 
   return (
     <div>
-      <div className="flex items-center gap-1 border-b border-border">
+      <div role="group" aria-label="Filter pending actions" className="flex items-center gap-1 overflow-x-auto border-b border-border">
         {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
+            aria-pressed={tab === t.key}
             onClick={() => setTab(t.key)}
             className={
-              "flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors " +
+              "flex min-h-11 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors " +
               (tab === t.key
                 ? "border-gold text-ink"
                 : "border-transparent text-muted hover:text-ink")
@@ -132,10 +127,12 @@ export function PendingActionsTable({
           rows={rows}
           rowKey={(action) => action.templateId}
           caption="Pending actions"
+          breakpoint="md"
+          bordered
           wrapperClassName="overflow-x-auto"
           thClassName="py-2 pe-3 font-medium"
           tdClassName="py-2 pe-3"
-          cardClassName="px-1"
+          cardClassName="px-3"
           emptyCellClassName="py-4 text-center text-sm text-muted"
           empty={
             tab === "all"

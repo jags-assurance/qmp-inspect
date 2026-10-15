@@ -36,6 +36,7 @@ import { LoadMore } from "@/components/domain/load-more";
 import { describeListWindow, hrefWithLimit, type ListLimitOptions } from "@/lib/pagination/list-limit";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Disclosure } from "@/components/ui/disclosure";
 
 // The three extract*Action/addExtracted*RowsAction pairs are typed against their own specific row
 // shapes (ExtractedCalibrationRow, etc.) for type safety inside lib/registers/actions.ts, but
@@ -264,13 +265,9 @@ export async function RegistersView({
         </p>
       )}
 
-      <details className="group mt-4">
-        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded border border-border px-1.5 py-0.5 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Status legend</T>
-        </summary>
+      <Disclosure variant="pill" summary={<><T>Status legend</T></>} className="mt-4">
         <StatusLegend className="mt-2" />
-      </details>
+</Disclosure>
       <RegistersTabs
         projectId={projectId}
         canAdd={access.canAdd}

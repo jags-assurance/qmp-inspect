@@ -31,10 +31,10 @@ export interface InspectionListRow {
 }
 
 function ResultChip({ result }: { result: InspectionListRow["overall_result"] }) {
-  if (result === "pass") return <Badge tone="success"><Tx>Pass</Tx></Badge>;
-  if (result === "fail") return <Badge tone="danger"><Tx>Fail</Tx></Badge>;
-  if (result === "partial") return <Badge tone="warning"><Tx>Conditional</Tx></Badge>;
-  return <Badge tone="neutral"><Tx>In progress</Tx></Badge>;
+  if (result === "pass") return <Badge tone="success" showIcon><Tx>Pass</Tx></Badge>;
+  if (result === "fail") return <Badge tone="danger" showIcon><Tx>Fail</Tx></Badge>;
+  if (result === "partial") return <Badge tone="warning" showIcon><Tx>Conditional</Tx></Badge>;
+  return <Badge tone="neutral" showIcon><Tx>In progress</Tx></Badge>;
 }
 
 const columns: DataTableColumn<InspectionListRow>[] = [
@@ -47,7 +47,7 @@ const columns: DataTableColumn<InspectionListRow>[] = [
       </Link>
     ),
   },
-  { key: "project", header: "Project", render: (r) => r.project_name },
+  { key: "project", header: "Project", render: (r) => <span className="line-clamp-1 max-w-48" title={r.project_name}>{r.project_name}</span> },
   {
     key: "itp",
     header: "ITP / Activity",
@@ -114,7 +114,7 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
           onChange={() => toggle(r.id)}
           disabled={pending}
           aria-label={`Select ${r.record_number} for bulk IRN issue`}
-          className="h-5 w-5"
+          className="h-5 w-5 [@media(pointer:coarse)]:h-6 [@media(pointer:coarse)]:w-6"
         />
       ) : null,
   };
@@ -156,7 +156,7 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
         </div>
       )}
       {result && (
-        <div className="mb-3 rounded-lg border border-border bg-surface p-3 text-sm" role="status">
+        <div className="mb-3 rounded-lg border border-border bg-surface p-3 text-sm shadow-xs" role="status">
           {result.error ? (
             <p className="text-danger">{result.error}</p>
           ) : (
@@ -167,7 +167,7 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
               <ul className="mt-2 space-y-1">
                 {result.items.map((i) => (
                   <li key={i.id} className="flex flex-wrap items-baseline gap-2">
-                    <Link href={`/inspect/inspections/${i.id}`} className="doc-id text-burgundy hover:underline">
+                    <Link href={`/inspect/inspections/${i.id}`} className="doc-id inline-flex min-h-9 items-center text-burgundy hover:underline">
                       {byId.get(i.id)?.record_number ?? i.id}
                     </Link>
                     {i.status === "issued" && <Badge tone="success">{i.irnNumber}</Badge>}
@@ -187,6 +187,61 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
         columns={eligibleIds.length > 0 ? [selectColumn, ...columns] : columns}
         locale={locale}
         rows={rows}
+        caption="Inspection records"
+        breakpoint="md"
+        renderCard={(r) => (
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/inspect/inspections/${r.id}`} className="doc-id inline-flex min-h-11 items-center text-base font-semibold text-burgundy hover:underline">
+                {r.record_number}
+              </Link>
+              <ResultChip result={r.overall_result} />
+            </div>
+            <p className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">
+              <span className="doc-id">{r.itp_number}</span> · {r.activity}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {!r.irn_number ? (
+                <span className="text-xs text-muted"><Tx>IRN:</Tx> <Tx>None</Tx></span>
+              ) : r.irn_voided ? (
+                <>
+                  <span className="doc-id text-xs line-through">{r.irn_number}</span>
+                  <Badge tone="danger" showIcon><Tx>VOID</Tx></Badge>
+                </>
+              ) : (
+                <Badge tone="info">{r.irn_number}</Badge>
+              )}
+              {r.open_ncrs > 0 && (
+                <Badge tone="danger" showIcon>
+                  {r.open_ncrs} <Tx>open NCRs</Tx>
+                </Badge>
+              )}
+            </div>
+            <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+              <span className="min-w-0 truncate" title={r.project_name}>{r.project_name}</span>
+              <span aria-hidden="true">·</span>
+              <span className="whitespace-nowrap">{r.inspection_date}</span>
+              {r.inspector_name && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="min-w-0 truncate" title={r.inspector_name}>{r.inspector_name}</span>
+                </>
+              )}
+            </p>
+            {isBulkIrnEligible(r) && (
+              <label className="flex min-h-11 items-center gap-3 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={selected.has(r.id)}
+                  onChange={() => toggle(r.id)}
+                  disabled={pending}
+                  className="h-6 w-6"
+                />
+                <Tx>Select for bulk IRN issue</Tx>
+              </label>
+            )}
+          </div>
+        )}
         searchPlaceholder="Search record no., activity or ITP…"
         searchKeys={(r) => `${r.record_number} ${r.activity} ${r.itp_number}`}
         emptyMessage="No inspections match these filters."

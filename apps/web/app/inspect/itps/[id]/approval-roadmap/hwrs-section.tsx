@@ -2,6 +2,8 @@ import { Badge } from "@/components/ui/badge";
 import { toneClassForLevelIndex } from "@/lib/intervention-levels/types";
 import { T } from "@/components/domain/t";
 import { partyWithPeople } from "@/lib/itps/party-contacts";
+import { Disclosure } from "@/components/ui/disclosure";
+import { ResponsiveTable } from "@/components/ui/responsive-table";
 
 export interface HwrsLevel {
   code: string;
@@ -177,15 +179,14 @@ export function HwrsSection({
   };
 
   return (
-    <section className="mt-4 rounded-lg border border-border bg-surface p-4">
+    <section className="mt-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <h2 className="text-sm font-semibold text-ink"><T>3. Intervention points —</T> {levels.map((l) => l.code).join(" / ") || "H/W/R/S"}</h2>
       <p className="mt-1 text-xs text-muted">
         <T>Blocking levels hold work until cleared.</T>
       </p>
 
       {/* Legend */}
-      <details className="group mt-3">
-        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden"><span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span><T>Levels in this organisation</T></summary>
+      <Disclosure variant="pill" summary={<><T>Levels in this organisation</T></>} className="mt-3">
         {levels.length === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>No intervention levels are configured.</T></p>
         ) : (
@@ -206,7 +207,7 @@ export function HwrsSection({
             ))}
           </ul>
         )}
-      </details>
+</Disclosure>
 
       {points.length === 0 ? (
         <p className="mt-4 rounded-md border border-dashed border-border p-4 text-center text-sm text-muted">
@@ -224,37 +225,38 @@ export function HwrsSection({
                 <Badge tone="success"><T>Nothing overdue</T></Badge>
               )}
             </div>
-            <div className="mt-1.5 overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[480px] text-start text-xs">
-                <thead className="bg-off-white text-muted">
-                  <tr>
-                    <th className="px-2 py-1.5 font-medium"><T>Level</T></th>
-                    <th className="px-2 py-1.5 text-end font-medium"><T>Points</T></th>
-                    <th className="px-2 py-1.5 text-end font-medium"><T>Signed off</T></th>
-                    <th className="px-2 py-1.5 text-end font-medium"><T>Notified</T></th>
-                    <th className="px-2 py-1.5 text-end font-medium"><T>Pending</T></th>
-                    <th className="px-2 py-1.5 text-end font-medium"><T>Overdue</T></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.map((s) => (
-                    <tr key={s.code} className="border-t border-border">
-                      <td className="px-2 py-1.5">
-                        <span className="font-semibold text-ink">{s.code}</span>{" "}
-                        <span className="text-muted">{s.level?.label ?? "(removed level)"}</span>
-                        {s.level?.isBlocking && <span className="ms-1 text-burgundy">●</span>}
-                      </td>
-                      <td className="px-2 py-1.5 text-end tabular-nums">{s.total}</td>
-                      <td className="px-2 py-1.5 text-end tabular-nums text-success">{s.signed}</td>
-                      <td className="px-2 py-1.5 text-end tabular-nums text-warning">{s.notified}</td>
-                      <td className="px-2 py-1.5 text-end tabular-nums text-muted">{s.pending}</td>
-                      <td className={`px-2 py-1.5 text-end tabular-nums ${s.overdue > 0 ? "font-semibold text-danger" : "text-muted"}`}>
-                        {s.overdue}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-1.5 overflow-hidden rounded-md border border-border">
+              <ResponsiveTable
+                caption="Intervention points by level"
+                rows={summary}
+                rowKey={(r) => r.code}
+                tableClassName="w-full text-start text-xs" headRowClassName="bg-surface-subtle text-start text-xs text-muted" thClassName="px-3 py-2 font-medium" tdClassName="px-3 py-2 align-top" rowClassName="border-t border-border" cardClassName="px-3" breakpoint="md" wrapperClassName="overflow-x-auto"
+                columns={[
+                  {
+                    key: "level",
+                    header: <T>Level</T>,
+                    cardLabel: null,
+                    render: (r) => (
+                      <>
+                        <span className="font-semibold text-ink">{r.code}</span>{" "}
+                        <span className="text-muted">{r.level?.label ?? "(removed level)"}</span>
+                        {r.level?.isBlocking && <span className="ms-1 text-burgundy" title="Blocking">● <span className="sr-only">Blocking</span></span>}
+                      </>
+                    ),
+                  },
+                  { key: "total", header: <T>Points</T>, cardLabel: "Points", className: "text-end tabular-nums", render: (r) => r.total },
+                  { key: "signed", header: <T>Signed off</T>, cardLabel: "Signed off", className: "text-end tabular-nums text-success", render: (r) => r.signed },
+                  { key: "notified", header: <T>Notified</T>, cardLabel: "Notified", className: "text-end tabular-nums text-warning", render: (r) => r.notified },
+                  { key: "pending", header: <T>Pending</T>, cardLabel: "Pending", className: "text-end tabular-nums text-muted", render: (r) => r.pending },
+                  {
+                    key: "overdue",
+                    header: <T>Overdue</T>,
+                    cardLabel: "Overdue",
+                    className: "text-end tabular-nums",
+                    render: (r) => <span className={r.overdue > 0 ? "font-semibold text-danger" : "text-muted"}>{r.overdue}</span>,
+                  },
+                ]}
+              />
             </div>
           </div>
 
@@ -264,31 +266,30 @@ export function HwrsSection({
             {blockers.length === 0 ? (
               <p className="mt-1 text-sm text-muted"><T>No blocking points are outstanding.</T></p>
             ) : (
-              <div className="mt-1.5 overflow-x-auto rounded-md border border-border">
-                <table className="w-full min-w-[560px] text-start text-xs">
-                  <thead className="bg-off-white text-muted">
-                    <tr>
-                      <th className="px-2 py-1.5 font-medium"><T>Activity</T></th>
-                      <th className="px-2 py-1.5 font-medium"><T>Waiting on</T></th>
-                      <th className="px-2 py-1.5 font-medium"><T>Status</T></th>
-                      <th className="px-2 py-1.5 font-medium"><T>Since</T></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {blockers.slice(0, 25).map((p) => (
-                      <tr key={p.id} className={`border-t border-border ${isOverdue(p) ? "bg-danger/5" : ""}`}>
-                        <td className="max-w-[16rem] px-2 py-1.5">
+              <div className="mt-1.5 overflow-hidden rounded-md border border-border">
+                <ResponsiveTable
+                  caption="Blocking intervention points"
+                  rows={blockers.slice(0, 25)}
+                  rowKey={(p) => p.id}
+                  tableClassName="w-full text-start text-xs" headRowClassName="bg-surface-subtle text-start text-xs text-muted" thClassName="px-3 py-2 font-medium" tdClassName="px-3 py-2 align-top" cardClassName="px-3" breakpoint="md" wrapperClassName="overflow-x-auto"
+                  rowClassName={(p) => `border-t border-border ${isOverdue(p) ? "bg-danger/5" : ""}`}
+                  columns={[
+                    {
+                      key: "activity",
+                      header: <T>Activity</T>,
+                      cardLabel: null,
+                      tdClassName: "max-w-[16rem]",
+                      render: (p) => (
+                        <>
                           <span className="doc-id text-muted">{p.itemNumber}</span> <span className="break-words text-ink">{p.activity}</span>
-                        </td>
-                        <td className="px-2 py-1.5 text-ink"><T>Waiting on</T> {partyLabel(p.partyId)}</td>
-                        <td className="px-2 py-1.5">{chipFor(p)}</td>
-                        <td className="whitespace-nowrap px-2 py-1.5 text-muted">
-                          {p.notifiedAt ? fmtDate(p.notifiedAt) : "Not yet notified"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </>
+                      ),
+                    },
+                    { key: "waiting", header: <T>Waiting on</T>, cardLabel: "Waiting on", render: (p) => partyLabel(p.partyId) },
+                    { key: "status", header: <T>Status</T>, cardLabel: "Status", render: (p) => chipFor(p) },
+                    { key: "since", header: <T>Since</T>, cardLabel: "Since", className: "whitespace-nowrap text-muted", render: (p) => (p.notifiedAt ? fmtDate(p.notifiedAt) : "Not yet notified") },
+                  ]}
+                />
                 {blockers.length > 25 && (
                   <p className="border-t border-border px-2 py-1.5 text-xs text-muted"><T>Showing 25 of</T> {blockers.length}<T>; see the activity view below.</T></p>
                 )}
@@ -316,24 +317,28 @@ export function HwrsSection({
                         {od > 0 && <Badge tone="danger">{od} <T>overdue</T></Badge>}
                       </span>
                     </summary>
-                    <div className="overflow-x-auto border-t border-border">
-                      <table className="w-full min-w-[480px] text-start text-xs">
-                        <tbody>
-                          {[...ps]
-                            .sort((a, b) => a.itemNumber.localeCompare(b.itemNumber, undefined, { numeric: true }))
-                            .map((p) => (
-                              <tr key={p.id} className="border-t border-border first:border-t-0">
-                                <td className="max-w-[18rem] px-2.5 py-1.5">
-                                  <span className="doc-id text-muted">{p.itemNumber}</span> <span className="break-words text-ink">{p.activity}</span>
-                                </td>
-                                <td className="px-2 py-1.5">{chipFor(p)}</td>
-                                <td className="px-2 py-1.5 text-muted">
-                                  {p.signedOffAt ? `${p.signedOffByName ?? "—"} · ${fmtDate(p.signedOffAt)}` : ""}
-                                </td>
-                              </tr>
-                            ))}
-                        </tbody>
-                      </table>
+                    <div className="border-t border-border">
+                      <ResponsiveTable
+                        caption="Intervention points for this party"
+                        rows={[...ps].sort((x, y) => x.itemNumber.localeCompare(y.itemNumber, undefined, { numeric: true }))}
+                        rowKey={(p) => p.id}
+                        tableClassName="w-full text-start text-xs" headRowClassName="sr-only" thClassName="px-3 py-2 font-medium" tdClassName="px-3 py-2 align-top" rowClassName="border-t border-border" cardClassName="px-3" breakpoint="md" wrapperClassName="overflow-x-auto"
+                        columns={[
+                          {
+                            key: "activity",
+                            header: <T>Activity</T>,
+                            cardLabel: null,
+                            tdClassName: "max-w-[18rem]",
+                            render: (p) => (
+                              <>
+                                <span className="doc-id text-muted">{p.itemNumber}</span> <span className="break-words text-ink">{p.activity}</span>
+                              </>
+                            ),
+                          },
+                          { key: "status", header: <T>Status</T>, cardLabel: "Status", render: (p) => chipFor(p) },
+                          { key: "signed", header: <T>Signed by</T>, cardLabel: "Signed by", className: "text-muted", render: (p) => (p.signedOffAt ? `${p.signedOffByName ?? "—"} · ${fmtDate(p.signedOffAt)}` : "") },
+                        ]}
+                      />
                     </div>
                   </details>
                 );
@@ -344,37 +349,40 @@ export function HwrsSection({
           {/* Per-activity */}
           <div className="mt-4">
             <p className="text-xs font-medium text-muted"><T>By activity (</T>{activities.length})</p>
-            <div className="mt-1.5 max-h-[32rem] overflow-auto rounded-md border border-border">
-              <table className="w-full min-w-[640px] text-start text-xs">
-                <thead className="sticky top-0 bg-off-white text-muted">
-                  <tr>
-                    <th className="px-2 py-1.5 font-medium"><T>Activity</T></th>
-                    <th className="px-2 py-1.5 font-medium"><T>Party</T></th>
-                    <th className="px-2 py-1.5 font-medium"><T>Status</T></th>
-                    <th className="px-2 py-1.5 font-medium"><T>Signed by</T></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activities.map((a) =>
-                    a.points.map((p, i) => (
-                      <tr key={p.id} className={`border-t ${i === 0 ? "border-border" : "border-border/50"}`}>
-                        {i === 0 && (
-                          <td rowSpan={a.points.length} className="max-w-[16rem] border-e border-border/50 px-2 py-1.5 align-top">
-                            <span className="doc-id text-muted">{a.itemNumber}</span> <span className="break-words text-ink">{a.activity}</span>
-                          </td>
-                        )}
-                        <td className="px-2 py-1.5 text-ink">
-                          {bucketOf(p.status) === "signed_off" ? partyLabel(p.partyId) : <><T>Waiting on</T> {partyLabel(p.partyId)}</>}
-                        </td>
-                        <td className="px-2 py-1.5">{chipFor(p)}</td>
-                        <td className="px-2 py-1.5 text-muted">
-                          {p.signedOffAt ? `${p.signedOffByName ?? "—"} · ${fmtDate(p.signedOffAt)}` : p.proceededReason ?? ""}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+            <div className="mt-1.5 overflow-hidden rounded-md border border-border">
+              <ResponsiveTable
+                caption="Intervention points by activity"
+                rows={activities.flatMap((x) => x.points.map((p, i) => ({ p, a: x, first: i === 0 })))}
+                rowKey={(r) => r.p.id}
+                tableClassName="w-full text-start text-xs" headRowClassName="bg-surface-subtle text-start text-xs text-muted" thClassName="px-3 py-2 font-medium" tdClassName="px-3 py-2 align-top" rowClassName="border-t border-border" cardClassName="px-3" breakpoint="md" wrapperClassName="overflow-x-auto"
+                columns={[
+                  {
+                    key: "activity",
+                    header: <T>Activity</T>,
+                    cardLabel: null,
+                    tdClassName: "max-w-[16rem]",
+                    render: (r) => (
+                      <>
+                        <span className="doc-id text-muted">{r.a.itemNumber}</span> <span className="break-words text-ink">{r.a.activity}</span>
+                      </>
+                    ),
+                  },
+                  {
+                    key: "party",
+                    header: <T>Party</T>,
+                    cardLabel: "Party",
+                    render: (r) => (bucketOf(r.p.status) === "signed_off" ? partyLabel(r.p.partyId) : <><T>Waiting on</T> {partyLabel(r.p.partyId)}</>),
+                  },
+                  { key: "status", header: <T>Status</T>, cardLabel: "Status", render: (r) => chipFor(r.p) },
+                  {
+                    key: "signed",
+                    header: <T>Signed by</T>,
+                    cardLabel: "Signed by",
+                    className: "text-muted",
+                    render: (r) => (r.p.signedOffAt ? `${r.p.signedOffByName ?? "—"} · ${fmtDate(r.p.signedOffAt)}` : r.p.proceededReason ?? ""),
+                  },
+                ]}
+              />
             </div>
           </div>
         </>

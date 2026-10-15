@@ -10,9 +10,11 @@ import {
 import { ProposalReviewForm } from "./proposal-review-form";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
+import { Disclosure } from "@/components/ui/disclosure";
 
 interface ProposalWithSourceItp {
   id: string;
@@ -125,11 +127,11 @@ export default async function ItpMasterProposalsPage() {
   return (
     <div>
       <SettingsBackLink href="/inspect/itp-master" label="Master ITP Library" />
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>Master Library Proposals</T></h1>
-            <PageGuide
+      <PageHeader
+        className="mt-2"
+        title={<T>Master Library Proposals</T>}
+        guide={
+          <PageGuide
               title={tl("Master Library Proposals — how this works")}
               points={[
                 "A proposal is raised from a project's own ITP once it's approved or client-accepted (\"Propose to master library\" on the ITP page) — either as a brand new template or an update to an existing one.",
@@ -138,19 +140,18 @@ export default async function ItpMasterProposalsPage() {
                 "Approving a proposal is what actually creates or revises the master template and bumps its version — nothing here edits the library directly.",
               ]}
             />
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            <T>Pending proposals to add or update a master template.</T>
-          </p>
-        </div>
-        <Link href="/inspect/itp-master" className={buttonVariants({ variant: "outline" })}>
-          <T>← Library</T>
-        </Link>
-      </div>
+        }
+        subtitle={<T>Pending proposals to add or update a master template.</T>}
+        secondaryActions={
+          <Link href="/inspect/itp-master" className={buttonVariants({ variant: "outline" })}>
+            <T>← Library</T>
+          </Link>
+        }
+      />
 
-      <div className="mt-6 space-y-4">
+      <div className="space-y-4">
         {(proposals ?? []).map((proposal) => (
-          <div key={proposal.id} className="rounded-lg border border-border bg-surface p-4">
+          <div key={proposal.id} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <div>
                 <p className="text-sm font-medium text-ink">
@@ -164,7 +165,7 @@ export default async function ItpMasterProposalsPage() {
                 </p>
               </div>
               {proposal.itps && (
-                <Link href={`/inspect/itps/${proposal.itps.id}`} className="text-sm text-burgundy hover:underline">
+                <Link href={`/inspect/itps/${proposal.itps.id}`} className="inline-flex min-h-11 items-center text-sm font-medium text-brand hover:underline">
                   <T>View source ITP →</T>
                 </Link>
               )}
@@ -174,8 +175,7 @@ export default async function ItpMasterProposalsPage() {
               const d = diffs.get(proposal.id);
               if (!d) return null;
               return (
-                <details className="mt-3 rounded-md border border-border px-3 py-2" open>
-                  <summary className="cursor-pointer select-none text-sm font-medium text-ink"><T>Changes vs current template</T></summary>
+                <Disclosure variant="inline" defaultOpen className="mt-3" summary={<T>Changes vs current template</T>} bodyClassName="mt-1">
                   {"newCount" in d ? (
                     <p className="mt-2 text-xs text-muted"><T>New template with</T> {d.newCount} <T>activities.</T></p>
                   ) : d.added.length + d.removed.length + d.changed.length === 0 ? (
@@ -187,7 +187,7 @@ export default async function ItpMasterProposalsPage() {
                       <DiffList label="Changed" items={d.changed} tone="text-ink" />
                     </>
                   )}
-                </details>
+                </Disclosure>
               );
             })()}
             {isAdminStaff(session) ? (

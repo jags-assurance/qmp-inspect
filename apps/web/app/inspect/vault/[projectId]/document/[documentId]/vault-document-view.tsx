@@ -1,3 +1,4 @@
+import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth/session";
@@ -202,7 +203,7 @@ export async function VaultDocumentView({
     <div>
       <RealtimeRefresh table="drawing_markups" filter={`vault_document_id=eq.${documentId}`} />
       {!embedded && (
-        <Link href={`/inspect/vault/${projectId}/${folder.id}`} className="text-sm text-burgundy hover:underline">
+        <Link href={`/inspect/vault/${projectId}/${folder.id}`} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
           <T>← Back to</T> {folder.name}
         </Link>
       )}
@@ -236,7 +237,7 @@ export async function VaultDocumentView({
         <p className="text-sm text-muted">{STATUS_EXPLAIN[document.status]}</p>
       </div>
       {document.status === "superseded" && (
-        <p role="alert" className="mt-2 rounded-md border border-danger bg-off-white px-3 py-2 text-sm font-medium text-danger">
+        <p role="alert" className="mt-3 rounded-lg border-2 border-danger bg-danger/5 px-4 py-3 text-sm font-semibold text-danger">
           {isVoidIrnDoc
             ? "VOID - this Inspection Release Note has been voided and is no longer a valid release. Do not use it for work."
             : "SUPERSEDED - a newer revision exists. Do not use this copy for work."}
@@ -276,7 +277,7 @@ export async function VaultDocumentView({
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
         <Link
           href={`/inspect/vault/${projectId}/${folder.id}?newrev=${documentId}#vault-upload`}
-          className={`inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline sm:min-h-0 ${canRevise ? "" : "pointer-events-none opacity-50"}`}
+          className={`${buttonVariants({ variant: "outline" })} ${canRevise ? "" : "pointer-events-none opacity-50"}`}
           aria-disabled={!canRevise}
         >
           <T>Upload new revision</T>
