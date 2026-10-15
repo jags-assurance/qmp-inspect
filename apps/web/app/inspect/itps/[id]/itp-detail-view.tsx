@@ -985,6 +985,12 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           this page) once the reviewer confirms the previewed diff. */}
       {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
 
+      {(sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
+        <p className="mt-6 text-sm text-muted">
+          <T>Each row is one activity. Each party column shows what that party must do on it (H Hold, W Witness, R Review, S Surveillance) and whether they have signed off. An empty cell means that party has no part in the activity.</T>
+        </p>
+      )}
+
       {/* Jump-to-section nav: purely a scanning aid for long ITPs (several sections, each a wide
           H/W/R/S table) — no data is hidden or removed, this just anchors to each section's
           existing heading. Only worth showing once there's more than one section to jump between. */}

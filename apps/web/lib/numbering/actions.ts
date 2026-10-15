@@ -10,6 +10,7 @@ import { ENGAGEMENT_MODES, type EngagementMode } from "@jags/shared-types";
 import { NUMBERING_CONFIGS_TABLE } from "./types";
 import type { NumberingDocType } from "./types";
 import { normaliseCode, validateCode, validateSeparator } from "./validate";
+import { checkClientCode } from "./client-code-check";
 import { CLIENT_MANAGED_ONLY_PERMISSION_KEYS } from "@/lib/rbac/types";
 import { describeScopeChange, isEngagementScope, summarizeScopeChange } from "./scope-impact";
 import { countTierOnlyPermissions } from "./tier-permissions";
@@ -269,4 +270,45 @@ export async function upsertNumberingConfigAction(
 
   revalidatePath("/inspect/organisation/numbering");
   return { error: null, message: "Numbering format saved." };
+}
+
+export interface ClientCodeCheckState {
+  status: "ok" | "warning" | "conflict";
+  message: string;
+  suggestions: string[];
+}
+
+/**
+ * "Check client code": rule-based duplicate check (no AI) — is this code already another organisation's,
+ * does it match this organisation's project numbers, and which unused project numbers could be used
+ * instead. Read-only. Another organisation's codes are only visible to someone RLS lets read them
+ * (a JAGS Admin sees all), so a client login is checked against what it can see.
+ */
+export async function checkClientCodeAction(organizationId: string, docType: string, code: string): Promise<ClientCodeCheckState> {
+  const session = await requireSession();
+  if (!isAdminStaff(session) && !holdsOrgWideGrant(session, organizationId)) {
+    return { status: "conflict", message: "You can't check codes for this organisation.", suggestions: [] };
+  }
+  const normalised = normaliseCode(code);
+  const problem = normalised ? validateCode("Client code", normalised) : null;
+  if (problem) return { status: "conflict", message: problem, suggestions: [] };
+
+  const supabase = await createSupabaseServerClient();
+  const [{ data: configs }, { data: projects }] = await Promise.all([
+    supabase
+      .from(NUMBERING_CONFIGS_TABLE)
+      .select("organization_id, doc_type, client_code")
+      .is("project_id", null)
+      .returns<{ organization_id: string; doc_type: string; client_code: string }[]>(),
+    supabase.from("projects").select("project_number").eq("organization_id", organizationId).returns<{ project_number: string }[]>(),
+  ]);
+  const rows = configs ?? [];
+  return checkClientCode({
+    code: normalised,
+    otherOrgCodes: rows.filter((r) => r.organization_id !== organizationId).map((r) => r.client_code),
+    ownOtherTypeCodes: rows
+      .filter((r) => r.organization_id === organizationId && r.doc_type !== docType)
+      .map((r) => ({ docType: r.doc_type, code: r.client_code })),
+    projectNumbers: (projects ?? []).map((p) => p.project_number),
+  });
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { upsertNumberingConfigAction, type NumberingSettingsState } from "@/lib/numbering/actions";
+import { useActionState, useState, useTransition } from "react";
+import { checkClientCodeAction, upsertNumberingConfigAction, type ClientCodeCheckState, type NumberingSettingsState } from "@/lib/numbering/actions";
 import type { NumberingDocType } from "@/lib/numbering/types";
 import { formatDocumentNumber } from "@/lib/numbering/format";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,8 @@ export function NumberingConfigRow({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(upsertNumberingConfigAction, initialState);
+  const [codeCheck, setCodeCheck] = useState<ClientCodeCheckState | null>(null);
+  const [checking, startChecking] = useTransition();
 
   // Live preview — computed with the exact same formatDocumentNumber logic the server actually
   // generates a real number with (lib/numbering/format.ts), so what's shown here can never drift
@@ -84,6 +86,17 @@ export function NumberingConfigRow({
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
+        <button
+          type="button"
+          disabled={checking || !clientCode.trim()}
+          onClick={() => {
+            setCodeCheck(null);
+            startChecking(async () => setCodeCheck(await checkClientCodeAction(organizationId, docType, clientCode)));
+          }}
+          className="mt-1 text-xs font-medium text-burgundy hover:underline disabled:opacity-50"
+        >
+          {checking ? "Checking…" : "Check code for duplicates"}
+        </button>
       </div>
 
       <div>
@@ -147,6 +160,39 @@ export function NumberingConfigRow({
       <p className="col-span-full text-xs text-muted">
         <Tx>Sample:</Tx> <span className="doc-id font-medium text-ink">{sample}</span>
       </p>
+
+      {codeCheck && (
+        <div
+          role="status"
+          className={`col-span-full rounded-md border px-3 py-2 text-sm ${
+            codeCheck.status === "ok"
+              ? "border-success/30 bg-success/5 text-success"
+              : codeCheck.status === "warning"
+                ? "border-warning/40 bg-warning/5 text-ink"
+                : "border-danger/30 bg-danger/5 text-danger"
+          }`}
+        >
+          <p>{codeCheck.message}</p>
+          {codeCheck.suggestions.length > 0 && (
+            <p className="mt-1 text-xs">
+              <Tx>Unused project numbers you could use:</Tx>{" "}
+              {codeCheck.suggestions.map((sugg) => (
+                <button
+                  key={sugg}
+                  type="button"
+                  onClick={() => {
+                    setClientCode(sugg);
+                    setCodeCheck(null);
+                  }}
+                  className="me-2 rounded border border-border bg-surface px-1.5 py-0.5 font-medium text-burgundy hover:bg-off-white"
+                >
+                  {sugg}
+                </button>
+              ))}
+            </p>
+          )}
+        </div>
+      )}
 
       <FormMessage error={state.error} success={pending ? null : state.message} className="col-span-full" />
     </form>

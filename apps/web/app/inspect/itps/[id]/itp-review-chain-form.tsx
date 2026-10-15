@@ -28,8 +28,10 @@ export function ItpReviewChainForm({
   usingProjectDefault: boolean;
 }) {
   const [state, formAction, pending] = useActionState(setItpReviewChainAction, initialState);
-  const slotCount = Math.max(initialChain.length + 1, 3);
-  const [slots] = useState(Array.from({ length: Math.min(slotCount, 5) }));
+  // Controlled on purpose: React resets uncontrolled fields after a form action, which made a just-saved
+  // chain look blank (as if nothing had saved) until the page was reloaded.
+  const slotCount = Math.min(Math.max(initialChain.length + 1, 3), 5);
+  const [values, setValues] = useState<string[]>(() => Array.from({ length: slotCount }, (_, i) => initialChain[i]?.reviewerUserId ?? ""));
 
   return (
     <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
@@ -41,11 +43,12 @@ export function ItpReviewChainForm({
       </p>
       <input type="hidden" name="itp_id" value={itpId} />
       <div className="mt-3 space-y-2">
-        {slots.map((_, i) => (
+        {values.map((value, i) => (
           <select
             key={i}
             name="reviewer_user_ids"
-            defaultValue={initialChain[i]?.reviewerUserId ?? ""}
+            value={value}
+            onChange={(e) => setValues((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
             className="w-full rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
           >
             <option value=""><Tx>— Step</Tx> {i + 1}<Tx>: none —</Tx></option>
@@ -56,6 +59,11 @@ export function ItpReviewChainForm({
             ))}
           </select>
         ))}
+        {values.length < 5 && (
+          <button type="button" onClick={() => setValues((prev) => [...prev, ""])} className="text-xs font-medium text-burgundy hover:underline">
+            <Tx>+ Add another review step</Tx>
+          </button>
+        )}
       </div>
       <button
         type="submit"
