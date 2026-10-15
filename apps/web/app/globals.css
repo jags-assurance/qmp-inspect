@@ -14,7 +14,7 @@
      tone toward white first). These keep the same warm/neutral hue but push contrast well past
      WCAG's 3:1 UI-component and 4.5:1 text minimums so outlines and labels stay legible outdoors. */
   /* Decorative dividers / card edges: deliberately light. Controls use --color-control-border below. */
-  --color-border: #b3a993;
+  --color-border: #ddd6c8;
   /* Form-control outlines (inputs, selects, textareas, outlined buttons): >= 3:1 against white and
      off-white (WCAG 1.4.11). #b3a993 measures only 2.33:1 on white. */
   --color-control-border: #857b66;
@@ -26,6 +26,31 @@
   /* Darkened from #b8860b (3.3:1 on white, failed AA text) to ~5.5:1 on white. */
   --color-warning: #8a6100;
   --color-info: #2f6397;
+
+  /* ---- Design system v2 (see docs/UI_DESIGN_SYSTEM.md) ---------------------------------------
+     Semantic additions only: every token above keeps its name and meaning. "Soft" tints are the
+     calm backgrounds for status banners / tiles; the saturated base colour is for text + icons. */
+  --color-surface-subtle: #f4f1ec; /* table headers, hover rows, inset wells */
+  --color-surface-sunken: #efebe4; /* skeletons, tracks, pressed state */
+  --color-border-strong: #c9c0ad; /* edges that must read outdoors, dividers on tinted surfaces */
+  --color-text-strong: #111113;
+  --color-brand: var(--color-burgundy);
+  --color-brand-hover: var(--color-burgundy-dark);
+  --color-brand-soft: #f7edef; /* active nav / selected row / chip background */
+  --color-brand-fg: #ffffff;
+  --color-accent: var(--color-gold);
+  --color-success-soft: #e8f3ec;
+  --color-warning-soft: #fbf1d9;
+  --color-danger-soft: #fbe9e7;
+  --color-info-soft: #e8f0f8;
+  --color-overlay: rgb(17 17 19 / 0.45);
+  --color-focus: var(--color-burgundy);
+
+  /* Layout */
+  --header-h: 3.5rem; /* 56px: the single sticky header row */
+  --sidebar-w: 16rem; /* 256px: desktop sidebar and the drawer */
+  --sidebar-rail-w: 4.5rem; /* 72px: laptop icon rail */
+  --content-max: 90rem; /* 1440px: page content never stretches wider than this */
 
   --background: var(--color-off-white);
   --foreground: var(--color-ink);
@@ -47,14 +72,68 @@
   --color-danger: var(--color-danger);
   --color-warning: var(--color-warning);
   --color-info: var(--color-info);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-surface-sunken: var(--color-surface-sunken);
+  --color-border-strong: var(--color-border-strong);
+  --color-text-strong: var(--color-text-strong);
+  --color-brand: var(--color-brand);
+  --color-brand-hover: var(--color-brand-hover);
+  --color-brand-soft: var(--color-brand-soft);
+  --color-brand-fg: var(--color-brand-fg);
+  --color-accent: var(--color-accent);
+  --color-success-soft: var(--color-success-soft);
+  --color-warning-soft: var(--color-warning-soft);
+  --color-danger-soft: var(--color-danger-soft);
+  --color-info-soft: var(--color-info-soft);
+  --color-overlay: var(--color-overlay);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-mono-ui);
 }
 
+/* Static theme values: radii, shadows and the extra breakpoint. Overriding the Tailwind defaults
+   makes every existing rounded-md / rounded-lg / shadow-* use the new scale.
+   Breakpoints: sm 640 (tablet), lg 1024 (laptop), desk 1440 (desktop). */
+@theme {
+  --breakpoint-desk: 90rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --shadow-xs: 0 1px 2px 0 rgb(28 28 30 / 0.05);
+  --shadow-sm: 0 1px 2px 0 rgb(28 28 30 / 0.06), 0 1px 3px 0 rgb(28 28 30 / 0.06);
+  --shadow-md: 0 4px 8px -2px rgb(28 28 30 / 0.08), 0 2px 4px -2px rgb(28 28 30 / 0.06);
+  --shadow-lg: 0 12px 24px -6px rgb(28 28 30 / 0.14), 0 4px 8px -4px rgb(28 28 30 / 0.08);
+  --shadow-xl: 0 24px 48px -12px rgb(28 28 30 / 0.22);
+}
+
+/* z-index scale (docs/UI_DESIGN_SYSTEM.md): sticky 10, header 20, notices 30, drawer / side panel 40,
+   sheet / palette / toasts 50, confirm dialog 60. Never invent a new number. */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--header-h) + 1rem);
+}
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+/* Phones: 16px inputs stop iOS Safari zooming the page on focus. */
+@media (max-width: 639px) {
+  main select,
+  main input:not([type="checkbox"]):not([type="radio"]),
+  main textarea {
+    font-size: 1rem;
+  }
+}
+/* Horizontally scrolling chip rows without a visible scrollbar. */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 /* Document/record identifiers (ITP numbers, checklist codes, NCR refs) use monospace throughout
@@ -131,7 +210,7 @@ input[type="radio"] {
 
 /* ---- Accessibility baseline (WCAG 2.1 AA) ---- */
 :where(a, button, input, select, textarea, summary, [role="tab"], [tabindex]):focus-visible {
-  outline: 2px solid var(--color-burgundy);
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
 /* Burgundy ring vanishes on dark surfaces - use gold there. */

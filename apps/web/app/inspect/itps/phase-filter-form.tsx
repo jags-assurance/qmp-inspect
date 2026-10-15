@@ -8,8 +8,8 @@ import { Tx } from "@/components/domain/tx";
 // handover union instead of a fetched list.
 export function PhaseFilterForm({ selectedPhase }: { selectedPhase: ItpPhase | null }) {
   return (
-    <form className="max-w-xs">
-      <label htmlFor="phase" className="block text-sm font-medium text-ink">
+    <form className="w-full md:w-auto">
+      <label htmlFor="phase" className="block text-xs font-medium text-muted">
         <Tx>Filter by phase</Tx>
       </label>
       <select
@@ -17,7 +17,7 @@ export function PhaseFilterForm({ selectedPhase }: { selectedPhase: ItpPhase | n
         name="phase"
         defaultValue={selectedPhase ?? ""}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        className="mt-1 min-h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink [@media(pointer:coarse)]:min-h-11 md:w-auto"
       >
         <option value=""><Tx>All phases</Tx></option>
         {ITP_PHASES.map((phase) => (

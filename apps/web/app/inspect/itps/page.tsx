@@ -5,7 +5,11 @@ import { SplitLayout } from "@/components/ui/split-layout";
 import { ItpDetailView } from "./[id]/itp-detail-view";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { FilterBar } from "@/components/ui/toolbar";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ItpsTable, type ItpRow } from "./itps-table";
 import { ITP_STATUS_LABEL } from "./itp-status";
 import { ITP_TABLE_PAGE_SIZE } from "./constants";
@@ -196,98 +200,102 @@ export default async function ItpsPage({
   const detailQuery = detailParams.toString();
   const backHref = `/inspect/itps${backQuery ? `?${backQuery}` : ""}`;
 
+  const activeFilterCount = [disciplineId, phase, sort].filter(Boolean).length;
+  const chips = [
+    { val: "", label: tl("All"), n: statusCounts.reduce((acc, [, n]) => acc + n, 0) },
+    ...STATUSES.map((st) => ({ val: st as string, label: ITP_STATUS_LABEL[st], n: statusCounts.find(([k]) => k === st)?.[1] ?? 0 })),
+  ].map(({ val, label, n }) => {
+    const p = new URLSearchParams(backParams);
+    p.delete("page");
+    if (val) p.set("status", val);
+    else p.delete("status");
+    return {
+      key: val || "all",
+      label,
+      count: n,
+      href: `/inspect/itps${p.toString() ? `?${p.toString()}` : ""}`,
+      active: (statusFilter ?? "") === val,
+    };
+  });
+
   return (
-    <div>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>ITP Register</T></h1>
-            <PageGuide
-              title={tl("ITP Register — how this works")}
-              points={[
-                "You see the ITPs of your own projects.",
-                "\"+ New ITP\" shows only if you are allowed to create ITPs.",
-                "The discipline filter lists ITPs with at least one activity in that discipline.",
-                "PDF and Excel export every row of the current filter.",
-              ]}
-            />
-          </div>
-          
-        </div>
-        <div className="flex items-center gap-2">
-          <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`}>
-            <Button variant="outline"><T>PDF</T></Button>
-          </Link>
-          <ExportLink href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`} asButton pendingLabel="Preparing…">
-            <T>Excel</T>
-          </ExportLink>
-          {canCreateItp && (
-            <Link href="/inspect/itps/new">
-              <Button><T>+ New ITP</T></Button>
+    <div className="space-y-5">
+      <PageHeader
+        className="mb-0"
+        title={<T>ITP Register</T>}
+        guide={
+          <PageGuide
+            title={tl("ITP Register — how this works")}
+            points={[
+              "You see the ITPs of your own projects.",
+              "\"+ New ITP\" shows only if you are allowed to create ITPs.",
+              "The discipline filter lists ITPs with at least one activity in that discipline.",
+              "PDF and Excel export every row of the current filter.",
+            ]}
+          />
+        }
+        primaryAction={
+          canCreateItp ? (
+            <Link href="/inspect/itps/new" className={buttonVariants()}>
+              <T>+ New ITP</T>
             </Link>
-          )}
-        </div>
-      </div>
+          ) : undefined
+        }
+        secondaryActions={
+          <>
+            <Link href={`/inspect/itps/print${exportQuery ? `?${exportQuery}` : ""}`} className={buttonVariants({ variant: "outline" })}>
+              <T>PDF</T>
+            </Link>
+            <ExportLink href={`/api/itps/export${exportQuery ? `?${exportQuery}` : ""}`} asButton pendingLabel="Preparing…">
+              <T>Excel</T>
+            </ExportLink>
+          </>
+        }
+      />
 
       {projectId && (
-        <p className="mt-3 text-sm text-muted">
+        <p className="text-sm text-muted">
           <T>Filtered to one project.</T>{" "}
-          <Link href="/inspect/itps" className="text-burgundy hover:underline">
+          <Link href="/inspect/itps" className="font-medium text-brand hover:underline">
             <T>Clear filter</T>
           </Link>
         </p>
       )}
 
-      <details className="group mt-4">
-        <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-1 rounded border border-border px-2 py-1 text-sm font-medium text-muted hover:bg-off-white [&::-webkit-details-marker]:hidden">
-          <span aria-hidden="true" className="transition-transform group-open:rotate-90">›</span>
-          <T>Filter &amp; sort</T>
-        </summary>
-      <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
-        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
-        <PhaseFilterForm selectedPhase={phase} />
-        <SortForm
-          current={sort}
-          params={{
-            ...(disciplineId ? { discipline: disciplineId } : {}),
-            ...(projectId ? { project: projectId } : {}),
-            ...(phase ? { phase } : {}),
-            ...(q ? { q } : {}),
-            ...(statusFilter ? { status: statusFilter } : {}),
-          }}
-        />
-      </div>
-      </details>
+      <FilterChips label={tl("Filter by status")} items={chips} />
 
-      <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={tl("Filter by status")}>
-        {[
-          { val: "", label: "All", n: statusCounts.reduce((a, [, n]) => a + n, 0) },
-          ...STATUSES.map((st) => ({ val: st as string, label: ITP_STATUS_LABEL[st], n: statusCounts.find(([k]) => k === st)?.[1] ?? 0 })),
-        ].map(({ val, label, n }) => {
-          const p = new URLSearchParams(backParams);
-          p.delete("page");
-          if (val) p.set("status", val);
-          else p.delete("status");
-          const active = (statusFilter ?? "") === val;
-          return (
-            <Link
-              key={val || "all"}
-              href={`/inspect/itps${p.toString() ? `?${p.toString()}` : ""}`}
-              aria-current={active ? "true" : undefined}
-              className={`inline-flex min-h-11 items-center rounded-full border px-3 text-sm ${active ? "border-burgundy bg-burgundy text-white" : "border-border bg-surface text-ink hover:bg-off-white"}`}
-            >
-              {label} ({n})
-            </Link>
-          );
-        })}
-      </div>
+      <FilterBar
+        activeCount={activeFilterCount}
+        clearHref={activeFilterCount > 0 || q ? "/inspect/itps" : undefined}
+        filters={
+          <>
+            <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+            <PhaseFilterForm selectedPhase={phase} />
+            <SortForm
+              current={sort}
+              params={{
+                ...(disciplineId ? { discipline: disciplineId } : {}),
+                ...(projectId ? { project: projectId } : {}),
+                ...(phase ? { phase } : {}),
+                ...(q ? { q } : {}),
+                ...(statusFilter ? { status: statusFilter } : {}),
+              }}
+            />
+          </>
+        }
+      />
 
       {(totalCount ?? 0) === 0 && !q && canCreateItp && (
-        <div className="mt-4 rounded-lg border border-border bg-surface p-4 text-center text-sm text-muted">
-          <T>No ITPs match these filters.</T>{" "}
-          <Link href="/inspect/itps/new" className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline">
-            <T>Create ITP</T>
-          </Link>
+        <div className="rounded-lg border border-border bg-surface shadow-xs">
+          <EmptyState
+            compact
+            title={<T>No ITPs match these filters.</T>}
+            action={
+              <Link href="/inspect/itps/new" className={buttonVariants({ variant: "outline" })}>
+                <T>Create ITP</T>
+              </Link>
+            }
+          />
         </div>
       )}
 

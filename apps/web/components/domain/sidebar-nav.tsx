@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
@@ -49,29 +50,62 @@ function NavLink({ item, collapsed, indent = false }: { item: NavItem; collapsed
   const pathname = usePathname();
   const { setOpen } = useSidebarMobile();
   const isActive = isItemActive(pathname, item.href, item.activePrefixes);
+  const text = item.displayLabel ?? item.label;
+  // Icon-rail tooltip: rendered in a portal (the sidebar scrolls, which would clip an absolute tooltip).
+  const [tip, setTip] = useState<{ top: number; left: number } | null>(null);
+  function showTip(el: HTMLElement) {
+    if (!collapsed) return;
+    const rect = el.getBoundingClientRect();
+    setTip({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  }
 
   return (
-    // next/link: client-side navigation (no full reload, so the layout, proxy and bundle are not
-    // re-run and an offline session keeps working). Prefetch is off: ~25 links would otherwise each
-    // fire a prefetch through the proxy. Active-state highlighting is unchanged — it comes from
-    // usePathname(), which updates on client navigations too.
-    <Link
-      href={item.href}
-      prefetch={false}
-      title={collapsed ? item.displayLabel ?? item.label : undefined}
-      aria-label={collapsed ? item.displayLabel ?? item.label : undefined}
-      aria-current={isActive ? "page" : undefined}
-      onClick={() => setOpen(false)}
-      className={
-        "flex min-h-[44px] items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold " +
-        (collapsed ? "justify-center px-0" : indent ? "ps-9" : "") +
-        " " +
-        (isActive ? "bg-white/10 text-gold" : "text-white/85 hover:bg-white/10 hover:text-white")
-      }
-    >
-      {!indent && <NavIcon label={item.label} />}
-      {!collapsed && <span className="truncate">{item.displayLabel ?? item.label}</span>}
-    </Link>
+    // next/link: client-side navigation (no full reload). Prefetch is off: ~25 links would otherwise each
+    // fire a prefetch through the proxy. Active state comes from usePathname().
+    <>
+      <Link
+        href={item.href}
+        prefetch={false}
+        aria-label={collapsed ? text : undefined}
+        aria-current={isActive ? "page" : undefined}
+        onClick={() => {
+          setTip(null);
+          setOpen(false);
+        }}
+        onMouseEnter={(e) => showTip(e.currentTarget)}
+        onMouseLeave={() => setTip(null)}
+        onFocus={(e) => showTip(e.currentTarget)}
+        onBlur={() => setTip(null)}
+        className={
+          "relative flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11 " +
+          (collapsed ? "justify-center px-0 " : indent ? "ps-9 " : "") +
+          (isActive
+            ? "bg-white/15 text-white before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-full before:bg-gold"
+            : "text-white/85 hover:bg-white/10 hover:text-white")
+        }
+      >
+        {!indent && <span className={isActive ? "text-gold" : ""}><NavIcon label={item.label} /></span>}
+        {!collapsed && <span className="min-w-0 flex-1 truncate">{text}</span>}
+        {item.badge !== undefined && item.badge !== 0 && (
+          collapsed ? (
+            <span aria-hidden="true" className="absolute end-2 top-1.5 h-2 w-2 rounded-full bg-gold" />
+          ) : (
+            <span className="ms-auto shrink-0 rounded-full bg-gold px-1.5 text-xs font-semibold leading-5 text-burgundy-dark">{item.badge}</span>
+          )
+        )}
+      </Link>
+      {collapsed && tip && typeof document !== "undefined" &&
+        createPortal(
+          <span
+            role="tooltip"
+            style={{ position: "fixed", top: tip.top, left: tip.left, transform: "translateY(-50%)" }}
+            className="pointer-events-none z-50 whitespace-nowrap rounded-md bg-ink px-2.5 py-1.5 text-xs font-medium text-white shadow-lg"
+          >
+            {text}
+          </span>,
+          document.body
+        )}
+    </>
   );
 }
 
@@ -141,8 +175,8 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
         aria-expanded={open}
         style={depth > 0 ? { paddingInlineStart: `${12 + depth * 20}px` } : undefined}
         className={
-          "flex min-h-[44px] w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors " +
-          (hasActiveChild ? "text-gold" : "text-white/85 hover:bg-white/10 hover:text-white")
+          "flex min-h-10 w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11 " +
+          (hasActiveChild ? "text-white" : "text-white/85 hover:bg-white/10 hover:text-white")
         }
       >
         {depth === 0 && <NavIcon label={item.label} />}
@@ -178,16 +212,16 @@ function NavGroup({ item, collapsed, depth = 0 }: { item: NavItem; collapsed: bo
 export function SidebarNav({ items, collapsed }: { items: NavItem[]; collapsed: boolean }) {
   const tl = useTranslate();
   return (
-    <nav aria-label={tl("Main")} className="flex-1 space-y-0.5 px-3">
+    <nav aria-label={tl("Main")} className="flex-1 space-y-0.5 px-3 py-3">
       {items.map((item, i) => {
         const showHeading = item.group && item.group !== items[i - 1]?.group;
         return (
           <div key={item.label + item.href}>
             {showHeading &&
               (collapsed ? (
-                <div role="separator" className="mx-3 my-2 border-t border-white/15" />
+                <div role="separator" className="mx-3 my-2 border-t border-white/15 first:hidden" />
               ) : (
-                <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wider text-white/60">
+                <p className="px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-white/70">
                   {item.displayGroup ?? item.group}
                 </p>
               ))}

@@ -33,6 +33,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#6B1E2C",
+  // Lets env(safe-area-inset-*) work on notched phones / installed PWAs (header, drawer, sheets use it).
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {

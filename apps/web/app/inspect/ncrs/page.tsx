@@ -7,9 +7,14 @@ import { fetchProjectTimeZone, fetchProjectTimeZones } from "@/lib/projects/time
 import { T } from "@/components/domain/t";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { StatusLegend } from "@/components/ui/status-legend";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatTile, StatGrid } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
+import { FilterChips } from "@/components/ui/filter-chips";
+import { FilterBar, FilterField } from "@/components/ui/toolbar";
+import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
 import { AgingChart } from "@/components/ui/aging-chart";
 import { NCRS_TABLE } from "@/lib/ncrs/types";
 import { NcrsTable, type NcrRegisterRow } from "./ncrs-table";
@@ -173,152 +178,159 @@ export default async function NcrsPage({
   const exportQs = new URLSearchParams();
   for (const k of ["status", "severity", "project", "assignee", "owner", "overdue", "sort", "q"] as const) if (sp[k]) exportQs.set(k, sp[k]!);
   const filtersActive = Boolean(sp.status || sp.severity || sp.assignee || sp.owner || sp.overdue || q || projectId || disciplineId);
-  const chip = (active: boolean) =>
-    "inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium " +
-    (active ? "border-burgundy bg-burgundy text-white" : "border-border bg-surface text-ink hover:bg-off-white");
+  const activeFilterCount = [sp.severity, sp.assignee, sp.owner, disciplineId, sp.sort && sp.sort !== "newest" ? sp.sort : ""].filter(Boolean).length;
+  const notice = "flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-warning/40 bg-warning-soft px-3 py-2 text-sm text-ink";
+  const chips = [
+    { key: "all", label: tl("All"), count: total, href: hrefWith({ status: undefined, overdue: undefined }), active: !sp.status && !sp.overdue },
+    { key: "active", label: tl("Active"), count: open, href: hrefWith({ status: "active", overdue: undefined }), active: sp.status === "active" },
+    ...(["open", "in_progress", "pending_verification", "closed"] as const).map((st) => ({
+      key: st,
+      label: STATUS_LABEL[st],
+      count: statusCounts[st] ?? 0,
+      href: hrefWith({ status: st, overdue: undefined }),
+      active: sp.status === st,
+    })),
+    { key: "overdue", label: tl("Overdue"), count: overdue, href: hrefWith({ overdue: "1", status: undefined }), active: sp.overdue === "1" },
+  ];
 
   return (
-    <div>
+    <div className="space-y-5">
       <RealtimeRefresh table="ncrs" />
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><T>NCR Register</T></h1>
-            <PageGuide
-              title={tl("NCR Register — how this works")}
-              points={[
-                "Lists every minor/major NCR (observations are excluded — they have their own register) with server-side search, pagination and a discipline filter.",
-                "Anyone with project access can raise an NCR via \"+ Raise NCR\" — raising one always also creates a matching project punch-list item, since every NCR must be closed out before handover regardless of severity.",
-                "Sending an NCR for verification needs root cause, corrective and preventive action and at least one evidence photo or document. Closing additionally needs verification notes, and is done by a JAGS admin or someone granted the close NCR permission - not the raiser or the assignee. Raised in error? Withdraw it (with a reason) instead of working it to closure.",
-                "The discipline filter only matches NCRs raised against a specific ITP item — a standalone/walkdown NCR has no discipline of its own and always stays visible unfiltered.",
-                "Stat cards and the aging chart are computed from every matching NCR, not just the current page. \"Overdue\" uses the site's calendar day.",
-              ]}
-            />
-          </div>
-          <p className="mt-1 text-sm text-muted">
-            <Link href="/inspect/observations" className="text-burgundy hover:underline">
+      <PageHeader
+        className="mb-0"
+        title={<T>NCR Register</T>}
+        guide={
+          <PageGuide
+            title={tl("NCR Register — how this works")}
+            points={[
+              "Lists every minor/major NCR (observations are excluded — they have their own register) with server-side search, pagination and a discipline filter.",
+              "Anyone with project access can raise an NCR via \"+ Raise NCR\" — raising one always also creates a matching project punch-list item, since every NCR must be closed out before handover regardless of severity.",
+              "Sending an NCR for verification needs root cause, corrective and preventive action and at least one evidence photo or document. Closing additionally needs verification notes, and is done by a JAGS admin or someone granted the close NCR permission - not the raiser or the assignee. Raised in error? Withdraw it (with a reason) instead of working it to closure.",
+              "The discipline filter only matches NCRs raised against a specific ITP item — a standalone/walkdown NCR has no discipline of its own and always stays visible unfiltered.",
+              "Stat cards and the aging chart are computed from every matching NCR, not just the current page. \"Overdue\" uses the site's calendar day.",
+            ]}
+          />
+        }
+        meta={
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link href="/inspect/observations" className="inline-flex min-h-9 items-center text-brand hover:underline">
               <T>See observations →</T>
             </Link>
             {session.isJagsStaff && (
-              <>
-                {" "}
-                <Link href="/inspect/ncrs/scorecard" className="text-burgundy hover:underline">
-                  <T>Vendor scorecard →</T>
-                </Link>
-              </>
+              <Link href="/inspect/ncrs/scorecard" className="inline-flex min-h-9 items-center text-brand hover:underline">
+                <T>Vendor scorecard →</T>
+              </Link>
             )}
-          </p>
-        </div>
-        <Link href="/inspect/ncrs/new">
-          <Button><T>+ Raise NCR</T></Button>
-        </Link>
-      </div>
+          </span>
+        }
+        primaryAction={
+          <Link href="/inspect/ncrs/new" className={buttonVariants()}>
+            <T>+ Raise NCR</T>
+          </Link>
+        }
+        secondaryActions={
+          <a href={`/inspect/ncrs/export${exportQs.toString() ? `?${exportQs}` : ""}`} className={buttonVariants({ variant: "outline" })}>
+            <T>Export CSV</T>
+          </a>
+        }
+      />
 
       {session.isJagsStaff && (unownedCount ?? 0) > 0 && (
-        <p className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink">
-          <T>NCRs without an owner:</T> <strong>{unownedCount}</strong>{" "}
-          <Link href={hrefWith({ owner: "none", status: undefined, overdue: undefined, assignee: undefined })} className="text-burgundy hover:underline">
+        <p className={notice} role="status">
+          <span aria-hidden="true" className="font-bold text-warning">!</span>
+          <T>NCRs without an owner:</T> <strong>{unownedCount}</strong>
+          <Link href={hrefWith({ owner: "none", status: undefined, overdue: undefined, assignee: undefined })} className="font-medium text-brand hover:underline">
             <T>Show them so they can be assigned</T>
           </Link>
         </p>
       )}
 
       {session.isJagsStaff && (unownedObservationCount ?? 0) > 0 && (
-        <p className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink">
-          <T>Observations without an owner:</T> <strong>{unownedObservationCount}</strong>{" "}
-          <Link href={projectId ? `/inspect/observations?owner=none&project=${projectId}` : "/inspect/observations?owner=none"} className="text-burgundy hover:underline">
+        <p className={notice} role="status">
+          <span aria-hidden="true" className="font-bold text-warning">!</span>
+          <T>Observations without an owner:</T> <strong>{unownedObservationCount}</strong>
+          <Link href={projectId ? `/inspect/observations?owner=none&project=${projectId}` : "/inspect/observations?owner=none"} className="font-medium text-brand hover:underline">
             <T>Show them so they can be assigned</T>
           </Link>
         </p>
       )}
 
       {projectId && (
-        <p className="mt-3 text-sm text-muted">
+        <p className="text-sm text-muted">
           <T>Filtered to one project.</T>{" "}
-          <Link href="/inspect/ncrs" className="text-burgundy hover:underline">
+          <Link href="/inspect/ncrs" className="font-medium text-brand hover:underline">
             <T>Clear filter</T>
           </Link>
         </p>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2" aria-label={tl("Filter by status")}>
-        <Link href={hrefWith({ status: undefined, overdue: undefined })} className={chip(!sp.status && !sp.overdue)}>
-          <T>All (</T>{total})
-        </Link>
-        <Link href={hrefWith({ status: "active", overdue: undefined })} className={chip(sp.status === "active")}>
-          <T>Active (</T>{open})
-        </Link>
-        {(["open", "in_progress", "pending_verification", "closed"] as const).map((st) => (
-          <Link key={st} href={hrefWith({ status: st, overdue: undefined })} className={chip(sp.status === st)}>
-            {STATUS_LABEL[st]} ({statusCounts[st] ?? 0})
-          </Link>
-        ))}
-        <Link href={hrefWith({ overdue: "1", status: undefined })} className={chip(sp.overdue === "1")}>
-          <T>Overdue (</T>{overdue})
-        </Link>
-      </div>
+      <StatGrid max={4}>
+        <StatTile label="Total" value={total} />
+        <StatTile label="Open" value={open} />
+        <StatTile
+          label="Overdue"
+          value={overdue}
+          tone={overdue > 0 ? "danger" : undefined}
+          icon={overdue > 0 ? (
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10 6v4.5l2.5 1.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          ) : undefined}
+        />
+        <StatTile label="Closed" value={closed} />
+      </StatGrid>
 
-      <form method="get" action="/inspect/ncrs" className="mt-3 flex flex-wrap items-end gap-3">
-        {projectId && <input type="hidden" name="project" value={projectId} />}
-        {sp.status && <input type="hidden" name="status" value={sp.status} />}
-        {sp.overdue && <input type="hidden" name="overdue" value={sp.overdue} />}
-        {sp.owner && <input type="hidden" name="owner" value={sp.owner} />}
-        <label className="text-xs text-muted">
-          <T>Severity</T>
-          <select name="severity" defaultValue={sp.severity ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            <option value=""><T>Any</T></option>
-            <option value="major_ncr"><T>Major NCR</T></option>
-            <option value="minor_ncr"><T>Minor NCR</T></option>
-          </select>
-        </label>
-        <label className="text-xs text-muted">
-          <T>Assignee</T>
-          <select name="assignee" defaultValue={sp.assignee ?? ""} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            <option value=""><T>Anyone</T></option>
-            <option value="me"><T>Assigned to me</T></option>
-            <option value="unassigned"><T>Unassigned</T></option>
-          </select>
-        </label>
-        <label className="text-xs text-muted">
-          <T>Sort</T>
-          <select name="sort" defaultValue={sp.sort ?? "newest"} className="mt-1 block min-h-9 rounded-md border border-border bg-surface px-2 text-sm text-ink">
-            {SORT_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Button type="submit" variant="outline">
-          <T>Apply</T>
-        </Button>
-        {filtersActive && (
-          <Link href="/inspect/ncrs" className="min-h-9 py-2 text-sm text-burgundy hover:underline">
-            <T>Clear all</T>
-          </Link>
-        )}
-        <a href={`/inspect/ncrs/export${exportQs.toString() ? `?${exportQs}` : ""}`} className="ms-auto min-h-9 py-2 text-sm text-burgundy hover:underline">
-          <T>Export CSV</T>
-        </a>
-      </form>
+      <FilterChips label={tl("Filter by status")} items={chips} />
 
-      <div className="mt-6">
-        <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
-      </div>
+      <FilterBar
+        activeCount={activeFilterCount}
+        clearHref={filtersActive ? "/inspect/ncrs" : undefined}
+        filters={
+          <>
+            <form method="get" action="/inspect/ncrs" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
+              {projectId && <input type="hidden" name="project" value={projectId} />}
+              {sp.status && <input type="hidden" name="status" value={sp.status} />}
+              {sp.overdue && <input type="hidden" name="overdue" value={sp.overdue} />}
+              {sp.owner && <input type="hidden" name="owner" value={sp.owner} />}
+              <FilterField label={<T>Severity</T>}>
+                <select name="severity" defaultValue={sp.severity ?? ""} className={FILTER_CONTROL_CLASS}>
+                  <option value=""><T>Any</T></option>
+                  <option value="major_ncr"><T>Major NCR</T></option>
+                  <option value="minor_ncr"><T>Minor NCR</T></option>
+                </select>
+              </FilterField>
+              <FilterField label={<T>Assignee</T>}>
+                <select name="assignee" defaultValue={sp.assignee ?? ""} className={FILTER_CONTROL_CLASS}>
+                  <option value=""><T>Anyone</T></option>
+                  <option value="me"><T>Assigned to me</T></option>
+                  <option value="unassigned"><T>Unassigned</T></option>
+                </select>
+              </FilterField>
+              <FilterField label={<T>Sort</T>}>
+                <select name="sort" defaultValue={sp.sort ?? "newest"} className={FILTER_CONTROL_CLASS}>
+                  {SORT_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </FilterField>
+              <button type="submit" className={buttonVariants({ variant: "outline" })}>
+                <T>Apply</T>
+              </button>
+            </form>
+            <DisciplineFilterForm disciplines={disciplines ?? []} selectedDisciplineId={disciplineId ?? null} />
+          </>
+        }
+      />
 
-      <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total" value={total} />
-        <StatCard label="Open" value={open} />
-        <StatCard label="Overdue" value={overdue} />
-        <StatCard label="Closed" value={closed} />
-      </div>
+      <Section title={<T>Ageing of open NCRs</T>} collapsible defaultOpen={false}>
+        <AgingChart counts={agingCounts} bare />
+      </Section>
 
-      <div className="mt-6">
-        <AgingChart counts={agingCounts} />
-      </div>
-
-      <StatusLegend className="mt-6" />
-      <div className="mt-2">
+      <div>
+        <StatusLegend className="mb-2" />
         <NcrsTable
           rows={rows}
           timeZones={rowTimeZones}

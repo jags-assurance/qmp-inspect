@@ -19,15 +19,16 @@ import { cn } from "@/lib/cn";
  * Order inside a group (see ButtonGroup): primary first, then outline, then ghost/cancel, destructive last.
  */
 export type ButtonVariant = "primary" | "outline" | "ghost" | "danger" | "danger-outline" | "link" | "link-muted" | "link-danger";
-export type ButtonSize = "sm" | "md" | "lg";
+/** "icon" = square icon-only button (40 px, 44 px on touch); always pass aria-label. */
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const BASE =
   "inline-flex items-center justify-center gap-2 rounded-md font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:pointer-events-none";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "bg-burgundy text-white hover:bg-burgundy-dark",
-  outline: "border border-border text-ink bg-surface hover:bg-off-white",
-  ghost: "text-ink hover:bg-off-white",
+  primary: "bg-burgundy text-white shadow-xs hover:bg-burgundy-dark",
+  outline: "border border-border text-ink bg-surface shadow-xs hover:bg-surface-subtle",
+  ghost: "text-ink hover:bg-surface-subtle",
   danger: "bg-danger text-white hover:bg-danger/90",
   "danger-outline": "border border-danger/40 text-danger bg-surface hover:bg-danger/5",
   link: "text-burgundy hover:underline underline-offset-2",
@@ -39,6 +40,7 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: "text-sm px-3 min-h-8 [@media(pointer:coarse)]:min-h-11",
   md: "text-sm px-4 min-h-10 [@media(pointer:coarse)]:min-h-11",
   lg: "text-base px-5 min-h-12",
+  icon: "h-10 w-10 p-0 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11",
 };
 
 // Inline text actions have no box, so no horizontal padding; they only need a little vertical room.
@@ -46,6 +48,7 @@ const LINK_SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: "text-sm py-1 min-h-8 [@media(pointer:coarse)]:min-h-9",
   md: "text-sm py-1.5 min-h-9 [@media(pointer:coarse)]:min-h-9",
   lg: "text-base py-2 min-h-10 [@media(pointer:coarse)]:min-h-10",
+  icon: "h-9 w-9 p-0",
 };
 
 export function buttonVariants({ variant = "primary", size = "md", className }: { variant?: ButtonVariant; size?: ButtonSize; className?: string } = {}): string {

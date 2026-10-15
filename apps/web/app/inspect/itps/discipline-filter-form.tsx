@@ -18,8 +18,8 @@ export function DisciplineFilterForm({
   selectedDisciplineId: string | null;
 }) {
   return (
-    <form className="max-w-xs">
-      <label htmlFor="discipline" className="block text-sm font-medium text-ink">
+    <form className="w-full md:w-auto">
+      <label htmlFor="discipline" className="block text-xs font-medium text-muted">
         <Tx>Filter by discipline</Tx>
       </label>
       <select
@@ -27,7 +27,7 @@ export function DisciplineFilterForm({
         name="discipline"
         defaultValue={selectedDisciplineId ?? ""}
         onChange={(e) => e.currentTarget.form?.requestSubmit()}
-        className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
+        className="mt-1 min-h-10 w-full rounded-md border border-border bg-surface px-3 text-sm text-ink [@media(pointer:coarse)]:min-h-11 md:w-auto"
       >
         <option value=""><Tx>All disciplines</Tx></option>
         {disciplines.map((d) => (

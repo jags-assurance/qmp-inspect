@@ -16,10 +16,19 @@ export function DropdownMenu({
   label,
   children,
   align = "start",
+  ariaLabel,
+  hideChevron = false,
+  triggerClassName = "",
+  panelClassName = "",
 }: {
   label: ReactNode;
   children: ReactNode;
   align?: "start" | "end";
+  /** Accessible name for an icon-only trigger (pass with hideChevron). */
+  ariaLabel?: string;
+  hideChevron?: boolean;
+  triggerClassName?: string;
+  panelClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -47,12 +56,13 @@ export function DropdownMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+        aria-label={ariaLabel}
+        className={"flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white [@media(pointer:coarse)]:min-h-11 " + triggerClassName}
       >
         {label}
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
+        {!hideChevron && <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
           <path d="M5.5 8l4.5 4.5L14.5 8" />
-        </svg>
+        </svg>}
       </button>
       {open && (
         // Closes on any click inside (a link navigating, a form submitting, a plain button) — the
@@ -68,8 +78,8 @@ export function DropdownMenu({
         <div
           onClick={() => setTimeout(() => setOpen(false), 0)}
           className={
-            "absolute z-20 mt-1 min-w-[14rem] overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg " +
-            (align === "end" ? "end-0" : "start-0")
+            "absolute z-30 mt-1 min-w-[14rem] overflow-hidden rounded-md border border-border bg-surface py-1 shadow-lg " +
+            (align === "end" ? "end-0 " : "start-0 ") + panelClassName
           }
         >
           {children}

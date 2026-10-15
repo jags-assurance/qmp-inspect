@@ -7,7 +7,7 @@ const STACK_ID = "notice-stack";
 
 /**
  * The one floating-notice container (install prompt, terms acceptance, toasts). Fixed to the bottom-end
- * corner on desktop and a full-width bottom sheet on phones, below modals (z-40). It publishes its own
+ * corner on desktop and a full-width bottom sheet on phones, below drawers and modals (z-30). It publishes its own
  * height as --notice-h so the app shell can pad the page and nothing is ever hidden behind it.
  * Mounted once in the app shell; cards render into it through <NoticeCard>.
  */
@@ -33,7 +33,7 @@ export function NoticeStack() {
     <div
       id={STACK_ID}
       ref={ref}
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-col gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:end-4 sm:bottom-4 sm:w-96 sm:max-w-sm sm:p-0"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex max-h-[40dvh] flex-col gap-2 overflow-y-auto p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:end-4 sm:bottom-4 sm:w-96 sm:max-w-sm sm:p-0"
     />
   );
 }

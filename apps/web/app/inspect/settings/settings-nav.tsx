@@ -28,7 +28,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
     <>
       <nav
         aria-label="Settings sections"
-        className="sticky top-[57px] z-[5] -mx-3 mt-4 border-b border-border bg-background px-3 sm:-mx-4 sm:px-4 lg:hidden"
+        className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-[5] -mx-3 mt-4 border-b border-border bg-background px-3 sm:-mx-6 sm:px-6 lg:hidden"
       >
         <ul className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]" aria-label="Groups">
           {groups.map((g) => {
@@ -74,7 +74,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
       </nav>
 
       <nav aria-label="Settings sections" className="hidden lg:mt-6 lg:block lg:w-60 lg:shrink-0">
-        <div className="sticky top-[73px] max-h-[calc(100vh-6rem)] space-y-5 overflow-y-auto pe-2">
+        <div className="sticky top-[calc(var(--header-h)+1rem)] max-h-[calc(100dvh-6rem)] space-y-5 overflow-y-auto pe-2">
           {groups.map((g) => (
             <div key={g.label}>
               <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted">{g.label}</p>

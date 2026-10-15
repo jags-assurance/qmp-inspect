@@ -25,21 +25,27 @@ export function HeaderBreadcrumb({ root, navItems }: { root: string; navItems: N
     if (hit && (!best || item.href.length > best.href.length)) best = item;
   }
   const section = best ? (best.displayLabel ?? best.label) : null;
+  // Phones show only the current location (root > section > record collapses to its last crumb) so the
+  // title never fights the header tools for width; from sm the full trail is shown.
+  const hasTrail = Boolean(section || tail);
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-muted">
-      <Link href={homeHref} className="shrink-0 hover:text-ink hover:underline">
+      <Link
+        href={homeHref}
+        className={"shrink-0 whitespace-nowrap rounded-sm font-medium hover:text-ink hover:underline " + (hasTrail ? "hidden sm:inline" : "text-ink")}
+      >
         {root}
       </Link>
       {section && (
         <>
-          <span aria-hidden="true">›</span>
-          <span className={tail ? "shrink-0" : "truncate font-medium text-ink"}>{section}</span>
+          <span aria-hidden="true" className="hidden text-border-strong sm:inline">/</span>
+          <span className={tail ? "hidden shrink-0 sm:inline" : "truncate font-semibold text-ink"} aria-current={tail ? undefined : "page"}>{section}</span>
         </>
       )}
       {tail && (
         <>
-          <span aria-hidden="true">›</span>
-          <span className="doc-id truncate font-medium text-ink">{tail}</span>
+          <span aria-hidden="true" className="hidden text-border-strong sm:inline">/</span>
+          <span className="doc-id truncate font-semibold text-ink" aria-current="page">{tail}</span>
         </>
       )}
     </nav>

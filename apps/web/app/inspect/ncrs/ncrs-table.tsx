@@ -53,6 +53,17 @@ const STATUS_LABEL: Record<NcrStatus, string> = {
   closed: "Closed",
 };
 
+function StatusBadges({ row, tz }: { row: NcrRegisterRow; tz?: string }) {
+  const overdue = isOverdue(row, tz);
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Badge tone={STATUS_TONE[row.status]} showIcon>{STATUS_LABEL[row.status]}</Badge>
+      {overdue && <Badge tone="danger"><Tx>Overdue</Tx></Badge>}
+      {!overdue && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning"><Tx>Due soon</Tx></Badge>}
+    </div>
+  );
+}
+
 // Round-table finding: this column header was hardcoded "NCR No." even when reused on the
 // Observation Register (observations/page.tsx renders the same NcrsTable), which is confusing on a
 // register whose rows are actually all Observations. Parameterized by the caller instead.
@@ -106,13 +117,7 @@ function buildColumns(idColumnHeader: string, openPanel: (id: string) => void, t
   {
     key: "status",
     header: "Status",
-    render: (row) => (
-      <div className="flex items-center gap-2">
-        <Badge tone={STATUS_TONE[row.status]} showIcon>{STATUS_LABEL[row.status]}</Badge>
-        {isOverdue(row, tzOf(row)) && <Badge tone="danger"><Tx>Overdue</Tx></Badge>}
-        {!isOverdue(row, tzOf(row)) && (daysUntilDue(row) ?? 99) <= 3 && <Badge tone="warning"><Tx>Due soon</Tx></Badge>}
-      </div>
-    ),
+    render: (row) => <StatusBadges row={row} tz={tzOf(row)} />,
   },
   ];
   return columns;
@@ -177,6 +182,38 @@ export function NcrsTable({
       rows={rows}
       caption="Non-conformance reports"
       mobileCards
+      breakpoint="md"
+      renderCard={(row) => (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <Link
+              href={`/inspect/ncrs/${row.id}`}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                e.preventDefault();
+                openPanel(row.id);
+              }}
+              className="doc-id inline-flex min-h-11 items-center text-base font-semibold text-burgundy hover:underline"
+            >
+              {row.ncr_number}
+            </Link>
+            <Badge tone={SEVERITY_TONE[row.severity]}>{SEVERITY_LABEL[row.severity]}</Badge>
+          </div>
+          <p className="line-clamp-2 text-sm text-ink [overflow-wrap:anywhere]">{row.description}</p>
+          <StatusBadges row={row} tz={row.project_id ? timeZones?.[row.project_id] : undefined} />
+          <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+            <span className="min-w-0 truncate">{row.projects?.name ?? "—"}</span>
+            <span aria-hidden="true">·</span>
+            <span className="whitespace-nowrap"><Tx>Due</Tx> {row.due_date ?? "—"}</span>
+            {row.itp_items?.master_disciplines && <Badge tone="neutral" showIcon={false}>{row.itp_items.master_disciplines.code}</Badge>}
+          </p>
+          {gradeAction && row.severity === "observation" && row.status !== "closed" && (
+            <Link href={`/inspect/ncrs/${row.id}#grade`} className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline">
+              <Tx>Grade to NCR</Tx>
+            </Link>
+          )}
+        </div>
+      )}
       searchPlaceholder={searchPlaceholder}
       searchKeys={(row) => `${row.ncr_number} ${row.description} ${row.projects?.name ?? ""}`}
       emptyMessage={emptyMessage}

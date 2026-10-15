@@ -14,13 +14,14 @@ export function bucketAge(daysOpenList: number[]): number[] {
 }
 
 /** Small bar chart of open items by age bucket — real data (days since created_at), no library. */
-export function AgingChart({ counts }: { counts: number[] }) {
+/** `bare` drops the card frame so the chart can sit inside a <Section>. */
+export function AgingChart({ counts, bare = false }: { counts: number[]; bare?: boolean }) {
   const max = Math.max(1, ...counts);
 
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <p className="text-sm font-medium text-ink"><T>Aging profile</T></p>
-      <div className="mt-4 flex items-end gap-4" style={{ height: 96 }}>
+    <div className={bare ? "" : "rounded-lg border border-border bg-surface p-4 shadow-xs"}>
+      {!bare && <p className="text-sm font-medium text-ink"><T>Aging profile</T></p>}
+      <div className={(bare ? "" : "mt-4 ") + "flex items-end gap-4"} style={{ height: 96 }}>
         {BUCKETS.map((label, i) => (
           <div key={label} className="flex flex-1 flex-col items-center gap-1">
             <span className="text-xs font-medium text-ink">{counts[i]}</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { ITP_STATUS_LABEL, ITP_STATUS_TONE } from "./itp-status";
@@ -117,16 +117,16 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
 export function ItpsTable({ rows, totalCount, locale }: { rows: ItpRow[]; totalCount?: number; locale?: SupportedLocale }) {
   const searchParams = useSearchParams();
   const selectedId = searchParams.get("itp");
-  const columns = useMemo(
-    () =>
-      buildColumns((id) => {
-        const p = new URLSearchParams(searchParams.toString());
-        p.set("itp", id);
-        p.delete("pane");
-        return `?${p.toString()}`;
-      }, selectedId),
-    [searchParams, selectedId]
+  const hrefFor = useCallback(
+    (id: string) => {
+      const p = new URLSearchParams(searchParams.toString());
+      p.set("itp", id);
+      p.delete("pane");
+      return `?${p.toString()}`;
+    },
+    [searchParams]
   );
+  const columns = useMemo(() => buildColumns(hrefFor, selectedId), [hrefFor, selectedId]);
   const serverDriven = totalCount !== undefined;
   const { searchValue, setSearchValue, page, goToPage } = useServerDrivenTableParams(serverDriven);
 
@@ -137,6 +137,37 @@ export function ItpsTable({ rows, totalCount, locale }: { rows: ItpRow[]; totalC
       rows={rows}
       caption="Inspection and test plans"
       mobileCards
+      breakpoint="md"
+      renderCard={(row) => {
+        const phase = normalizeItpPhase(row.phase);
+        return (
+          <Link
+            prefetch={false}
+            href={hrefFor(row.id)}
+            scroll={false}
+            aria-current={row.id === selectedId ? "page" : undefined}
+            className="-mx-4 -my-3 block space-y-2 px-4 py-3 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-burgundy"
+          >
+            <span className="flex items-start justify-between gap-2">
+              <span className="doc-id text-base font-semibold text-burgundy">{row.itp_number}</span>
+              <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
+            </span>
+            <span className="line-clamp-2 block text-sm text-ink [overflow-wrap:anywhere]">{row.title}</span>
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+              {row.projects?.name && <span className="min-w-0 truncate">{row.projects.name}</span>}
+              <span aria-hidden="true">·</span>
+              <span className="whitespace-nowrap"><Tx>Rev</Tx> {row.revision}</span>
+              {row.signTotal ? (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="whitespace-nowrap">{progressLabel(row)} <Tx>signed</Tx></span>
+                </>
+              ) : null}
+              <Badge tone={ITP_PHASE_TONE[phase]} showIcon={false}>{ITP_PHASE_LABEL[phase]}</Badge>
+            </span>
+          </Link>
+        );
+      }}
       searchPlaceholder="Search ITPs…"
       searchKeys={(row) => `${row.itp_number} ${row.title}`}
       emptyMessage={searchValue ? "No ITPs match your search." : "No ITPs yet."}

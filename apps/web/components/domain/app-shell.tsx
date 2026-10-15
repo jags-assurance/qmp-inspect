@@ -17,8 +17,8 @@ import { BreadcrumbProvider } from "./breadcrumb-context";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
-import { OrgSwitcher } from "./org-switcher";
-import { GlobalProjectSelector, type ProjectSelectorOption } from "./global-project-selector";
+import { HeaderContext } from "./header-context";
+import type { ProjectSelectorOption } from "./global-project-selector";
 import { setActiveProjectAction } from "@/lib/projects/active-project-actions";
 import { setActiveOrganisationAction } from "@/lib/organizations/active-org-actions";
 import { Tx } from "@/components/domain/tx";
@@ -42,6 +42,8 @@ export interface NavItem {
   /** Translated text shown instead of `label` / `group` (the English strings stay the keys for icons and storage). */
   displayLabel?: string;
   displayGroup?: string;
+  /** Optional count / flag shown at the end of the row (gold pill; a dot on the collapsed icon rail). */
+  badge?: number | string;
 }
 
 export interface OrgBrandingInfo {
@@ -97,7 +99,7 @@ export async function AppShell({
       <IdleTimeout />
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:start-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"><Tx>Skip to main content</Tx></a>
       <BackNavigation />
-      <div className="flex min-h-screen">
+      <div className="flex min-h-dvh">
         <SidebarShell
           navItems={navItems}
           userName={userName}
@@ -106,35 +108,45 @@ export async function AppShell({
           orgBranding={orgBranding}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface px-3 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <MobileSidebarToggle />
-            <HeaderBreadcrumb root={breadcrumb} navItems={navItems} />
-          </div>
-          <div className="flex flex-1 items-center justify-end gap-4">
-            {orgSwitcher && orgSwitcher.options.length > 1 && (
-              <OrgSwitcher options={orgSwitcher.options} activeId={orgSwitcher.activeId} action={setActiveOrganisationAction} />
-            )}
-            {projectSelector && (
-              <Suspense fallback={null}>
-                <GlobalProjectSelector options={projectSelector.options} activeId={projectSelector.activeId} action={setActiveProjectAction} />
-              </Suspense>
-            )}
-            <CommandPalette navItems={navItems} />
-            {/* Streamed: the bell used to be fetched before ANYTHING rendered, adding a round-trip to every
-                page's first byte. The page now paints immediately and the bell fills in. */}
-            <Suspense fallback={<NotificationsBell userId={userId} initialNotifications={[]} />}>
-              <NotificationsBellLoader userId={userId} />
-            </Suspense>
-            <UserMenu userName={userName} userRole={userRole} signOutAction={signOutAction} links={userMenuLinks} needsTerms={showTermsBanner} />
-          </div>
-        </header>
-        <OfflineBanner />
-        <main id="main-content" tabIndex={-1} className="min-w-0 outline-none flex-1 bg-background p-3 pb-[calc(0.75rem+var(--notice-h,0px))] sm:p-4 sm:pb-[calc(1rem+var(--notice-h,0px))] lg:p-6 lg:pb-[calc(1.5rem+var(--notice-h,0px))]">{children}</main>
-        <NoticeStack />
-        <footer className="border-t border-border bg-surface px-3 py-3 sm:px-6">
-          <SiteLinks signedIn />
-        </footer>
+          {/* ONE compact 56px row: menu (< lg) - breadcrumb - context - search - bell - avatar. The only sticky element. */}
+          <header className="no-print sticky top-0 z-20 border-b border-border bg-surface pt-[env(safe-area-inset-top)] ps-[env(safe-area-inset-left)] pe-[env(safe-area-inset-right)] lg:ps-0 lg:pe-0">
+            <div className="flex h-14 items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
+              <MobileSidebarToggle />
+              <div className="min-w-0 flex-1">
+                <HeaderBreadcrumb root={breadcrumb} navItems={navItems} />
+              </div>
+              <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+                <Suspense fallback={null}>
+                  <HeaderContext
+                    orgSwitcher={orgSwitcher}
+                    projectSelector={projectSelector}
+                    setActiveOrganisationAction={setActiveOrganisationAction}
+                    setActiveProjectAction={setActiveProjectAction}
+                  />
+                </Suspense>
+                <CommandPalette navItems={navItems} />
+                {/* Streamed: the bell used to be fetched before ANYTHING rendered, adding a round-trip to every
+                    page first byte. The page now paints immediately and the bell fills in. */}
+                <Suspense fallback={<NotificationsBell userId={userId} initialNotifications={[]} />}>
+                  <NotificationsBellLoader userId={userId} />
+                </Suspense>
+                <UserMenu userName={userName} userRole={userRole} signOutAction={signOutAction} links={userMenuLinks} needsTerms={showTermsBanner} />
+              </div>
+            </div>
+          </header>
+          <OfflineBanner />
+          {/* Page container: padding steps 12 / 24 / 32 px by breakpoint; content never wider than --content-max (1440px). */}
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="min-w-0 flex-1 bg-background px-3 py-4 pb-[calc(1rem+var(--notice-h,0px))] outline-none sm:px-6 sm:py-6 sm:pb-[calc(1.5rem+var(--notice-h,0px))] lg:px-8 lg:py-8 lg:pb-[calc(2rem+var(--notice-h,0px))]"
+          >
+            <div className="mx-auto w-full max-w-[var(--content-max)]">{children}</div>
+          </main>
+          <NoticeStack />
+          <footer className="no-print border-t border-border bg-surface px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8">
+            <SiteLinks signedIn />
+          </footer>
         </div>
       </div>
     </SidebarMobileProvider>

@@ -3,7 +3,36 @@ import { T } from "@/components/domain/t";
 // look as the existing per-section skeletons (animate-pulse blocks on the off-white tone), so a new
 // section's loading.tsx is two lines instead of a copy of the markup.
 
-const block = "animate-pulse rounded bg-off-white";
+const block = "animate-pulse rounded bg-surface-sunken";
+
+/** Primitive loading block: size it with className (h-4 w-32, h-24 w-full...). Decorative, aria-hidden. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div aria-hidden="true" className={`${block} ${className}`} />;
+}
+
+/** Page title, subtitle and one action button placeholder: matches <PageHeader>. */
+export function PageHeaderSkeleton({ action = true }: { action?: boolean }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-3 sm:mb-6">
+      <div className="min-w-0 flex-1">
+        <Skeleton className="h-8 w-56 max-w-full" />
+        <Skeleton className="mt-2 h-4 w-80 max-w-full" />
+      </div>
+      {action && <Skeleton className="h-10 w-32 rounded-md" />}
+    </div>
+  );
+}
+
+/** A StatGrid of placeholder tiles. */
+export function StatGridSkeleton({ tiles = 4 }: { tiles?: number }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4 sm:gap-4">
+      {Array.from({ length: tiles }).map((_, i) => (
+        <Skeleton key={i} className="h-24 rounded-lg border border-border" />
+      ))}
+    </div>
+  );
+}
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -37,7 +66,7 @@ export function TableSkeleton({ rows = 8, filters = true }: { rows?: number; fil
       )}
       <div className="mt-4 overflow-hidden rounded-lg border border-border">
         {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="h-12 animate-pulse border-b border-border bg-off-white/60" />
+          <div key={i} className="h-12 animate-pulse border-b border-border bg-surface-sunken/60" />
         ))}
       </div>
     </Frame>
@@ -51,7 +80,7 @@ export function CardGridSkeleton({ cards = 6 }: { cards?: number }) {
       <Heading withSubtitle />
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: cards }).map((_, i) => (
-          <div key={i} className="h-32 animate-pulse rounded-lg border border-border bg-off-white" />
+          <div key={i} className="h-32 animate-pulse rounded-lg border border-border bg-surface-sunken" />
         ))}
       </div>
     </Frame>
@@ -65,12 +94,12 @@ export function StatsSkeleton({ tiles = 4 }: { tiles?: number }) {
       <Heading withSubtitle />
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         {Array.from({ length: tiles }).map((_, i) => (
-          <div key={i} className="h-24 animate-pulse rounded-lg border border-border bg-off-white" />
+          <div key={i} className="h-24 animate-pulse rounded-lg border border-border bg-surface-sunken" />
         ))}
       </div>
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="h-64 animate-pulse rounded-lg border border-border bg-off-white" />
-        <div className="h-64 animate-pulse rounded-lg border border-border bg-off-white" />
+        <div className="h-64 animate-pulse rounded-lg border border-border bg-surface-sunken" />
+        <div className="h-64 animate-pulse rounded-lg border border-border bg-surface-sunken" />
       </div>
     </Frame>
   );
@@ -113,14 +142,14 @@ export function DetailSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <Frame>
       <Heading withSubtitle />
-      <div className="mt-6 h-20 animate-pulse rounded-lg border border-border bg-off-white" />
+      <div className="mt-6 h-20 animate-pulse rounded-lg border border-border bg-surface-sunken" />
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-3 lg:col-span-2">
           {Array.from({ length: rows }).map((_, i) => (
-            <div key={i} className="h-14 animate-pulse rounded-lg border border-border bg-off-white" />
+            <div key={i} className="h-14 animate-pulse rounded-lg border border-border bg-surface-sunken" />
           ))}
         </div>
-        <div className="h-64 animate-pulse rounded-lg border border-border bg-off-white" />
+        <div className="h-64 animate-pulse rounded-lg border border-border bg-surface-sunken" />
       </div>
     </Frame>
   );

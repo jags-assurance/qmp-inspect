@@ -41,7 +41,7 @@ export function WorkspaceTabs({
   return (
     <nav
       aria-label="Project sections"
-      className="sticky top-[57px] z-[5] -mx-3 mt-6 border-b border-border bg-background px-3 sm:-mx-4 sm:px-4 lg:-mx-6 lg:px-6"
+      className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-[5] -mx-3 mt-6 border-b border-border bg-background px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
     >
       <ul className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]">
         {tabs.map((tab) => {

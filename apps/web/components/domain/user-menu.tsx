@@ -82,23 +82,24 @@ export function UserMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex min-h-11 items-center gap-2 rounded-full py-1 ps-1 pe-2 hover:bg-off-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-burgundy sm:pe-3"
+        aria-label={`${userName} (${userRole})`}
+        className="flex h-11 items-center gap-2 rounded-full py-1 ps-1 pe-1 hover:bg-surface-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-burgundy lg:pe-3"
       >
-        <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
+        <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
           {initials}
           {termsPending && <span aria-label={tl("Terms of use to accept")} className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-surface bg-danger" />}
         </span>
-        <span className="hidden text-start leading-tight sm:block">
-          <span className="block text-sm font-medium text-ink">{userName}</span>
-          <span className="block text-xs text-muted">{userRole}</span>
+        <span className="hidden max-w-[11rem] text-start leading-tight lg:block">
+          <span className="block truncate whitespace-nowrap text-sm font-medium text-ink">{userName}</span>
+          <span className="block truncate whitespace-nowrap text-xs text-muted">{userRole}</span>
         </span>
-        <span aria-hidden="true" className="hidden text-xs text-muted sm:inline">
+        <span aria-hidden="true" className="hidden text-xs text-muted lg:inline">
           ▾
         </span>
       </button>
 
       {open && (
-        <div role="menu" className="absolute end-0 z-30 mt-2 w-64 overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+        <div role="menu" className="absolute end-0 z-30 mt-2 w-[min(16rem,calc(100vw-1.5rem))] overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
           <div className="border-b border-border px-4 py-3">
             <p className="truncate text-sm font-medium text-ink">{userName}</p>
             <p className="text-xs text-muted">{userRole}</p>

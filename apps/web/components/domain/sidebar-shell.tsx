@@ -1,20 +1,56 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { NavItem, OrgBrandingInfo } from "./app-shell";
 import { SidebarNav } from "./sidebar-nav";
 import { useSidebarMobile } from "./sidebar-mobile-context";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { useFocusTrap } from "@/lib/hooks/use-focus-trap";
 
 const STORAGE_KEY = "jags-sidebar-collapsed";
+const PREF_EVENT = "jags-sidebar-pref";
+
+// In-memory mirror so the toggle still works when storage is blocked (it just will not persist).
+let memoryPref: string | null = null;
+
+function readPref(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY) ?? memoryPref;
+  } catch {
+    return memoryPref;
+  }
+}
+
+function writePref(value: "0" | "1") {
+  memoryPref = value;
+  try {
+    localStorage.setItem(STORAGE_KEY, value);
+  } catch {
+    // Storage blocked: the in-memory mirror keeps this page view consistent.
+  }
+  window.dispatchEvent(new Event(PREF_EVENT));
+}
+
+function subscribePref(onChange: () => void) {
+  window.addEventListener(PREF_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(PREF_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
 
 /**
- * Owns the sidebar's collapse/expand state (persisted per-browser via localStorage — a per-viewer
- * UI preference, not data, so this is the right place for it per the app's own conventions) and its
- * sticky positioning. Split out from AppShell (a server component) because this needs client-side
- * state; AppShell still owns the header/breadcrumb/search and passes the sign-out form in as a
- * server action reference, which Next.js allows across the server/client boundary.
+ * The app sidebar. Three behaviours by viewport (see docs/UI_DESIGN_SYSTEM.md):
+ *  - desktop (>= 1440px): fixed 256px column with group headings, always expanded.
+ *  - laptop (1024-1439px): sticky column that collapses to a 72px icon rail with tooltips. The choice is
+ *    remembered in localStorage (safe wrapper; no stored choice = rail, to give content the width).
+ *  - tablet / phone (< 1024px): off-canvas drawer with overlay, focus trap, Esc to close, inert page
+ *    behind it, safe-area insets. Always full width regardless of the rail preference.
+ * The server renders the expanded markup; the client adjusts after hydration (stored preference via
+ * useSyncExternalStore, so there is no hydration mismatch).
  */
 export function SidebarShell({
   navItems,
@@ -31,85 +67,50 @@ export function SidebarShell({
 }) {
   const tl = useTranslate();
   // Reqs R113-R118: engagement_mode drives visual branding the same way it already drives document
-  // numbering (lib/numbering/generate.ts's internalReference) — jags_led (or no logo uploaded)
-  // renders exactly as before; co_branded shows the org's logo alongside JAGS's own mark; white_label
-  // replaces JAGS's mark with the org's logo and adds the "Powered by JAGS Assurance" small print
-  // this session's requirement literally asks for.
+  // numbering — jags_led (or no logo uploaded) renders the JAGS mark; co_branded shows the org's logo
+  // alongside it; white_label replaces it with the org's logo plus "Powered by JAGS Assurance".
   const engagementMode = orgBranding?.engagementMode ?? "jags_led";
   const logoUrl = orgBranding?.logoUrl ?? null;
   const isWhiteLabel = engagementMode === "white_label" && Boolean(logoUrl);
   const isCoBranded = engagementMode === "co_branded" && Boolean(logoUrl);
-  // Optional 4-color combo (Microsoft/Google-style multi-color mark), set on Organisation ->
-  // Branding — renders the badge as a conic-gradient ring instead of its plain single-accent
-  // border. Only relevant for a non-staff login whose own org opted in (JAGS staff always see the
-  // plain default mark, same as the logo/co-branding above never applying to them either).
+  // Optional multi-colour ring for the "JA" badge (Organisation -> Branding).
   const brandCombo = orgBranding?.brandCombo ?? null;
-  // Starts expanded on the server and on first client paint (matches SSR markup, no hydration
-  // mismatch — the same discipline as offline-banner.tsx elsewhere in this app), then reads the
-  // real stored preference in an effect once mounted.
-  const [collapsed, setCollapsed] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  // The desktop collapse preference is meaningless on a mobile drawer meant to be opened
-  // deliberately (an icon-only rail there defeats the point) — tracked separately from `collapsed`
-  // so the drawer always renders fully expanded below 901px regardless of what was last toggled
-  // on a wider viewport.
-  const [isDesktop, setIsDesktop] = useState(true);
+
+  const isLg = useMediaQuery("(min-width: 1024px)", true);
+  const isDesk = useMediaQuery("(min-width: 1440px)", true);
+  const pref = useSyncExternalStore(subscribePref, readPref, () => null);
+  // Rail only on laptop; desktop is always full; the drawer is always full.
+  const railAllowed = isLg && !isDesk;
+  const rail = railAllowed && pref !== "0";
   const { open: mobileOpen, setOpen: setMobileOpen } = useSidebarMobile();
 
-  useEffect(() => {
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-mount / external-event sync (hydration-safe default, then real value); not derivable during render
-      setCollapsed(localStorage.getItem(STORAGE_KEY) === "1");
-    } catch {
-      // Private browsing / storage blocked — just stays expanded.
-    }
-    setMounted(true);
-
-    const mql = window.matchMedia("(min-width: 901px)");
-    setIsDesktop(mql.matches);
-    const onChange = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-
-  const effectiveCollapsed = isDesktop && collapsed;
   const asideRef = useRef<HTMLElement>(null);
-  const drawerHidden = !isDesktop && !mobileOpen;
+  const drawerActive = !isLg && mobileOpen;
+  const drawerHidden = !isLg && !mobileOpen;
+  const closeDrawer = useCallback(() => setMobileOpen(false), [setMobileOpen]);
+  useFocusTrap(asideRef, drawerActive, closeDrawer, { restoreFocus: false });
 
-  // Drawer behaviour below 901px: Esc closes it, focus moves into it on open and back to the opener
-  // on close, and the page behind it is inert (keyboard and screen-reader users can't wander out
-  // of a modal drawer). When closed, the aside itself is inert + hidden so its ~25 links are not in
-  // the tab order or the accessibility tree.
+  // Page behind the open drawer is inert; closing returns focus to the hamburger. Growing to laptop closes it.
   useEffect(() => {
-    const main = document.querySelector("main");
-    if (isDesktop || !mobileOpen) {
-      main?.removeAttribute("inert");
-      return;
-    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- external viewport change closes the drawer
+    if (isLg && mobileOpen) setMobileOpen(false);
+  }, [isLg, mobileOpen, setMobileOpen]);
+  useEffect(() => {
+    if (!drawerActive) return;
     const opener = document.activeElement as HTMLElement | null;
-    main?.setAttribute("inert", "");
-    asideRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMobileOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
+    const targets = Array.from(document.querySelectorAll<HTMLElement>("main, footer"));
+    targets.forEach((el) => el.setAttribute("inert", ""));
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
-      main?.removeAttribute("inert");
-      (document.querySelector("[data-sidebar-toggle]") as HTMLElement | null ?? opener)?.focus?.();
+      targets.forEach((el) => el.removeAttribute("inert"));
+      document.body.style.overflow = prevOverflow;
+      ((document.querySelector("[data-sidebar-toggle]") as HTMLElement | null) ?? opener)?.focus?.();
     };
-  }, [isDesktop, mobileOpen, setMobileOpen]);
+  }, [drawerActive]);
 
-  function toggle() {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        // Nothing to persist to — the toggle still works for this page view.
-      }
-      return next;
-    });
+  function toggleRail() {
+    writePref(rail ? "0" : "1");
   }
 
   const initials = userName
@@ -121,14 +122,13 @@ export function SidebarShell({
 
   return (
     <>
-      {/* Backdrop, mobile-only (<=900px), closes the drawer on tap outside it. */}
-      {mobileOpen && (
+      {mobileOpen && !isLg && (
         <button
           type="button"
           tabIndex={-1}
           aria-label={tl("Close menu")}
-          className="fixed inset-0 z-20 cursor-default bg-black/40 min-[901px]:hidden"
-          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 cursor-default bg-overlay lg:hidden"
+          onClick={closeDrawer}
         />
       )}
       <aside
@@ -138,127 +138,117 @@ export function SidebarShell({
         inert={drawerHidden}
         aria-hidden={drawerHidden ? true : undefined}
         aria-label={tl("Sidebar")}
+        role={drawerActive ? "dialog" : undefined}
+        aria-modal={drawerActive ? true : undefined}
         className={
-          "flex h-screen flex-col overflow-y-auto bg-burgundy text-white outline-none transition-all duration-150 " +
-          // Desktop (>900px): permanent, sticky column, collapsible width.
-          "min-[901px]:sticky min-[901px]:top-0 min-[901px]:z-auto min-[901px]:self-start min-[901px]:shrink-0 min-[901px]:translate-x-0 " +
-          (collapsed ? "min-[901px]:w-16" : "min-[901px]:w-60") +
-          // Mobile (<=900px): fixed off-canvas drawer, closed by default, full nav width regardless
-          // of the desktop collapse preference (a collapsed icon-only rail defeats the point of a
-          // drawer meant to be opened deliberately).
-          " fixed inset-y-0 start-0 z-30 w-64 max-[900px]:shadow-xl " +
-          (mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full min-[901px]:translate-x-0 min-[901px]:rtl:translate-x-0") +
-          // Avoids a flash of the wrong width on first paint while the effect above hasn't run yet.
-          (mounted ? "" : " duration-0")
+          "flex flex-col overflow-y-auto overscroll-contain bg-burgundy text-white outline-none " +
+          // Drawer (< 1024): fixed off-canvas panel, never wider than the screen, safe-area padded.
+          "fixed inset-y-0 start-0 z-40 w-[min(var(--sidebar-w),88vw)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] ps-[env(safe-area-inset-left)] " +
+          "transition-transform duration-200 motion-reduce:transition-none " +
+          (mobileOpen ? "translate-x-0 shadow-xl " : "-translate-x-full rtl:translate-x-full ") +
+          // Laptop and up: sticky column in the page flow.
+          "lg:sticky lg:top-0 lg:z-auto lg:h-dvh lg:shrink-0 lg:translate-x-0 lg:self-start lg:pt-0 lg:pb-0 lg:ps-0 lg:shadow-none lg:rtl:translate-x-0 lg:transition-[width] " +
+          (rail ? "lg:w-[var(--sidebar-rail-w)]" : "lg:w-[var(--sidebar-w)]")
         }
       >
-      <div className={"flex items-center gap-2 px-4 py-5 " + (effectiveCollapsed ? "justify-center px-2" : "")}>
-        {isWhiteLabel ? (
-          // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
-          <img
-            src={logoUrl!}
-            alt="Organisation logo"
-            className={effectiveCollapsed ? "h-9 max-w-9 object-contain" : "h-9 max-w-[9.5rem] object-contain"}
-          />
-        ) : (
-          <>
-            <div
-              className={
-                "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold" +
-                (brandCombo ? " p-[3px]" : " border-2 border-gold")
-              }
-              style={brandCombo ? { background: `conic-gradient(${brandCombo.join(", ")}, ${brandCombo[0]})` } : undefined}
-            >
-              <span className={brandCombo ? "flex h-full w-full items-center justify-center rounded-full bg-burgundy" : "contents"}>
-                <Tx>JA</Tx>
-              </span>
-            </div>
-            {!effectiveCollapsed && <span className="truncate font-semibold tracking-wide"><Tx>JAGS Assurance</Tx></span>}
-          </>
-        )}
-        {isCoBranded && !effectiveCollapsed && (
-          // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
-          <img src={logoUrl!} alt="Organisation logo" className="ms-2 h-8 max-w-[6.5rem] border-s border-white/25 ps-2 object-contain" />
-        )}
-      </div>
+        <div className={"flex h-14 shrink-0 items-center gap-2.5 border-b border-white/10 px-4 " + (rail ? "lg:justify-center lg:px-2" : "")}>
+          {isWhiteLabel ? (
+            // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
+            <img
+              src={logoUrl!}
+              alt="Organisation logo"
+              className={rail ? "h-9 max-w-9 object-contain" : "h-9 max-w-[9.5rem] object-contain"}
+            />
+          ) : (
+            <>
+              <div
+                className={
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold" +
+                  (brandCombo ? " p-[3px]" : " border-2 border-gold")
+                }
+                style={brandCombo ? { background: `conic-gradient(${brandCombo.join(", ")}, ${brandCombo[0]})` } : undefined}
+              >
+                <span className={brandCombo ? "flex h-full w-full items-center justify-center rounded-full bg-burgundy" : "contents"}>
+                  <Tx>JA</Tx>
+                </span>
+              </div>
+              {!rail && <span className="truncate text-[0.95rem] font-semibold tracking-wide"><Tx>JAGS Assurance</Tx></span>}
+            </>
+          )}
+          {isCoBranded && !rail && (
+            // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not a static asset
+            <img src={logoUrl!} alt="Organisation logo" className="ms-2 h-8 max-w-[6.5rem] border-s border-white/25 ps-2 object-contain" />
+          )}
+        </div>
 
-      <SidebarNav items={navItems} collapsed={effectiveCollapsed} />
+        <SidebarNav items={navItems} collapsed={rail} />
 
-      <div className="px-3 pb-2 max-[900px]:hidden">
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className={
-            "flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white " +
-            (collapsed ? "justify-center px-0" : "")
-          }
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={"h-4 w-4 shrink-0 transition-transform rtl:-scale-x-100 " + (collapsed ? "rotate-180" : "")}
-          >
-            <path d="M12.5 4.5L7 10l5.5 5.5" />
-          </svg>
-          {!collapsed && <span><Tx>Collapse</Tx></span>}
-        </button>
-      </div>
-
-      <div className={"border-t border-white/15 px-4 py-4 " + (effectiveCollapsed ? "px-2 text-center" : "")}>
-        {effectiveCollapsed ? (
-          <div
-            title={`${userName} · ${userRole}`}
-            className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold"
-          >
-            {initials}
-          </div>
-        ) : (
-          <>
-            <div className="text-sm font-medium">{userName}</div>
-            <div className="text-xs text-white/70">{userRole}</div>
-          </>
-        )}
-        <form action={signOutAction} className={effectiveCollapsed ? "mt-2 flex justify-center" : ""}>
+        {/* Rail toggle: laptop only. Desktop is always expanded and the drawer is always full. */}
+        <div className="hidden px-3 pb-2 lg:block desk:hidden">
           <button
-            type="submit"
-            title={tl("Sign out")}
+            type="button"
+            onClick={toggleRail}
+            aria-label={rail ? tl("Expand sidebar") : tl("Collapse sidebar")}
+            aria-expanded={!rail}
+            title={rail ? tl("Expand sidebar") : tl("Collapse sidebar")}
             className={
-              effectiveCollapsed
-                ? "flex h-7 w-7 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white"
-                : "mt-2 text-xs text-white/70 hover:text-white hover:underline"
+              "flex min-h-10 w-full items-center gap-2 rounded-md px-3 text-xs font-medium text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-gold " +
+              (rail ? "justify-center px-0" : "")
             }
           >
-            {effectiveCollapsed ? (
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <path d="M8 3.5H5a1.5 1.5 0 00-1.5 1.5v10A1.5 1.5 0 005 16.5h3" />
-                <path d="M13 13.5l3.5-3.5L13 6.5" />
-                <path d="M16.5 10h-9" />
-              </svg>
-            ) : (
-              "Sign out"
-            )}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className={"h-4 w-4 shrink-0 transition-transform rtl:-scale-x-100 " + (rail ? "rotate-180" : "")}
+            >
+              <path d="M12.5 4.5L7 10l5.5 5.5" />
+            </svg>
+            {!rail && <span><Tx>Collapse</Tx></span>}
           </button>
-        </form>
-        {isWhiteLabel && !effectiveCollapsed && (
-          <div className="mt-3 text-xs text-white/50"><Tx>Powered by JAGS Assurance</Tx></div>
-        )}
-      </div>
+        </div>
+
+        <div className={"border-t border-white/10 px-4 py-3 " + (rail ? "lg:px-2 lg:text-center" : "")}>
+          {rail ? (
+            <div className="hidden flex-col items-center gap-2 lg:flex">
+              <div
+                title={`${userName} · ${userRole}`}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-xs font-semibold"
+              >
+                {initials}
+              </div>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  title={tl("Sign out")}
+                  aria-label={tl("Sign out")}
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-white/80 hover:bg-white/10 hover:text-white focus-visible:outline-gold"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                    <path d="M8 3.5H5a1.5 1.5 0 00-1.5 1.5v10A1.5 1.5 0 005 16.5h3" />
+                    <path d="M13 13.5l3.5-3.5L13 6.5" />
+                    <path d="M16.5 10h-9" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          ) : null}
+          {/* Full footer: always on the drawer (below lg) and whenever the sidebar is expanded. */}
+          <div className={rail ? "lg:hidden" : ""}>
+            <div className="truncate text-sm font-medium">{userName}</div>
+            <div className="text-xs text-white/75">{userRole}</div>
+            <form action={signOutAction}>
+              <button type="submit" className="mt-2 inline-flex min-h-9 items-center text-xs text-white/80 hover:text-white hover:underline focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11">
+                <Tx>Sign out</Tx>
+              </button>
+            </form>
+            {isWhiteLabel && <div className="mt-2 text-xs text-white/60"><Tx>Powered by JAGS Assurance</Tx></div>}
+          </div>
+        </div>
       </aside>
     </>
   );

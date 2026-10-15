@@ -3,7 +3,9 @@
 import { Tx } from "@/components/domain/tx";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { StatCard } from "@/components/ui/stat-card";
+import { StatTile, StatGrid } from "@/components/ui/stat-tile";
+import { PageHeader } from "@/components/ui/page-header";
+import { Section } from "@/components/ui/section";
 import { Badge } from "@/components/ui/badge";
 import { DataTable } from "@/components/ui/data-table";
 import { SidePanel, useUrlPanel } from "@/components/ui/side-panel";
@@ -140,102 +142,95 @@ export function AdminDashboard({
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm text-muted" suppressHydrationWarning>
-            {greeting}, {firstName}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold text-ink"><Tx>JAGS Admin Overview</Tx></h1>
-            <PageGuide
-              title={tl("JAGS Admin Overview — how this works")}
-              points={[
-                "This view only renders for JAGS Admin — Inspectors and every external party each get their own dashboard instead, scoped to their own work.",
-                "\"Pending proposals\" are submissions to the Tier-1 ITP template library — an Inspector can propose a new template or an update, but only an Admin can approve one.",
-                "The portfolio table's active-project and open-NCR counts are computed per organisation from the same RLS-scoped rows every other page reads, not a separate summary table.",
-                ...ADMIN_GUIDE,
-              ]}
-            />
-          </div>
-          <p className="mt-1 text-sm text-muted">{today} <Tx>· Your clients at a glance.</Tx></p>
-        </div>
-        <Link
-          href="/inspect/projects/new"
-          className={buttonVariants()}
-        >
-          <Tx>New project</Tx>
-        </Link>
-      </div>
+      <PageHeader
+        title={<Tx>JAGS Admin Overview</Tx>}
+        subtitle={
+          <>
+            <span suppressHydrationWarning>{greeting}, {firstName}</span> · {today} <Tx>· Your clients at a glance.</Tx>
+          </>
+        }
+        guide={
+          <PageGuide
+            title={tl("JAGS Admin Overview — how this works")}
+            points={[
+              "This view only renders for JAGS Admin — Inspectors and every external party each get their own dashboard instead, scoped to their own work.",
+              "\"Pending proposals\" are submissions to the Tier-1 ITP template library — an Inspector can propose a new template or an update, but only an Admin can approve one.",
+              "The portfolio table's active-project and open-NCR counts are computed per organisation from the same RLS-scoped rows every other page reads, not a separate summary table.",
+              ...ADMIN_GUIDE,
+            ]}
+          />
+        }
+        primaryAction={
+          <Link href="/inspect/projects/new" className={buttonVariants()}>
+            <Tx>New project</Tx>
+          </Link>
+        }
+      />
 
       {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
-      <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 2xl:grid-cols-6">
+      <StatGrid max={6}>
         {overdueHoldsTile}
-        <StatCard
+        <StatTile
           label="Open NCRs"
           value={openNcrTotal}
           href="/inspect/ncrs"
+          tone="danger"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-danger/10 text-danger">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <path d="M10 3l7.5 13h-15L10 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-                <path d="M10 8.5v3.5M10 14.2v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <path d="M10 3l7.5 13h-15L10 3z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+              <path d="M10 8.5v3.5M10 14.2v.1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
           }
         />
-        <StatCard
+        <StatTile
           label="Library proposals"
           value={pendingProposalTotal}
           href="/inspect/itp-master/proposals"
+          tone="warning"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/10 text-warning">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="4" y="3" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 7h6M7 10h6M7 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <rect x="4" y="3" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M7 7h6M7 10h6M7 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
           }
         />
-        <StatCard
+        <StatTile
           label="Inspections in progress"
           value={pendingInspections}
           href="/inspect/inspections?result=in_progress"
+          tone="info"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-info/10 text-info">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <rect x="4" y="4" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M6.5 10l2 2 4-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           }
         />
-        <StatCard
+        <StatTile
           label="Active projects"
           value={activeProjects}
           href="/inspect/projects"
+          tone="brand"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-burgundy/10 text-burgundy">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="3" y="7" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 7V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 13 5.5V7" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <rect x="3" y="7" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M7 7V5.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 13 5.5V7" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
           }
         />
-        <StatCard
+        <StatTile
           label="Active ITPs"
           value={activeItps}
           href="/inspect/itps"
+          tone="gold"
           icon={
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/20 text-[color:var(--color-burgundy-dark)]">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
-                <rect x="5" y="3" width="10" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7.5 7h5M7.5 10h5M7.5 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+              <rect x="5" y="3" width="10" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M7.5 7h5M7.5 10h5M7.5 13h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
           }
         />
-      </div>
+      </StatGrid>
 
       {/* Window-grid layout (new purpose: every section as its own window, not one column of
           stacked panels) — three small real-time watchlists side by side on a wide screen (Overdue
@@ -243,7 +238,7 @@ export function AdminDashboard({
           never pushes the others down the page, with the two wide DataTables (Proposals,
           Organisations) as their own full-width windows below. */}
       {clearancesWidget}
-      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {overdueHoldsCard}
 
         <Watchlist
@@ -312,74 +307,65 @@ export function AdminDashboard({
       {/* Full-width window below the 3-up grid — a wide DataTable (5 columns plus the inline
           review form) reads better at full width than squeezed into one of three small panes. */}
       {pendingProposals.length > 0 && (
-        <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-medium text-ink"><Tx>Master Library proposals awaiting review</Tx></h2>
-              <p className="mt-1 text-sm text-muted"><Tx>Waiting for your decision.</Tx></p>
-            </div>
-            <Link href="/inspect/itp-master/proposals" className="text-sm font-medium text-burgundy hover:underline">
+        <Section
+          className="mt-6"
+          title={<Tx>Master Library proposals awaiting review</Tx>}
+          description={<Tx>Waiting for your decision.</Tx>}
+          actions={
+            <Link href="/inspect/itp-master/proposals" className="inline-flex min-h-9 items-center text-sm font-medium text-brand hover:underline">
               <Tx>View all</Tx>{pendingProposalTotal > pendingProposals.length ? ` ${pendingProposalTotal}` : ""} →
             </Link>
-          </div>
-          <div className="mt-3">
-            <DataTable
-              rows={pendingProposals}
-              searchPlaceholder="Search proposals…"
-              searchKeys={(r) => `${r.title} ${r.sourceItpLabel ?? ""}`}
-              emptyMessage="No pending proposals."
-              columns={[
-                { key: "title", header: "Proposal", render: (r) => r.title },
-                {
-                  key: "source",
-                  header: "Source ITP",
-                  render: (r) =>
-                    r.sourceItpId ? (
-                      <Link href={`/inspect/itps/${r.sourceItpId}`} className="text-burgundy hover:underline">
-                        {r.sourceItpLabel}
-                      </Link>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    ),
-                },
-                {
-                  key: "submitted",
-                  header: "Submitted",
-                  render: (r) => <span className="text-muted">{new Date(r.submittedOn).toLocaleDateString("en-GB")}</span>,
-                },
-                { key: "status", header: "Status", render: () => <Badge tone="warning"><Tx>Pending review</Tx></Badge> },
-                {
-                  key: "action",
-                  header: "",
-                  render: (r) => (
-                    <Button
-                      type="button"
-                      onClick={() => panel.open(`proposal:${r.id}`)}
-                      variant="link"
-                    >
-                      <Tx>Review</Tx>
-                    </Button>
+          }
+        >
+          <DataTable
+            rows={pendingProposals}
+            breakpoint="md"
+            searchPlaceholder="Search proposals…"
+            searchKeys={(r) => `${r.title} ${r.sourceItpLabel ?? ""}`}
+            emptyMessage="No pending proposals."
+            columns={[
+              { key: "title", header: "Proposal", render: (r) => r.title },
+              {
+                key: "source",
+                header: "Source ITP",
+                render: (r) =>
+                  r.sourceItpId ? (
+                    <Link href={`/inspect/itps/${r.sourceItpId}`} className="text-burgundy hover:underline">
+                      {r.sourceItpLabel}
+                    </Link>
+                  ) : (
+                    <span className="text-muted">—</span>
                   ),
-                },
-              ]}
-            />
-          </div>
-          <p className="mt-2 text-xs">
+              },
+              {
+                key: "submitted",
+                header: "Submitted",
+                render: (r) => <span className="text-muted">{new Date(r.submittedOn).toLocaleDateString("en-GB")}</span>,
+              },
+              { key: "status", header: "Status", render: () => <Badge tone="warning"><Tx>Pending review</Tx></Badge> },
+              {
+                key: "action",
+                header: "",
+                render: (r) => (
+                  <Button type="button" onClick={() => panel.open(`proposal:${r.id}`)} variant="link">
+                    <Tx>Review</Tx>
+                  </Button>
+                ),
+              },
+            ]}
+          />
+          <p className="mt-3 text-xs">
             <Link href="/inspect/itp-master/proposals" className="text-burgundy hover:underline">
               <Tx>Open the full proposals queue →</Tx>
             </Link>
           </p>
-        </div>
+        </Section>
       )}
 
       {/* Another full-width window — same reasoning as Proposals above. */}
-      <div className="mt-6 rounded-lg border border-border bg-surface p-4">
-        <h2 className="font-medium text-ink"><Tx>Your organisations</Tx></h2>
-        <p className="mt-1 text-sm text-muted">
-          <Tx>Clients you have access to.</Tx>
-        </p>
-        <div className="mt-3">
+      <Section className="mt-6" title={<Tx>Your organisations</Tx>} description={<Tx>Clients you have access to.</Tx>}>
           <DataTable
+            breakpoint="md"
             rows={orgPortfolio}
             searchPlaceholder="Search organisations…"
             searchKeys={(r) => r.name}
@@ -425,8 +411,7 @@ export function AdminDashboard({
               },
             ]}
           />
-        </div>
-      </div>
+      </Section>
 
       <SidePanel
         open={!!openProposal}

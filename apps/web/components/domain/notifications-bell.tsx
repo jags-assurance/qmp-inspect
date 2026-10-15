@@ -137,9 +137,9 @@ export function NotificationsBell({
         type="button"
         aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
         onClick={() => setOpen((v) => !v)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted hover:bg-off-white hover:text-ink"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full text-ink hover:bg-surface-subtle sm:h-10 sm:w-10 [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11"
       >
-        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4">
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <path
             d="M10 2.5c-2.2 0-4 1.8-4 4v2.4c0 .5-.2 1-.5 1.4l-1 1.2c-.6.7-.1 1.8.8 1.8h9.4c.9 0 1.4-1.1.8-1.8l-1-1.2c-.3-.4-.5-.9-.5-1.4V6.5c0-2.2-1.8-4-4-4z"
             stroke="currentColor"
@@ -156,7 +156,7 @@ export function NotificationsBell({
       </button>
 
       {open && (
-        <div className="fixed inset-x-2 top-14 z-20 sm:absolute sm:inset-x-auto sm:end-0 sm:top-11 sm:w-96 rounded-lg border border-border bg-surface shadow-lg">
+        <div className="fixed inset-x-2 top-[calc(3.5rem+env(safe-area-inset-top)+0.25rem)] z-30 rounded-lg border border-border bg-surface shadow-lg sm:absolute sm:inset-x-auto sm:end-0 sm:top-12 sm:w-96">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-sm font-semibold text-ink"><Tx>Notifications</Tx></span>
             {unreadCount > 0 && (
@@ -165,7 +165,7 @@ export function NotificationsBell({
               </Button>
             )}
           </div>
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-[min(24rem,60dvh)] overflow-y-auto">
             {notifications.length === 0 && (
               <p className="p-4 text-center text-sm text-muted"><Tx>Nothing yet — this fills up as parties act on your projects.</Tx></p>
             )}
