@@ -16,6 +16,8 @@ import { AssignedToMe } from "@/components/domain/assigned-to-me";
 import { filterAssignedToMe, parseAssignedFilter } from "@/lib/checklists/assignment-logic";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -51,7 +53,7 @@ export default async function StartWorkPage({
   const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
-  const sp = await searchParams;
+  const sp = withActiveProject(await searchParams, await getActiveProjectId());
   const q = (sp.q ?? "").trim().toLowerCase();
   const statusFilter = (["not_started", "in_progress", "completed"] as const).find((k) => k === sp.status) ?? "";
   const projectFilter = sp.project ?? "";

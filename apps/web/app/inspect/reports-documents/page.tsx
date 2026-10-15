@@ -6,6 +6,8 @@ import { ProjectPickerForm, type ProjectOption } from "../vault/project-picker-f
 import { DocumentsSection, loadDocuments, type DocSearchParams } from "./documents-section";
 import { PageGuide } from "@/components/domain/page-guide";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 /**
  * Cross-project entry point for the four per-project "read about progress" pages (Reports &
@@ -30,7 +32,7 @@ export default async function ReportsDocumentsPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  const sp = await searchParams;
+  const sp = withActiveProject(await searchParams, await getActiveProjectId());
   const projectId = sp.project === "all" ? undefined : sp.project;
   const supabase = await createSupabaseServerClient();
 

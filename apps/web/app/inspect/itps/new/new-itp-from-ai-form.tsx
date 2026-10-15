@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 
 const EXTRACTION_LABEL: Record<string, string> = {
   done: "Ready",
@@ -99,6 +100,7 @@ export function NewItpFromAiForm({
   const [interventionLevels, setInterventionLevels] = useState<GenerateItpDraftState["interventionLevels"]>([]);
   const [aiLogId, setAiLogId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState("");
+  useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [feedback, setFeedback] = useState("");
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);

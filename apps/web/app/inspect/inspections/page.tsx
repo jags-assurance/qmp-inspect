@@ -9,6 +9,8 @@ import { IRNS_TABLE } from "@/lib/checklists/db-types";
 import { InspectionsTable, type InspectionListRow } from "./inspections-table";
 import { INSPECTIONS_PAGE_SIZE } from "./page-size";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 type Params = {
   project?: string;
@@ -38,7 +40,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 export default async function InspectionsPage({ searchParams }: { searchParams: Promise<Params> }) {
   const tl = await getTranslator();
   await requireSession();
-  const sp = await searchParams;
+  const sp = withActiveProject(await searchParams, await getActiveProjectId());
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
   const supabase = await createSupabaseServerClient();
 

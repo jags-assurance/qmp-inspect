@@ -18,6 +18,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 
 const initialState: CreateNcrState = { error: null };
 const initialDraftState: DraftNcrDescriptionState = {
@@ -125,6 +126,7 @@ export function NewNcrForm({
   }, [state.created, onCreated]);
 
   const [projectId, setProjectId] = useState(initialProjectId ?? "");
+  useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
   const [severity, setSeverity] = useState<NcrSeverity>(defaultSeverity ?? "observation");
   const [dueDate, setDueDate] = useState(() => addDays(DEFAULT_DAYS[defaultSeverity ?? "observation"]));
   const [dueTouched, setDueTouched] = useState(false);

@@ -22,6 +22,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { applyNcrFilters, applyNcrSort, SORT_OPTIONS, type NcrListParams } from "@/lib/ncrs/list-filters";
 import { STATUS_LABEL } from "./ncr-shared";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 export default async function NcrsPage({
   searchParams,
@@ -30,7 +32,7 @@ export default async function NcrsPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  const sp = await searchParams;
+  const sp = withActiveProject(await searchParams, await getActiveProjectId());
   const { discipline: disciplineId, project: projectId, page: pageParam } = sp;
   // Strip characters that would break the PostgREST or() filter.
   const q = sp.q?.replace(/[%,()]/g, " ").trim() || undefined;

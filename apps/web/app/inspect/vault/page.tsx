@@ -9,6 +9,8 @@ import { ConnectorsPanel } from "./connectors-panel";
 import { PageGuide } from "@/components/domain/page-guide";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 interface DocSummary {
   id: string;
@@ -26,7 +28,7 @@ export default async function VaultPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  const { project: projectId } = await searchParams;
+  const { project: projectId } = withActiveProject(await searchParams, await getActiveProjectId());
   const supabase = await createSupabaseServerClient();
 
   const { data: projects } = await supabase
@@ -36,7 +38,7 @@ export default async function VaultPage({
     .limit(500) // picker options only; a portfolio beyond this uses ?project=
     .returns<ProjectOption[]>();
 
-  const selectedProject = projectId ?? projects?.[0]?.id ?? null;
+  const selectedProject = projectId || projects?.[0]?.id || null;
 
   let folders: (VaultFolderRow & { documentCount: number })[] = [];
   let canManageCategories = false;

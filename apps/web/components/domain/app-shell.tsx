@@ -18,6 +18,8 @@ import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
 import { OrgSwitcher } from "./org-switcher";
+import { GlobalProjectSelector, type ProjectSelectorOption } from "./global-project-selector";
+import { setActiveProjectAction } from "@/lib/projects/active-project-actions";
 import { setActiveOrganisationAction } from "@/lib/organizations/active-org-actions";
 import { Tx } from "@/components/domain/tx";
 
@@ -70,6 +72,7 @@ export async function AppShell({
   userMenuLinks = [],
   showTermsBanner = false,
   orgSwitcher = null,
+  projectSelector = null,
   children,
 }: {
   navItems: NavItem[];
@@ -84,6 +87,8 @@ export async function AppShell({
   showTermsBanner?: boolean;
   /** Only set for a user with grants in more than one organisation. */
   orgSwitcher?: { options: { id: string; name: string }[]; activeId: string | null } | null;
+  /** The projects this login can see, for the header organisation/project picker. */
+  projectSelector?: { options: ProjectSelectorOption[]; activeId: string | null } | null;
   children: ReactNode;
 }) {
   return (
@@ -109,6 +114,11 @@ export async function AppShell({
           <div className="flex flex-1 items-center justify-end gap-4">
             {orgSwitcher && orgSwitcher.options.length > 1 && (
               <OrgSwitcher options={orgSwitcher.options} activeId={orgSwitcher.activeId} action={setActiveOrganisationAction} />
+            )}
+            {projectSelector && (
+              <Suspense fallback={null}>
+                <GlobalProjectSelector options={projectSelector.options} activeId={projectSelector.activeId} action={setActiveProjectAction} />
+              </Suspense>
             )}
             <CommandPalette navItems={navItems} />
             {/* Streamed: the bell used to be fetched before ANYTHING rendered, adding a round-trip to every

@@ -10,6 +10,8 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 export default async function StandaloneAssignmentsPage({
   searchParams,
@@ -36,7 +38,7 @@ export default async function StandaloneAssignmentsPage({
       .eq("projects.allow_contractor_standalone_assignment", true);
     canRunStandaloneAssignment = !!count;
   }
-  const sp = await searchParams;
+  const sp = withActiveProject(await searchParams, await getActiveProjectId());
   const { project: projectId, discipline: disciplineId, page: pageParam } = sp;
   // PostgREST .or() treats , ( ) as syntax and % _ as wildcards - strip them from user text.
   const q = (sp.q ?? "").replace(/[,()%_\\*]/g, " ").trim().slice(0, 80);

@@ -14,6 +14,8 @@ import type { ModuleKey } from "@/lib/module-licensing/types";
 import { brandComboColors } from "@/lib/branding/org-brand";
 import { ACTIVE_ORG_COOKIE, grantedOrgIds, resolveActiveOrgId } from "@/lib/organizations/active-org";
 import { loadNeedsTermsAcceptance } from "@/lib/terms/load";
+import { ACTIVE_PROJECT_COOKIE, resolveActiveProjectId } from "@/lib/projects/active-project";
+import type { ProjectSelectorOption } from "@/components/domain/global-project-selector";
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -40,7 +42,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
   //    chrome (engagement mode/scope, branding colours, signed logo URL — D-07 cached, tagged and
   //    invalidated by the branding/numbering actions) and its module licences (D-07: ONE cached
   //    per-org map instead of one query per module).
-  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap, needsTerms] = await Promise.all([
+  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap, needsTerms, projectRowsResult] = await Promise.all([
     session.isJagsStaff && !isAdminStaff(session) ? isLeadOfAnyTeam(supabase, session.userId) : Promise.resolve(false),
     ownOrgId && !session.isJagsStaff
       ? supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId)
@@ -49,6 +51,14 @@ export default async function InspectLayout({ children }: { children: React.Reac
     ownOrgId ? getLicenseMap(supabase, ownOrgId) : Promise.resolve(null),
     // U7: false (no banner) until migration 20261128000100 is applied or on any error.
     loadNeedsTermsAcceptance(supabase, session.userId),
+    // Header project selector: every project this login can see (RLS-scoped), for the global
+    // organisation/project picker. Capped; a portfolio beyond it still has each page's own filter.
+    supabase
+      .from("projects")
+      .select("id, project_number, name, organization_id, organizations(name)")
+      .order("project_number", { ascending: true })
+      .limit(400)
+      .returns<{ id: string; project_number: string; name: string; organization_id: string; organizations: { name: string } | null }[]>(),
   ]);
   const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || teamLeadResult === true);
 
@@ -240,6 +250,17 @@ export default async function InspectLayout({ children }: { children: React.Reac
     grantedOrgs.length > 1
       ? { options: grantedOrgs.map((id) => ({ id, name: orgNames.find((o) => o.id === id)?.name ?? "Organisation" })), activeId: ownOrgId }
       : null;
+  const projectOptions: ProjectSelectorOption[] = (projectRowsResult.data ?? []).map((p) => ({
+    id: p.id,
+    number: p.project_number,
+    name: p.name,
+    orgId: p.organization_id,
+    orgName: p.organizations?.name ?? "Organisation",
+  }));
+  const activeProjectId = resolveActiveProjectId(
+    projectOptions.map((p) => p.id),
+    cookieStore.get(ACTIVE_PROJECT_COOKIE)?.value
+  );
   return (
     <AppShell
       navItems={localizeNavItems(navItems, locale)}
@@ -250,6 +271,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
       orgBranding={orgBranding}
       showTermsBanner={needsTerms}
       orgSwitcher={orgSwitcher}
+      projectSelector={projectOptions.length > 0 ? { options: projectOptions, activeId: activeProjectId } : null}
       userMenuLinks={[
         { label: "Dashboard", href: "/inspect" },
         ...(isAdminStaff(session) ? [{ label: "Settings", href: "/inspect/settings" }] : []),

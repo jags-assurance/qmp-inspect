@@ -16,6 +16,8 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { loadRegisterStats } from "@/lib/ncrs/register-stats-loader";
 import { registerStatsFromRows, type ObservationStatRow } from "@/lib/ncrs/register-stats";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 /**
  * A separate register for observations (R84: "provide live NCR and Observation registers" —
@@ -32,7 +34,7 @@ export default async function ObservationsPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, q, page: pageParam, owner } = await searchParams;
+  const { discipline: disciplineId, project: projectId, q, page: pageParam, owner } = withActiveProject(await searchParams, await getActiveProjectId());
   const ownerNone = owner === "none";
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const supabase = await createSupabaseServerClient();

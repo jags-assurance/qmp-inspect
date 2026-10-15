@@ -7,6 +7,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 
 const initialState: CreateItpState = { error: null };
 
@@ -18,6 +19,7 @@ export function NewItpForm({
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createItpAction, initialState);
   const [projectId, setProjectId] = useState("");
+  useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
     <form action={formAction} className="mt-6 space-y-4">

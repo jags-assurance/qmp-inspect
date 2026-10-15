@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { copyMasterTemplateToItpAction, type CopyMasterTemplateState } from "@/lib/itp-master/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
+import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
@@ -20,6 +21,8 @@ export function NewItpFromTemplateForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(copyMasterTemplateToItpAction, initialState);
+  const [projectId, setProjectId] = useState("");
+  useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
     <form action={formAction} className="mt-6 space-y-4">
@@ -46,6 +49,8 @@ export function NewItpFromTemplateForm({
           <select
           name="project_id"
           required
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         >
           <option value=""><Tx>Select…</Tx></option>

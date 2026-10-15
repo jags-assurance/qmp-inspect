@@ -17,6 +17,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SortForm } from "./sort-form";
 import { ExportLink } from "@/components/domain/export-link";
 import { getTranslator } from "@/lib/i18n/server";
+import { withActiveProject } from "@/lib/projects/active-project";
+import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
 export default async function ItpsPage({
   searchParams,
@@ -25,7 +27,7 @@ export default async function ItpsPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = await searchParams;
+  const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = withActiveProject(await searchParams, await getActiveProjectId());
   const STATUSES = ["draft", "under_review", "approved", "client_accepted", "superseded", "withdrawn"] as const;
   const statusFilter = STATUSES.find((x) => x === statusParam) ?? null;
   const sort = ["number", "title", "status"].includes(sortParam ?? "") ? (sortParam as string) : "";
