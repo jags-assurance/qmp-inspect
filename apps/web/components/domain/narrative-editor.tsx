@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { cleanUpNarrativeAction, type CleanUpNarrativeState, type DraftReportNarrativeState, type SaveNarrativeState } from "@/lib/reports/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const draftInitialState: DraftReportNarrativeState = { error: null, narrative: null, aiLogId: null };
 const saveInitialState: SaveNarrativeState = { error: null };
@@ -70,13 +71,13 @@ export function NarrativeEditor({
         <h2 className="text-sm font-medium text-ink"><Tx>Report conclusion / narrative</Tx></h2>
         <form action={draftFormAction}>
           <input type="hidden" name={recordIdFieldName} value={recordId} />
-          <button
+          <Button
             type="submit"
             disabled={draftPending}
-            className="rounded-md border border-border bg-off-white px-3 py-1.5 text-xs font-medium hover:bg-surface disabled:opacity-50"
+            variant="outline" size="sm"
           >
             {draftPending ? "Drafting…" : "Draft with AI"}
-          </button>
+          </Button>
         </form>
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -101,15 +102,15 @@ export function NarrativeEditor({
           className="w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
         <div className="flex items-center gap-3">
-          <button
+          <Button
             type="submit"
             disabled={savePending}
-            className="rounded-md bg-burgundy px-3 py-1.5 text-xs font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+            size="sm"
           >
             {savePending ? "Saving…" : "Save narrative"}
-          </button>
+          </Button>
           {aiConfigured && projectId && (
-            <button
+            <Button
               type="button"
               disabled={cleanupPending || !narrative.trim()}
               onClick={() => {
@@ -119,10 +120,10 @@ export function NarrativeEditor({
                 setCleanupDiscarded(false);
                 cleanupFormAction(fd);
               }}
-              className="rounded-md border border-border bg-off-white px-3 py-1.5 text-xs font-medium hover:bg-surface disabled:opacity-50"
+              variant="outline" size="sm"
             >
               {cleanupPending ? "Cleaning up…" : "Clean up wording"}
-            </button>
+            </Button>
           )}
           {saveState.error && <p role="alert" className="text-xs text-danger">{saveState.error}</p>}
         </div>
@@ -135,23 +136,23 @@ export function NarrativeEditor({
           <p className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>AI-cleaned-up suggestion</Tx></p>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{cleanupState.cleaned}</p>
           <div className="mt-2 flex gap-2">
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setNarrative(cleanupState.cleaned ?? "");
                 setCleanupDiscarded(true);
               }}
-              className="rounded-md bg-burgundy px-3 py-1.5 text-xs font-medium text-white hover:bg-burgundy-dark"
+              size="sm"
             >
               <Tx>Accept</Tx>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setCleanupDiscarded(true)}
-              className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-off-white"
+              variant="outline" size="sm"
             >
               <Tx>Discard</Tx>
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -24,9 +24,9 @@ export function EditPunchItemForm({
 
   if (!expanded) {
     return (
-      <button type="button" onClick={() => setExpanded(true)} className="min-h-11 text-sm font-medium text-burgundy hover:underline">
+      <Button type="button" onClick={() => setExpanded(true)} variant="link">
         <Tx>Edit assignment, due date, priority</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -63,9 +63,9 @@ export function EditPunchItemForm({
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>{pending ? "Saving…" : "Save changes"}</Button>
-        <button type="button" onClick={() => setExpanded(false)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white">
+        <Button type="button" onClick={() => setExpanded(false)} variant="outline" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

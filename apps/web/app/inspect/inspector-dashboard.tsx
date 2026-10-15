@@ -12,6 +12,7 @@ import { buildInspectorToday } from "@/lib/dashboard/today";
 import { AssignedToMe } from "@/components/domain/assigned-to-me";
 import type { AssignedActivity } from "@/lib/checklists/assigned-queries";
 import { T } from "@/components/domain/t";
+import { buttonVariants } from "@/components/ui/button";
 
 export interface OverdueHoldRow {
   id: string;
@@ -135,7 +136,7 @@ export function InspectorDashboard({
           <QuickRaiseObservation />
           <Link
             href="/inspect/start-work"
-            className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
+            className={buttonVariants()}
           >
             <T>Start work</T>
           </Link>

@@ -15,6 +15,7 @@ import { buildExternalToday } from "@/lib/dashboard/today";
 import { ItpReviewPanel } from "./itp-review-panel";
 import { widgetOrderFor, resolveDashboardRole, type ExternalWidget, type OrgHealth } from "@/lib/dashboard/widgets";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export interface DashboardLevelOption {
   code: string;
@@ -259,13 +260,13 @@ export function ExternalPartyDashboard({
                   key: "action",
                   header: "",
                   render: (r) => (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => panel.open(`itp:${r.id}`)}
-                      className="inline-flex min-h-11 items-center font-medium text-burgundy hover:underline"
+                      variant="link"
                     >
                       <Tx>Review & accept →</Tx>
-                    </button>
+                    </Button>
                   ),
                 },
               ]}
@@ -330,7 +331,7 @@ export function ExternalPartyDashboard({
                 </div>
                 <Link
                   href={`/inspect/ncrs/${ncr.id}`}
-                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
+                  className={buttonVariants({ variant: "outline", size: "sm", className: "shrink-0" })}
                 >
                   <Tx>Close out →</Tx>
                 </Link>
@@ -360,7 +361,7 @@ export function ExternalPartyDashboard({
                 </div>
                 <Link
                   href={`/inspect/projects/${p.projectId}?tab=punch-list&item=${p.id}`}
-                  className="shrink-0 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-burgundy hover:bg-off-white"
+                  className={buttonVariants({ variant: "outline", size: "sm", className: "shrink-0" })}
                 >
                   <Tx>Open →</Tx>
                 </Link>

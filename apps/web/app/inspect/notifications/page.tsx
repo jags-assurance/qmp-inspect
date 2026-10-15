@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { NOTIFICATIONS_TABLE, type NotificationRow } from "@/lib/notifications/types";
 import { markAllNotificationsReadAction } from "@/lib/notifications/actions";
 import { T } from "@/components/domain/t";
+import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 25;
 
@@ -49,9 +50,9 @@ export default async function NotificationsPage({
         <h1 className="text-2xl font-semibold text-ink"><T>Notifications</T></h1>
         {(unreadTotal ?? 0) > 0 && (
           <form action={markAll}>
-            <button type="submit" className="min-h-11 rounded-md border border-border px-3 text-sm text-burgundy hover:bg-off-white">
+            <Button type="submit" variant="outline">
               <T>Mark all read (</T>{unreadTotal})
-            </button>
+            </Button>
           </form>
         )}
       </div>

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { acceptTermsAction, type AcceptTermsState } from "@/lib/terms/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 /**
  * The one-time terms acceptance (U7), shown inside the account menu with a dot on the avatar until it is
@@ -44,13 +45,13 @@ export function TermsMenuSection({ onAccepted }: { onAccepted: () => void }) {
         .
       </p>
       <form action={formAction}>
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="min-h-11 w-full rounded-md bg-burgundy px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"
+          className="w-full"
         >
           {pending ? "Saving…" : "I accept"}
-        </button>
+        </Button>
       </form>
       {stale && (
         <p role="alert" className="text-xs text-danger">

@@ -5,6 +5,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { translateText } from "@/lib/i18n/dictionary";
 import { useLocale } from "@/lib/i18n/locale-context";
 import type { SupportedLocale } from "@/lib/i18n/direction";
+import { Button } from "@/components/ui/button";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -187,25 +188,25 @@ export function DataTable<T>({
             {Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} {translateText(locale, "of")} {pagination.totalCount}
           </span>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
               disabled={pagination.page <= 1}
               onClick={() => pagination.onPageChange(pagination.page - 1)}
-              className="rounded-md border border-border min-h-10 px-3 py-1 font-medium text-ink hover:bg-off-white disabled:opacity-40 disabled:hover:bg-transparent"
+              variant="outline"
             >
               {translateText(locale, "Prev")}
-            </button>
+            </Button>
             <span className="text-muted">
               {translateText(locale, "Page")} {pagination.page} {translateText(locale, "of")} {totalPages}
             </span>
-            <button
+            <Button
               type="button"
               disabled={pagination.page >= totalPages}
               onClick={() => pagination.onPageChange(pagination.page + 1)}
-              className="rounded-md border border-border min-h-10 px-3 py-1 font-medium text-ink hover:bg-off-white disabled:opacity-40 disabled:hover:bg-transparent"
+              variant="outline"
             >
               {translateText(locale, "Next")}
-            </button>
+            </Button>
           </div>
         </div>
       )}

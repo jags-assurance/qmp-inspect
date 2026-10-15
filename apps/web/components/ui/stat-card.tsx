@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { buttonVariants } from "@/components/ui/button";
 
 export function StatCard({
   label,
@@ -41,7 +42,7 @@ export function StatCard({
     return (
       <Link
         href={href}
-        className="flex h-full min-h-[4.25rem] flex-col rounded-lg border border-border bg-surface px-3.5 py-3 transition-colors hover:border-burgundy hover:bg-off-white"
+        className={buttonVariants({ variant: "outline", className: "flex flex-col" })}
       >
         {content}
       </Link>

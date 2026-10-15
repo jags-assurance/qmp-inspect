@@ -16,6 +16,7 @@ import { DateRangeFilter } from "@/components/domain/date-range-filter";
 import { parseDateRange, dateRangeToFromIso } from "@/lib/dates/date-range";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Button } from "@/components/ui/button";
 
 const EVENT_DOT_TONE: Record<ActivityEvent["kind"], string> = {
   itp_created: "bg-info",
@@ -533,9 +534,9 @@ export async function ActivityView({
                 </option>
               ))}
             </select>
-            <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white">
+            <Button type="submit" >
               <T>Apply</T>
-            </button>
+            </Button>
           </form>
         )}
       </div>

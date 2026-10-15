@@ -31,6 +31,7 @@ import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { TransmittalSection } from "@/components/domain/transmittal-section";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 const STATUS_TONE: Record<DataBookStatus, "neutral" | "warning" | "success"> = {
   draft: "neutral",
@@ -426,7 +427,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
                 pdfOutOfDate={pdfOutOfDate}
               />
             ) : (
-              <a href="#generate" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark">
+              <a href="#generate" className={buttonVariants()}>
                 <T>Generate Data Book</T>
               </a>
             )}

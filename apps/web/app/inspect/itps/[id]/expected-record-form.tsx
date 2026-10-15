@@ -116,12 +116,12 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
             </option>
           ))}
         </select>
-        <button type="submit" disabled={updating} className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white">
+        <Button type="submit" disabled={updating} variant="outline" size="sm">
           {updating ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={() => setEditing(false)} className="text-xs text-muted hover:underline">
+        </Button>
+        <Button type="button" onClick={() => setEditing(false)} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
         {updateState.error && <span className="w-full text-danger">{updateState.error}</span>}
       </form>
     );
@@ -129,9 +129,9 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
 
   return (
     <div className="mt-1 flex items-center gap-2">
-      <button type="button" onClick={() => setEditing(true)} className="text-xs text-muted hover:underline">
+      <Button type="button" onClick={() => setEditing(true)} variant="link-muted" size="sm">
         <Tx>Edit</Tx>
-      </button>
+      </Button>
       {dialog}
       <form
         action={deleteAction}
@@ -143,9 +143,9 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
         })}
       >
         <input type="hidden" name="record_id" value={record.id} />
-        <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline">
+        <Button type="submit" disabled={deleting} variant="link-danger" size="sm">
           {deleting ? "Removing…" : "Remove"}
-        </button>
+        </Button>
       </form>
       {deleteState.error && <span className="text-danger">{deleteState.error}</span>}
     </div>
@@ -192,9 +192,9 @@ function ExpectedRecordRow({
         {canMarkReceived && (
           <div className="mt-1">
             {!open ? (
-              <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
+              <Button type="button" onClick={() => setOpen(true)} variant="link">
                 <Tx>Mark received →</Tx>
-              </button>
+              </Button>
             ) : (
               <MarkReceivedForm
                 record={record}
@@ -352,9 +352,9 @@ function MarkReceivedForm({
         <Button type="submit" size="sm" disabled={uploading}>
           {uploading ? "Saving…" : "Mark received"}
         </Button>
-        <button type="button" onClick={onClose} className="text-xs text-muted hover:underline">
+        <Button type="button" onClick={onClose} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -371,13 +371,13 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
 
   if (!open) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-2 text-xs font-medium text-burgundy hover:underline"
+        variant="link" size="sm" className="mt-2"
       >
         <Tx>+ Add expected record</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -430,9 +430,9 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Adding…" : "Add"}
         </Button>
-        <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

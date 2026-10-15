@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ListWindow } from "@/lib/pagination/list-limit";
 import { T } from "@/components/domain/t";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * Footer for a list that is windowed by `?limit=` (see lib/pagination/list-limit.ts): "Showing 200
@@ -27,7 +28,7 @@ export function LoadMore({
         {win.total !== null ? ` of ${win.total}` : "+"} {noun}.
       </span>
       {win.next !== null && nextHref ? (
-        <Link href={nextHref} scroll={false} className="inline-flex min-h-11 items-center rounded-md border border-border px-4 font-medium text-burgundy hover:bg-off-white">
+        <Link href={nextHref} scroll={false} className={buttonVariants({ variant: "outline" })}>
           <T>Load more</T>
         </Link>
       ) : (

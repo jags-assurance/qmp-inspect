@@ -397,13 +397,13 @@ export function NewItpFromAiForm({
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
           <div className="flex items-center gap-3">
-            <button
+            <Button
               type="submit"
               disabled={genPending || !feedback.trim()}
-              className="rounded-md border border-burgundy px-3 py-1.5 text-xs font-medium text-burgundy hover:bg-burgundy/5 disabled:opacity-50"
+              variant="outline" size="sm"
             >
               {genPending ? "Regenerating…" : "Regenerate with this feedback"}
-            </button>
+            </Button>
             {genState.error && <p role="alert" className="text-xs text-danger">{genState.error}</p>}
           </div>
         </form>
@@ -487,13 +487,13 @@ export function NewItpFromAiForm({
                       <span className="doc-id rounded bg-off-white px-2 py-1 text-xs font-medium text-ink">
                         <Tx>Item</Tx> {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
                       </span>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => removeItem(sectionIdx, itemIdx)}
-                        className="text-xs font-medium text-danger hover:underline"
+                        variant="link-danger" size="sm"
                       >
                         <Tx>Remove</Tx>
-                      </button>
+                      </Button>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[80px_1fr]">
@@ -655,7 +655,7 @@ export function NewItpFromAiForm({
           <Button type="submit" disabled={createPending}>
             {createPending ? "Creating…" : "Create ITP from this draft"}
           </Button>
-          <button
+          <Button
             type="button"
             onClick={() => {
               setDraft(null);
@@ -666,10 +666,10 @@ export function NewItpFromAiForm({
               setTitle("");
               setApplicableStandard("");
             }}
-            className="rounded-md border border-border px-3 py-2 text-sm text-ink hover:bg-off-white"
+            variant="outline"
           >
             <Tx>Discard draft</Tx>
-          </button>
+          </Button>
         </div>
       </form>
     </div>

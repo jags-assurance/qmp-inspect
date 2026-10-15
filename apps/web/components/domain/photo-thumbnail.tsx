@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { deleteInspectionPhotoAction, updateInspectionPhotoCaptionAction } from "@/lib/checklists/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 /**
  * Renders one inspection-evidence photo as a thumbnail from an ALREADY-RESOLVED signed URL — the
@@ -128,32 +129,32 @@ export function PhotoThumbnail({
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
-              <button
+              <Button
                 type="button"
                 disabled={pending}
                 onClick={saveCaption}
-                className="min-h-11 flex-1 rounded-md bg-burgundy px-4 text-sm font-medium text-white disabled:opacity-60"
+                className="flex-1"
               >
                 {pending && !confirming ? "Saving…" : "Save caption"}
-              </button>
+              </Button>
               {!confirming ? (
-                <button
+                <Button
                   type="button"
                   disabled={pending}
                   onClick={() => setConfirming(true)}
-                  className="min-h-11 rounded-md border border-danger px-4 text-sm font-medium text-danger disabled:opacity-60"
+                  variant="danger-outline"
                 >
                   <Tx>Delete</Tx>
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="button"
                   disabled={pending}
                   onClick={remove}
-                  className="min-h-11 rounded-md bg-danger px-4 text-sm font-medium text-white disabled:opacity-60"
+                  variant="danger"
                 >
                   {pending ? "Deleting…" : "Confirm delete"}
-                </button>
+                </Button>
               )}
               <button
                 type="button"

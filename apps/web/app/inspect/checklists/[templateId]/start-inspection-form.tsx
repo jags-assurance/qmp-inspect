@@ -171,9 +171,9 @@ export function StartInspectionForm({
         <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-ink">
           <span className="font-medium">{source === "gps" ? "Live location (latitude, longitude):" : "Project location:"}</span>
           <span className="doc-id">{value}</span>
-          <button type="button" onClick={clearLocation} className="text-xs text-burgundy hover:underline">
+          <Button type="button" onClick={clearLocation} variant="link" size="sm">
             <Tx>Clear</Tx>
-          </button>
+          </Button>
         </p>
       ) : (
         <p className="mt-2 text-xs text-muted"><Tx>No location selected.</Tx></p>

@@ -8,6 +8,7 @@ import { markAllNotificationsReadAction, markNotificationReadAction } from "@/li
 import type { NotificationRow } from "@/lib/notifications/types";
 import { safeSitePath } from "@/lib/notifications/render";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 function timeAgo(iso: string): string {
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
@@ -159,9 +160,9 @@ export function NotificationsBell({
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <span className="text-sm font-semibold text-ink"><Tx>Notifications</Tx></span>
             {unreadCount > 0 && (
-              <button type="button" onClick={handleMarkAllRead} className="text-xs font-medium text-burgundy hover:underline">
+              <Button type="button" onClick={handleMarkAllRead} variant="link" size="sm">
                 <Tx>Mark all read</Tx>
-              </button>
+              </Button>
             )}
           </div>
           <div className="max-h-96 overflow-y-auto">

@@ -10,6 +10,7 @@ import {
 import { isClosedStatus } from "@/lib/projects/close-helpers";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: UpdateProjectStatusState = { error: null };
 
@@ -161,13 +162,13 @@ export function ProjectStatusControl({
           )}
 
           <div className="mt-2 flex gap-2">
-            <button
+            <Button
               type="submit"
               disabled={pending || loadingSummary || ((leavingClosed || blockers.length > 0) && reason.trim().length < 5)}
-              className="rounded-md bg-burgundy px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+              size="sm"
             >
               <Tx>Confirm</Tx>
-            </button>
+            </Button>
             <button type="button" onClick={cancel} disabled={pending} className="rounded-md border border-border px-3 py-1.5 text-sm">
               <Tx>Cancel</Tx>
             </button>

@@ -6,6 +6,7 @@ import { requestItpPdfAction, getLatestItpPdf, type RequestItpPdfState, type Itp
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tx } from "@/components/domain/tx";
+import { buttonVariants } from "@/components/ui/button";
 
 const initialState: RequestItpPdfState = { error: null };
 
@@ -58,7 +59,7 @@ export function ItpPdfButton({
             href={liveStatus.pdfUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md border border-border bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy/90"
+            className={buttonVariants()}
           >
             <Tx>View PDF →</Tx>
           </a>

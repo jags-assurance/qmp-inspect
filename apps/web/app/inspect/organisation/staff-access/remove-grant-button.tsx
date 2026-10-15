@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { removeStaffGrantAction, type StaffAccessState } from "@/lib/staff-access/actions";
+import { Button } from "@/components/ui/button";
 
 const initialState: StaffAccessState = { error: null };
 
@@ -11,13 +12,13 @@ export function RemoveGrantButton({ grantId }: { grantId: string }) {
   return (
     <form action={formAction} className="inline">
       <input type="hidden" name="grant_id" value={grantId} />
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="text-xs text-danger hover:underline disabled:opacity-50"
+        variant="link-danger" size="sm"
       >
         {pending ? "Removing…" : "Remove"}
-      </button>
+      </Button>
       {state.error && <span className="ms-2 text-xs text-danger">{state.error}</span>}
     </form>
   );

@@ -12,6 +12,7 @@ import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { fetchRegisterUsage } from "@/lib/registers/usage";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Button } from "@/components/ui/button";
 
 type SupabaseClient = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -193,12 +194,12 @@ export default async function DocumentTraceabilityPage({
           placeholder={tl("ITP / NCR / IRN number, heat / batch / PO / cert number, instrument ID, welder ID / WPQ")}
           className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
-        <button
+        <Button
           type="submit"
-          className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy/90"
+          
         >
           <T>Look up</T>
-        </button>
+        </Button>
         <select
           name="project"
           defaultValue={projectId ?? ""}

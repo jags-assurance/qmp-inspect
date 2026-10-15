@@ -6,6 +6,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import type { CsvRegisterKind } from "@/lib/registers/csv-columns";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: ImportRegisterCsvState = { error: null, lineErrors: [], imported: null, duplicates: 0 };
 
@@ -50,9 +51,9 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
               ))}
             </ul>
           )}
-          <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+          <Button type="submit" disabled={pending} size="sm">
             {pending ? "Importing…" : "Import"}
-          </button>
+          </Button>
         </form>
       )}
     </details>

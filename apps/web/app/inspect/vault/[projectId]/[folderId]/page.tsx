@@ -27,6 +27,7 @@ import { vaultDocKind, vaultFileType } from "@/lib/vault/doc-kind";
 import { VaultDocumentView } from "../document/[documentId]/vault-document-view";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 // Newest documents (revisions included) loaded per page; documents awaiting review are always loaded.
 const VAULT_DOC_LIMITS: ListLimitOptions = { defaultLimit: 100, step: 100, max: 1000 };
@@ -252,13 +253,13 @@ export default async function VaultFolderPage({
       <div className="mt-3 flex flex-wrap gap-2 text-sm">
         <Link
           href={`/inspect/vault/${projectId}/pending`}
-          className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
+          className={buttonVariants({ variant: "outline" })}
         >
           <T>My pending approvals</T>
         </Link>
         <a
           href="#vault-upload"
-          className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
+          className={buttonVariants({ variant: "outline" })}
         >
           <T>Upload</T>
         </a>

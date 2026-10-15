@@ -5,6 +5,7 @@ import { askProjectQuestionAction, type AskProjectQuestionState } from "@/lib/pr
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: AskProjectQuestionState = { error: null, answer: null, question: null };
 
@@ -66,13 +67,13 @@ export function AskProjectPanel({ projectId }: { projectId: string }) {
           />
           </FormField>
         </div>
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-burgundy px-3 py-2 text-xs font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+          size="sm"
         >
           {pending ? "Asking…" : "Ask"}
-        </button>
+        </Button>
       </form>
 
       {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}

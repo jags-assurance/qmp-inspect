@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { setItpReviewChainAction, type SetReviewChainState } from "@/lib/itps/review-chain-actions";
 import { Tx } from "@/components/domain/tx";
 import { FormMessage } from "@/components/ui/form-message";
+import { Button } from "@/components/ui/button";
 
 const initialState: SetReviewChainState = { error: null };
 
@@ -60,18 +61,18 @@ export function ItpReviewChainForm({
           </select>
         ))}
         {values.length < 5 && (
-          <button type="button" onClick={() => setValues((prev) => [...prev, ""])} className="text-xs font-medium text-burgundy hover:underline">
+          <Button type="button" onClick={() => setValues((prev) => [...prev, ""])} variant="link" size="sm">
             <Tx>+ Add another review step</Tx>
-          </button>
+          </Button>
         )}
       </div>
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="mt-3 rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium hover:bg-border/30 disabled:opacity-50"
+        variant="outline" size="sm" className="mt-3"
       >
         {pending ? "Saving…" : "Save this ITP's review chain"}
-      </button>
+      </Button>
       <FormMessage error={state.error} success={state.saved && !pending ? "Review chain saved." : null} className="mt-2" />
     </form>
   );

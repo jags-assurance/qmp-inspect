@@ -5,6 +5,7 @@ import { provisionPartyLoginAction, type ProvisionPartyLoginState } from "@/lib/
 import { formatDateTime } from "@/lib/dates/format";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null };
 
@@ -77,12 +78,12 @@ export function ProvisionPartyLoginForm({
         </p>
         <p className="mt-1 select-all rounded bg-surface px-2 py-1 font-mono text-xs text-ink">{held.tempPassword}</p>
         <div className="mt-1 flex gap-3">
-          <button type="button" onClick={copy} className="text-burgundy hover:underline">
+          <Button type="button" onClick={copy} variant="link">
             {copied ? "Copied" : "Copy"}
-          </button>
-          <button type="button" onClick={() => { setDismissed(held.tempPassword); setHeld(null); }} className="text-burgundy hover:underline">
+          </Button>
+          <Button type="button" onClick={() => { setDismissed(held.tempPassword); setHeld(null); }} variant="link">
             <Tx>I have shared it</Tx>
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -92,9 +93,9 @@ export function ProvisionPartyLoginForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link">
         <Tx>Grant platform access</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -122,12 +123,12 @@ export function ProvisionPartyLoginForm({
           />
         </div>
       )}
-      <button type="submit" disabled={pending} className="text-burgundy hover:underline disabled:opacity-50">
+      <Button type="submit" disabled={pending} variant="link">
         {pending ? "Granting…" : "Confirm"}
-      </button>
-      <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
+      </Button>
+      <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
         <Tx>Cancel</Tx>
-      </button>
+      </Button>
       {state.error && <span className="w-full text-danger">{state.error}</span>}
     </form>
   );

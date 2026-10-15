@@ -61,14 +61,14 @@ export function ConfirmTypeDialog({
           </div>
         )}
         <div className="mt-4 flex justify-end gap-2">
-          <button
+          <Button
             ref={cancelRef}
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-border px-3 py-1.5 text-sm hover:bg-off-white focus:outline-none focus:ring-2 focus:ring-burgundy"
+            variant="outline" size="sm"
           >
             <Tx>Cancel</Tx>
-          </button>
+          </Button>
           <Button type="button" size="sm" disabled={!ok} onClick={onConfirm}>
             {confirmLabel}
           </Button>

@@ -86,9 +86,9 @@ function CommentBody({ comment, userId }: { comment: InspectionCommentRow; userI
         <>
           <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{comment.body}</p>
           {editable && (
-            <button type="button" onClick={() => setEditing(true)} className="mt-1 text-xs font-medium text-burgundy hover:underline">
+            <Button type="button" onClick={() => setEditing(true)} variant="link" size="sm" className="mt-1">
               <Tx>Edit</Tx>
-            </button>
+            </Button>
           )}
         </>
       )}
@@ -153,9 +153,9 @@ function EditForm({ comment, onDone }: { comment: InspectionCommentRow; onDone: 
         <Button type="submit" disabled={pending || body.trim().length === 0}>
           {pending ? "Saving…" : "Save"}
         </Button>
-        <button type="button" onClick={onDone} className="text-sm text-muted hover:underline">
+        <Button type="button" onClick={onDone} variant="link-muted">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -167,9 +167,9 @@ function ResolveToggle({ commentId, resolved }: { commentId: string; resolved: b
     <form action={formAction} className="flex items-center gap-2">
       <input type="hidden" name="comment_id" value={commentId} />
       <input type="hidden" name="resolve" value={resolved ? "false" : "true"} />
-      <button type="submit" disabled={pending} className="text-xs font-medium text-burgundy hover:underline disabled:opacity-60">
+      <Button type="submit" disabled={pending} variant="link" size="sm">
         {pending ? "Saving…" : resolved ? "Re-open thread" : "Mark resolved"}
-      </button>
+      </Button>
       {state.error && (
         <span role="alert" className="text-xs text-danger">
           {state.error}

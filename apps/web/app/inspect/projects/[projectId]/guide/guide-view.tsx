@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { MoreDetails } from "../../more-details";
+import { buttonVariants } from "@/components/ui/button";
 
 const PARTY_TYPE_LABEL: Record<string, string> = {
   client: "Client",
@@ -243,7 +244,7 @@ Who is on this project and where it stands.
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Current phase: {phase.label}</h2>
           {phase.nextAction && (
-            <Link href={phase.nextHref} className="rounded-md border border-current px-2.5 py-1 text-xs font-medium hover:bg-white/40">
+            <Link href={phase.nextHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
               {phase.nextAction} →
             </Link>
           )}

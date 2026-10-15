@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Tx } from "@/components/domain/tx";
+import { buttonVariants } from "@/components/ui/button";
 
 export interface CompareRevisionRow {
   id: string;
@@ -94,7 +95,7 @@ function RevisionColumn({
               href={revision.url}
               target="_blank"
               rel="noreferrer"
-              className="inline-block rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface"
+              className={buttonVariants({ variant: "outline", size: "sm", className: "inline-block" })}
             >
               <Tx>Open file ↗</Tx>
             </a>

@@ -9,6 +9,7 @@ import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { VaultFilePicker, type VaultPickerDocument, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 export interface ItemLinkedDocument {
   linkId: string;
@@ -78,7 +79,7 @@ export function ItemDocuments({
                 {d.status === "approved" ? "Approved" : "Pending vault approval"}
               </span>
               {!readOnly && (
-                <button
+                <Button
                   type="button"
                   disabled={removing}
                   aria-label={`Remove document ${d.title} from item ${itemNumber}`}
@@ -88,10 +89,10 @@ export function ItemDocuments({
                       setRemoveError(r.error);
                     })
                   }
-                  className="min-h-11 px-2 text-xs text-danger hover:underline disabled:opacity-60"
+                  variant="link-danger" size="sm"
                 >
                   <Tx>Remove</Tx>
-                </button>
+                </Button>
               )}
             </li>
           ))}
@@ -144,9 +145,9 @@ export function ItemDocuments({
               onDone={() => setOpen(false)}
             />
           )}
-          <button type="button" onClick={() => setOpen(false)} className="min-h-11 text-sm text-muted hover:underline">
+          <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
             <Tx>Cancel</Tx>
-          </button>
+          </Button>
         </div>
       )}
     </div>

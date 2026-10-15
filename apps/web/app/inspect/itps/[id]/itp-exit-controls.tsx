@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { deleteDraftItpAction, withdrawItpAction, type ItpExitState } from "@/lib/itps/lifecycle-actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: ItpExitState = { error: null };
 const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:border-burgundy";
@@ -37,9 +38,9 @@ export function ItpExitControls({
         >
           {dialog}
           <input type="hidden" name="itp_id" value={itpId} />
-          <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline disabled:opacity-50">
+          <Button type="submit" disabled={deleting} variant="link-danger" size="sm">
             {deleting ? "Deleting…" : "Delete draft"}
-          </button>
+          </Button>
           {deleteState.error && <p role="alert" className="mt-1 max-w-xs text-xs text-danger">{deleteState.error}</p>}
         </form>
       )}

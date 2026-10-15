@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { renameOrganizationAction, setOrganizationActiveAction, type OrganizationLifecycleState } from "@/lib/organizations/actions";
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: OrganizationLifecycleState = { error: null, message: null };
 
@@ -19,9 +20,9 @@ export function OrganizationLifecycleControl({ organizationId, name, isActive }:
           <Tx>Organisation name</Tx>
           <input name="name" defaultValue={name} maxLength={120} className="mt-1 block min-h-9 w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
         </label>
-        <button type="submit" disabled={renaming} className="min-h-9 rounded-md border border-border px-3 text-xs font-medium text-burgundy hover:bg-off-white disabled:opacity-50">
+        <Button type="submit" disabled={renaming} variant="outline" size="sm">
           {renaming ? "Saving…" : "Rename"}
-        </button>
+        </Button>
         <FormMessage error={renameState.error} success={renameState.message} className="basis-full" />
       </form>
       <form action={activeAction} className="flex flex-wrap items-end gap-2">
@@ -33,9 +34,9 @@ export function OrganizationLifecycleControl({ organizationId, name, isActive }:
             <input name="reason" required maxLength={500} autoComplete="off" className="mt-1 block min-h-9 w-64 rounded-md border border-border bg-surface px-2 py-1 text-sm" />
           </label>
         )}
-        <button type="submit" disabled={toggling} className="min-h-9 rounded-md border border-border px-3 text-xs font-medium text-burgundy hover:bg-off-white disabled:opacity-50">
+        <Button type="submit" disabled={toggling} variant="outline" size="sm">
           {toggling ? "Saving…" : isActive ? "Deactivate" : "Reactivate"}
-        </button>
+        </Button>
         <p className="basis-full text-xs text-muted">
           {isActive ? (
             <Tx>Deactivating hides the organisation from pickers and makes its projects read-only. Nothing is deleted; reactivate any time.</Tx>

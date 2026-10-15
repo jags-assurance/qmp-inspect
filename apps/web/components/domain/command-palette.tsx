@@ -8,6 +8,7 @@ import { searchEntitiesAction, type EntityHit } from "@/lib/search/actions";
 import { filterEntries, flattenNavItems as flatten, type PaletteEntry as Entry } from "@/lib/search/palette-entries";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 /**
  * Header search: Ctrl/Cmd+K (or the header box / the mobile search button) opens a jump-to list over
@@ -117,10 +118,10 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
 
   return (
     <>
-      <button
+      <Button
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
-        className="relative hidden min-h-11 w-full max-w-xs items-center rounded-md border border-border bg-off-white py-1.5 ps-9 pe-3 text-start text-sm text-muted hover:border-burgundy sm:flex"
+        variant="outline" className="hidden w-full max-w-xs sm:flex"
         aria-label={tl("Search pages and records (Ctrl+K)")}
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2">
@@ -129,7 +130,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         </svg>
         <span className="flex-1"><Tx>Search pages and records…</Tx></span>
         <kbd className="rounded border border-border px-1 text-xs"><Tx>Ctrl K</Tx></kbd>
-      </button>
+      </Button>
 
       {/* Phone / small tablet: the box above is hidden, so there is a dedicated search button. */}
       <button

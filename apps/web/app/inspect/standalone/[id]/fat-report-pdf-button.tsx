@@ -10,6 +10,7 @@ import {
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 const initialState: RequestFatReportPdfState = { error: null };
 
@@ -38,7 +39,7 @@ export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: str
             href={liveStatus.pdfUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             <Tx>View report →</Tx>
           </a>
@@ -46,21 +47,21 @@ export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: str
         {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
           <a
             href={liveStatus.downloadUrl}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             <Tx>Download ↓</Tx>
           </a>
         )}
         <form action={formAction}>
           <input type="hidden" name="assignment_id" value={assignmentId} />
-          <button
+          <Button
             type="submit"
             onClick={beginGenerate}
             disabled={pending || polling}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+            variant="outline" size="sm"
           >
             {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : liveStatus ? "Regenerate report" : "Generate report"}
-          </button>
+          </Button>
         </form>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}

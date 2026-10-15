@@ -22,9 +22,9 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link" size="sm">
         <Tx>Rename</Tx>
-      </button>
+      </Button>
     );
   }
   return (
@@ -42,9 +42,9 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Saving…" : "Save"}
       </Button>
-      <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+      <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
         <Tx>Cancel</Tx>
-      </button>
+      </Button>
       {state.error && <p role="alert" className="w-full text-xs text-danger">{state.error}</p>}
     </form>
   );

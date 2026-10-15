@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { updateNotesAction, type UpdateNotesState } from "@/lib/standalone/actions";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: UpdateNotesState = { error: null };
 
@@ -33,13 +34,13 @@ export function NotesForm({
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline" size="sm"
       >
         {pending ? "Saving…" : "Save notes"}
-      </button>
+      </Button>
     </form>
   );
 }

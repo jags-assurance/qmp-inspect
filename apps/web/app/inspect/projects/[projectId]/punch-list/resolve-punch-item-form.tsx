@@ -34,13 +34,13 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
 
   if (!expanded) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setExpanded(true)}
-        className="text-sm font-medium text-burgundy hover:underline"
+        variant="link"
       >
         <Tx>Mark resolved</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -67,13 +67,13 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
         <Button type="submit" size="sm" disabled={pending || !evidence.trim()}>
           {pending ? "Submitting…" : "Confirm resolved"}
         </Button>
-        <button
+        <Button
           type="button"
           onClick={() => setExpanded(false)}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white"
+          variant="outline" size="sm"
         >
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

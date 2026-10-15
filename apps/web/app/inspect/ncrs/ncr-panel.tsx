@@ -24,6 +24,7 @@ import {
 } from "./ncr-shared";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 type TabId = "overview" | "closeout" | "evidence" | "history" | "related";
 const TABS: { id: TabId; label: string }[] = [
@@ -105,13 +106,13 @@ export function NcrPanel() {
       {!loading && error && (
         <div className="mt-6 text-sm">
           <p className="text-danger">{error}</p>
-          <button
+          <Button
             type="button"
             onClick={refresh}
-            className="mt-3 min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white"
+            variant="outline" className="mt-3"
           >
             <Tx>Try again</Tx>
-          </button>
+          </Button>
         </div>
       )}
       {!loading && detail && ncr && (
@@ -390,18 +391,18 @@ export function NcrPanel() {
                   <ul className="mt-2 space-y-2">
                     {detail.otherNcrs.map((o) => (
                       <li key={o.id}>
-                        <button
+                        <Button
                           type="button"
                           onClick={() => {
                             setTab("overview");
                             panel.open(o.id);
                           }}
-                          className="flex min-h-11 w-full items-center gap-2 rounded-md border border-border bg-off-white px-3 text-start text-sm hover:bg-surface"
+                          variant="outline" className="flex w-full"
                         >
                           <span className="doc-id text-ink">{o.ncr_number}</span>
                           <Badge tone={SEVERITY_TONE[o.severity]}>{SEVERITY_LABEL[o.severity]}</Badge>
                           <Badge tone={STATUS_TONE[o.status]}>{STATUS_LABEL[o.status]}</Badge>
-                        </button>
+                        </Button>
                       </li>
                     ))}
                   </ul>

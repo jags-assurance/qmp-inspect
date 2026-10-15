@@ -7,6 +7,7 @@ import { useUrlPanel } from "@/components/ui/side-panel";
 import { cn } from "@/lib/cn";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 export type TodayKind = "inspection" | "hold" | "signoff" | "ncr" | "acceptance" | "review" | "proposal" | "assignment";
 
@@ -169,13 +170,13 @@ export function TodayQueue({
                   })}
                 </ul>
                 {all.length > LIMIT + 1 && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setExpanded((e) => ({ ...e, [group.urgency]: !open }))}
-                    className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline"
+                    variant="link" className="mt-1"
                   >
                     {open ? "Show fewer" : `Show ${all.length - LIMIT} more`}
-                  </button>
+                  </Button>
                 )}
               </div>
             );

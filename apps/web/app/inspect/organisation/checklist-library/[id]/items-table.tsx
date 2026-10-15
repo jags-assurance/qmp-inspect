@@ -5,6 +5,7 @@ import { deleteLibraryItemAction, type LibraryItemFormState } from "@/lib/checkl
 import type { ChecklistLibraryItemRow } from "@/lib/checklist-library/types";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
+import { Button } from "@/components/ui/button";
 
 const initialState: LibraryItemFormState = { error: null };
 
@@ -15,9 +16,9 @@ function DeleteItemButton({ templateId, itemId }: { templateId: string; itemId: 
     <form action={formAction}>
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="item_id" value={itemId} />
-      <button type="submit" disabled={pending} className="text-xs font-medium text-danger hover:underline disabled:opacity-50">
+      <Button type="submit" disabled={pending} variant="link-danger" size="sm">
         {pending ? "Removing…" : "Remove"}
-      </button>
+      </Button>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>
   );

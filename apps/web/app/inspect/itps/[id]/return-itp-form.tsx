@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { returnItpToDraftAction, type ReturnItpState } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: ReturnItpState = { error: null };
 
@@ -15,13 +16,13 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
 
   if (!open) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-danger hover:bg-off-white"
+        variant="danger-outline"
       >
         <Tx>Return to preparer</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -38,16 +39,16 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
         className="w-full sm:min-w-64 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       <div className="flex flex-col gap-1">
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-danger bg-surface px-3 py-1.5 text-sm font-medium text-danger hover:bg-off-white disabled:opacity-50"
+          variant="danger-outline" size="sm"
         >
           {pending ? "Returning…" : "Confirm return"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+        </Button>
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
       {state.error && <p role="alert" className="w-full max-w-md text-xs text-danger">{state.error}</p>}
     </form>

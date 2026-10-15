@@ -86,17 +86,17 @@ export function NumberingConfigRow({
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
         </FormField>
-        <button
+        <Button
           type="button"
           disabled={checking || !clientCode.trim()}
           onClick={() => {
             setCodeCheck(null);
             startChecking(async () => setCodeCheck(await checkClientCodeAction(organizationId, docType, clientCode)));
           }}
-          className="mt-1 text-xs font-medium text-burgundy hover:underline disabled:opacity-50"
+          variant="link" size="sm" className="mt-1"
         >
           {checking ? "Checking…" : "Check code for duplicates"}
-        </button>
+        </Button>
       </div>
 
       <div>
@@ -177,17 +177,17 @@ export function NumberingConfigRow({
             <p className="mt-1 text-xs">
               <Tx>Unused project numbers you could use:</Tx>{" "}
               {codeCheck.suggestions.map((sugg) => (
-                <button
+                <Button
                   key={sugg}
                   type="button"
                   onClick={() => {
                     setClientCode(sugg);
                     setCodeCheck(null);
                   }}
-                  className="me-2 rounded border border-border bg-surface px-1.5 py-0.5 font-medium text-burgundy hover:bg-off-white"
+                  variant="outline" size="sm" className="me-2"
                 >
                   {sugg}
-                </button>
+                </Button>
               ))}
             </p>
           )}

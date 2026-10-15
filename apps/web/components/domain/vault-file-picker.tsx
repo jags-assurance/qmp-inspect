@@ -5,6 +5,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { uploadVaultDocumentAction } from "@/lib/vault/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 export interface VaultPickerDocument {
   id: string;
@@ -275,14 +276,14 @@ export function VaultFilePicker({
                   </span>
                 </button>
                 {expanded && pickable.length > 0 && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => toggleFolder(docs)}
                     disabled={disabled}
-                    className="min-h-11 shrink-0 px-2 text-xs font-medium text-burgundy hover:underline"
+                    variant="link" size="sm" className="shrink-0"
                   >
                     {allOn ? "Clear folder" : "Select all in folder"}
-                  </button>
+                  </Button>
                 )}
               </div>
               {expanded && (
@@ -516,14 +517,14 @@ function InlineUpload({
               {error}
             </p>
           )}
-          <button
+          <Button
             type="button"
             onClick={upload}
             disabled={busy || disabled}
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-border bg-burgundy px-3 text-sm font-medium text-white disabled:opacity-60"
+            className="w-full"
           >
             {busy ? "Uploading…" : "Upload"}
-          </button>
+          </Button>
         </div>
       )}
     </div>

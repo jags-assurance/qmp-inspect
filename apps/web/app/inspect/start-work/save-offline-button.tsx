@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getLocalUserId } from "@/lib/offline/user";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 /**
  * Asks the service worker to keep a copy of the listed checklist pages for this signed-in user, so
@@ -35,14 +36,14 @@ export function SaveOfflineButton({ urls }: { urls: string[] }) {
   if (urls.length === 0) return null;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-      <button
+      <Button
         type="button"
         onClick={save}
         disabled={state === "saving"}
-        className="min-h-11 rounded-md border border-border bg-surface px-4 font-medium text-ink hover:bg-off-white disabled:opacity-60"
+        variant="outline"
       >
         {state === "saving" ? "Saving…" : "Save these checklists for offline"}
-      </button>
+      </Button>
       {state === "done" && <span className="text-muted"><Tx>Saved on this device. They will open without signal until you sign out.</Tx></span>}
       {state === "unavailable" && <span className="text-muted"><Tx>Offline saving is not available in this browser.</Tx></span>}
     </div>

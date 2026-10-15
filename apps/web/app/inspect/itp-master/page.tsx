@@ -9,6 +9,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 // Tier 1 master library is JAGS-staff-only at every level (RLS-enforced) — this redirect is a UX
 // nicety, not the actual boundary; a non-staff user's query would come back empty regardless.
@@ -50,7 +51,7 @@ export default async function ItpMasterLibraryPage() {
         </div>
         <Link
           href="/inspect/itp-master/proposals"
-          className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+          className={buttonVariants({ variant: "outline" })}
         >
           <T>Review proposals →</T>
         </Link>

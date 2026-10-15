@@ -4,6 +4,7 @@ import { DATA_BOOKS_TABLE } from "@/lib/databook/types";
 import { Badge } from "@/components/ui/badge";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 const PAGE_SIZE = 50;
 
@@ -232,7 +233,7 @@ export async function DataBookUpdatesPanel({
 
       {hasMore && (
         <div className="mt-4">
-          <a href={href(cat, page + 1)} className="rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-burgundy hover:bg-background">
+          <a href={href(cat, page + 1)} className={buttonVariants({ variant: "outline", size: "sm" })}>
             <T>Show more</T>
           </a>
         </div>

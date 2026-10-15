@@ -11,6 +11,7 @@ import {
 import { LIFECYCLE_LABELS } from "@/lib/registers/lifecycle";
 import { CertificateUpload } from "./certificate-upload";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: ManageRegisterState = { error: null };
 const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy";
@@ -60,9 +61,9 @@ export function RegisterLifecycleActions({
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="project_id" value={projectId} />
-          <button type="submit" disabled={verifying} className="rounded border border-border px-2 py-0.5 text-xs font-medium text-success hover:bg-off-white disabled:opacity-50">
+          <Button type="submit" disabled={verifying} variant="outline" size="sm">
             {verifying ? "Verifying…" : "Verify"}
-          </button>
+          </Button>
         </form>
       )}
 
@@ -101,9 +102,9 @@ export function RegisterLifecycleActions({
             </label>
             <CertificateUpload projectId={projectId} kind="calibration" label="New certificate (optional)" />
             {recalState.error && <p role="alert" className="text-xs text-danger">{recalState.error}</p>}
-            <button type="submit" disabled={recalibrating} className="rounded-md bg-burgundy px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
+            <Button type="submit" disabled={recalibrating} size="sm">
               {recalibrating ? "Saving…" : "Record recalibration"}
-            </button>
+            </Button>
           </form>
         </details>
       )}

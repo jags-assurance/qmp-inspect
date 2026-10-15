@@ -24,13 +24,13 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId, isAdmin = fal
 
   if (!expanded) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setExpanded(true)}
-        className="text-sm font-medium text-burgundy hover:underline"
+        variant="link"
       >
         <Tx>Verify &amp; close</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -69,13 +69,13 @@ export function VerifyClosePunchItemForm({ projectId, punchItemId, isAdmin = fal
         <Button type="submit" size="sm" disabled={pending || !notes.trim() || (override && reason.trim().length < 10)}>
           {pending ? "Closing…" : "Confirm close"}
         </Button>
-        <button
+        <Button
           type="button"
           onClick={() => setExpanded(false)}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white"
+          variant="outline" size="sm"
         >
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

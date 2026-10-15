@@ -81,9 +81,9 @@ export function RoleCard({
         </div>
         <form action={deleteAction}>
           <input type="hidden" name="role_id" value={role.id} />
-          <button type="submit" disabled={deletePending} className="text-xs text-danger hover:underline disabled:opacity-50">
+          <Button type="submit" disabled={deletePending} variant="link-danger" size="sm">
             {deletePending ? "Deleting…" : "Delete role"}
-          </button>
+          </Button>
         </form>
       </div>
       {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
@@ -179,9 +179,9 @@ function AssignmentRow({
       </span>
       <form action={action}>
         <input type="hidden" name="assignment_id" value={assignmentId} />
-        <button type="submit" disabled={pending} className="text-muted hover:text-danger hover:underline disabled:opacity-50">
+        <Button type="submit" disabled={pending} variant="link-muted">
           {pending ? "Removing…" : "Remove"}
-        </button>
+        </Button>
       </form>
       {state.error && <span className="ms-2 text-danger">{state.error}</span>}
     </div>

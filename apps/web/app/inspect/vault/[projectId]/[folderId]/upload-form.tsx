@@ -436,9 +436,9 @@ export function VaultUploadForm({
             <Button type="button" onClick={() => runUpload(true)} disabled={uploading}>
               <Tx>Yes, upload as new revision</Tx>
             </Button>
-            <button type="button" onClick={() => setDuplicates(null)} className="min-h-11 px-3 text-sm text-muted hover:underline sm:min-h-0">
+            <Button type="button" onClick={() => setDuplicates(null)} variant="link-muted">
               <Tx>Cancel, let me change the reference</Tx>
-            </button>
+            </Button>
           </div>
         </div>
       )}

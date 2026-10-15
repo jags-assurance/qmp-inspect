@@ -17,6 +17,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 const EVIDENCE_LABEL: Record<number, string> = {
   1: "Checklist",
@@ -146,7 +147,7 @@ export default async function MasterTemplateDetailPage({ params }: { params: Pro
       {template.is_active && (
         <Link
           href={`/inspect/itps/new?tab=template&template=${template.id}`}
-          className="mt-3 inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
+          className={buttonVariants({ className: "mt-3" })}
         >
           <T>Use this template</T>
         </Link>

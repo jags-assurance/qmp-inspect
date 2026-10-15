@@ -9,6 +9,7 @@ import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { isAnonymisedEmail } from "@/lib/data-requests/anonymise";
 import { AnonymiseControl } from "./anonymise-control";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Data requests" };
 
@@ -75,9 +76,9 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
             className="mt-1 block min-h-11 w-72 rounded-md border border-border bg-surface px-3 py-2 text-sm"
           />
         </label>
-        <button type="submit" className="min-h-11 rounded-md border border-border px-4 text-sm font-medium text-ink hover:bg-off-white">
+        <Button type="submit" variant="outline">
           <T>Look up</T>
-        </button>
+        </Button>
       </form>
 
       {q && matches.length === 0 && <p className="mt-6 text-sm text-muted"><T>No matching account found.</T></p>}
@@ -98,7 +99,7 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
                 <div className="flex flex-col gap-1">
                   <a
                     href={`/inspect/organisation/data-requests/export?user_id=${u.id}`}
-                    className="inline-flex min-h-10 items-center rounded-md border border-border px-4 text-sm font-medium text-ink hover:bg-off-white"
+                    className={buttonVariants({ variant: "outline" })}
                   >
                     <T>Download data export (JSON)</T>
                   </a>

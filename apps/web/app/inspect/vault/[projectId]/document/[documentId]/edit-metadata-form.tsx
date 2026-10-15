@@ -39,9 +39,9 @@ export function EditMetadataForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline sm:min-h-0">
+      <Button type="button" onClick={() => setOpen(true)} variant="link">
         <Tx>Edit details</Tx>
-      </button>
+      </Button>
     );
   }
   const cls = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy read-only:bg-off-white";
@@ -78,9 +78,9 @@ export function EditMetadataForm({
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Saving…" : "Save changes"}
         </Button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
       {state.error && (
         <p className="text-xs text-danger sm:col-span-2" role="alert">

@@ -121,9 +121,9 @@ function MeasurementRow({
             <Button type="submit" size="sm" disabled={pending}>
               {pending ? "Saving…" : "Save"}
             </Button>
-            <button type="button" onClick={() => setEditing(false)} className="text-muted hover:underline">
+            <Button type="button" onClick={() => setEditing(false)} variant="link-muted">
               <Tx>Cancel</Tx>
-            </button>
+            </Button>
           </form>
         </td>
       </tr>
@@ -152,15 +152,15 @@ function MeasurementRow({
       </td>
       {canDelete && (
         <td className="py-1 text-end whitespace-nowrap">
-          <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
+          <Button type="button" onClick={() => setEditing(true)} variant="link" size="sm">
             <Tx>Edit</Tx>
-          </button>
+          </Button>
           <form action={deleteItpItemMeasurementAction} className="inline">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
-            <button type="submit" className="ms-2 text-xs text-danger hover:underline">
+            <Button type="submit" variant="link-danger" size="sm" className="ms-2">
               <Tx>Remove</Tx>
-            </button>
+            </Button>
           </form>
         </td>
       )}
@@ -175,9 +175,9 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-2 text-xs font-medium text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link" size="sm" className="mt-2">
         <Tx>+ Record measurement</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -206,9 +206,9 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Adding…" : "Add"}
         </Button>
-        <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -268,9 +268,9 @@ export function ItpItemEvidenceDocumentsSection({
                 <form action={unlinkItpItemEvidenceDocumentAction}>
                   <input type="hidden" name="itp_item_id" value={itpItemId} />
                   <input type="hidden" name="link_id" value={doc.id} />
-                  <button type="submit" className="text-danger hover:underline">
+                  <Button type="submit" variant="link-danger">
                     <Tx>Unlink</Tx>
-                  </button>
+                  </Button>
                 </form>
               )}
             </li>
@@ -319,9 +319,9 @@ function LinkDocumentForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-2 text-xs font-medium text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link" size="sm" className="mt-2">
         <Tx>+ Link evidence document</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -334,9 +334,9 @@ function LinkDocumentForm({
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Linking…" : "Link selected files"}
         </Button>
-        <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

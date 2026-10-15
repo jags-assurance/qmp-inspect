@@ -18,6 +18,7 @@ import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { withActiveProject } from "@/lib/projects/active-project";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
+import { Button } from "@/components/ui/button";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -261,7 +262,7 @@ export default async function StartWorkPage({
             <option value=""><T>Everyone&apos;s activities</T></option>
             <option value="me"><T>Assigned to me (</T>{assignedMine.length})</option>
           </select>
-          <button type="submit" className="min-h-11 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"><T>Filter</T></button>
+          <Button type="submit" ><T>Filter</T></Button>
         </form>
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">

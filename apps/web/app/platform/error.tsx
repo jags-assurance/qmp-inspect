@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/observability/report-client-error";
 import { Tx } from "@/components/domain/tx";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export default function PlatformError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
@@ -22,16 +23,16 @@ export default function PlatformError({ error, reset }: { error: Error & { diges
         </p>
       )}
       <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={() => reset()}
-          className="min-h-11 rounded-md bg-burgundy px-5 text-sm font-medium text-white hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-burgundy"
+          
         >
           <Tx>Try again</Tx>
-        </button>
+        </Button>
         <a
           href="/platform"
-          className="inline-flex min-h-11 items-center rounded-md border border-border px-5 text-sm font-medium text-ink hover:bg-off-white"
+          className={buttonVariants({ variant: "outline" })}
         >
           <Tx>Go to platform home</Tx>
         </a>

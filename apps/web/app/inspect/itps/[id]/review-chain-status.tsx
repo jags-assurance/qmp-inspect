@@ -11,6 +11,7 @@ import {
 import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: ApproveReviewStepState = { error: null };
 const initialReassignState: ReassignReviewStepState = { error: null };
@@ -45,13 +46,13 @@ export function ReviewChainStatus({
           <form action={formAction}>
             <input type="hidden" name="itp_id" value={itpId} />
             {requiresChecklistReview && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
-            <button
+            <Button
               type="submit"
               disabled={pending || (requiresChecklistReview && !reviewed)}
-              className="rounded-md border border-info bg-surface px-3 py-1.5 text-xs font-medium text-info hover:bg-info/10 disabled:opacity-50"
+              variant="outline" size="sm"
             >
               {pending ? "Approving…" : `Approve review step ${(steps.findIndex((s) => s.id === firstPending!.id) ?? 0) + 1}`}
-            </button>
+            </Button>
           </form>
         )}
       </div>
@@ -105,13 +106,13 @@ export function ReviewChainStatus({
             </select>
             </FormField>
           </div>
-          <button
+          <Button
             type="submit"
             disabled={reassigning}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+            variant="outline" size="sm"
           >
             {reassigning ? "Reassigning…" : "Reassign"}
-          </button>
+          </Button>
           {reassignState.error && (
             <p role="alert" className="w-full text-xs text-danger">
               {reassignState.error}

@@ -7,6 +7,7 @@ import {
   type BulkProjectPartiesState,
 } from "@/lib/projects/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: BulkProjectPartiesState = { error: null };
 
@@ -44,58 +45,58 @@ export function DeactivateAllPartiesControl({
             <span className="text-sm font-medium text-danger">
               <Tx>Deactivate every currently-active party&apos;s access on this project?</Tx>
             </span>
-            <button
+            <Button
               type="submit"
               disabled={deactivatePending}
-              className="rounded-md bg-danger px-3 py-1 text-sm text-white disabled:opacity-50"
+              variant="danger" size="sm"
             >
               {deactivatePending ? "Deactivating…" : "Yes, deactivate all"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setConfirmingDeactivate(false)}
-              className="text-sm text-muted hover:underline"
+              variant="link-muted"
             >
               <Tx>Cancel</Tx>
-            </button>
+            </Button>
           </form>
         ) : (
-          <button
+          <Button
             type="button"
             onClick={() => setConfirmingDeactivate(true)}
-            className="w-fit rounded-md border border-danger px-3 py-1.5 text-sm text-danger hover:bg-danger/5"
+            variant="danger-outline" size="sm" className="w-fit"
           >
             <Tx>Deactivate all project access</Tx>
-          </button>
+          </Button>
         )
       ) : (
         confirmingReactivate ? (
           <form action={reactivateAction} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="project_id" value={projectId} />
             <span className="text-sm font-medium text-ink"><Tx>Reactivate every party on this project?</Tx></span>
-            <button
+            <Button
               type="submit"
               disabled={reactivatePending}
-              className="rounded-md bg-burgundy px-3 py-1 text-sm text-white disabled:opacity-50"
+              size="sm"
             >
               {reactivatePending ? "Reactivating…" : "Yes, reactivate all"}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setConfirmingReactivate(false)}
-              className="text-sm text-muted hover:underline"
+              variant="link-muted"
             >
               <Tx>Cancel</Tx>
-            </button>
+            </Button>
           </form>
         ) : (
-          <button
+          <Button
             type="button"
             onClick={() => setConfirmingReactivate(true)}
-            className="w-fit rounded-md border border-burgundy px-3 py-1.5 text-sm text-burgundy hover:bg-burgundy/5"
+            variant="outline" size="sm" className="w-fit"
           >
             <Tx>Reactivate all project access</Tx>
-          </button>
+          </Button>
         )
       )}
       {deactivateState.error && <span className="text-xs text-danger">{deactivateState.error}</span>}

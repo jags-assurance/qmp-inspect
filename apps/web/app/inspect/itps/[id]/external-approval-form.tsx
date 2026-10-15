@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { recordExternalApprovalAction, type RecordExternalApprovalState } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: RecordExternalApprovalState = { error: null };
 
@@ -57,13 +58,13 @@ export function ExternalApprovalForm({
           required
           className="w-full sm:min-w-[20rem] flex-1 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
         />
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+          variant="outline"
         >
           {pending ? "Saving…" : reference ? "Update reference" : "Record reference"}
-        </button>
+        </Button>
       </form>
       {state.error && <p role="alert" className="mt-1 text-xs text-danger">{state.error}</p>}
       </div>

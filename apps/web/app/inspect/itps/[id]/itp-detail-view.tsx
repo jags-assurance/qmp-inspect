@@ -89,6 +89,7 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "gold"> = {
   draft: "neutral",
@@ -723,7 +724,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         )}
         <Link
           href={`/inspect/projects/${itp.projects?.id}/guide`}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-off-white"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           <T>? Project Guide</T>
         </Link>
@@ -888,19 +889,19 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
               {/* Added by the checklists/inspections slice — links to the new /checklists route added in that feature, no other change to this file. */}
               <Link
                 href={`/inspect/itps/${itp.id}/checklists`}
-                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white"
+                className={buttonVariants({ variant: "outline" })}
               >
                 <T>Checklists →</T>
               </Link>
               <Link
                 href={`/inspect/itps/${itp.id}/status`}
-                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white"
+                className={buttonVariants({ variant: "outline" })}
               >
                 <T>Completion roadmap →</T>
               </Link>
               <Link
                 href={`/inspect/itps/${itp.id}/approval-roadmap`}
-                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white"
+                className={buttonVariants({ variant: "outline" })}
               >
                 <T>Approval roadmap →</T>
               </Link>
@@ -929,9 +930,9 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           {session.isJagsStaff && hasPendingSignoffs && (
             <form action={notifyAllPendingForItpAction}>
               <input type="hidden" name="itp_id" value={itp.id} />
-              <button type="submit" className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-off-white">
+              <Button type="submit" variant="outline">
                 <T>Notify all pending</T>
-              </button>
+              </Button>
             </form>
           )}
           {canAccept && <AcceptItpForm itpId={itp.id} requiresChecklistReview={requiresChecklistReview} />}

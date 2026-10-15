@@ -224,9 +224,9 @@ export function RecordWalkdownForm({
       </div>
 
       <div className="mt-3 flex items-center gap-3">
-        <button type="button" onClick={addRow} className="text-sm text-burgundy hover:underline">
+        <Button type="button" onClick={addRow} variant="link">
           <Tx>+ Add another item</Tx>
-        </button>
+        </Button>
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Recording…" : "Record walk-down"}
         </Button>

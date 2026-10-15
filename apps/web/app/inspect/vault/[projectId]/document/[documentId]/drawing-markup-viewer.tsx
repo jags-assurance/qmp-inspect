@@ -322,9 +322,9 @@ export function DrawingMarkupViewer({
           <div className="rounded-lg border border-border bg-surface p-4">
             <div className="flex items-center justify-between">
               <Badge tone="neutral">{DRAWING_MARKUP_TYPE_LABELS[selectedMarkup.markup_type]}</Badge>
-              <button type="button" onClick={() => setSelectedMarkup(null)} className="text-xs text-muted hover:underline">
+              <Button type="button" onClick={() => setSelectedMarkup(null)} variant="link-muted" size="sm">
                 <Tx>Close</Tx>
-              </button>
+              </Button>
             </div>
             <p className="mt-2 text-sm text-ink">{selectedMarkup.label}</p>
             {selectedMarkup.linked_entity_id && (

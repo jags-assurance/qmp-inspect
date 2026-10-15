@@ -10,6 +10,7 @@ import { bulkApproveDocumentsAction, type BulkApproveState } from "@/lib/vault/d
 import type { VaultDocKind, VaultFileType } from "@/lib/vault/doc-kind";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export interface VaultDocumentTableRow {
   id: string;
@@ -332,9 +333,9 @@ export function VaultDocumentsTable({
             <Tx>Show superseded</Tx>{supersededCount > 0 ? ` (${supersededCount})` : ""}
           </label>
           {filtersActive && (
-            <button type="button" onClick={clearFilters} className="text-burgundy hover:underline">
+            <Button type="button" onClick={clearFilters} variant="link">
               <Tx>Clear filters</Tx>
-            </button>
+            </Button>
           )}
           <span className="ms-auto" aria-live="polite">
             {visible.length} <Tx>of</Tx> {rows.length} <Tx>document</Tx>{rows.length === 1 ? "" : "s"}
@@ -352,7 +353,7 @@ export function VaultDocumentsTable({
           {selectedDownloadable ? (
             <a
               href={`/api/vault/${projectId}/download-all?ids=${selectedRows.map((r) => r.id).join(",")}`}
-              className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:border-burgundy sm:min-h-0 sm:py-1.5"
+              className={buttonVariants({ variant: "outline" })}
             >
               <Tx>Download selected (.zip)</Tx>
             </a>
@@ -376,18 +377,18 @@ export function VaultDocumentsTable({
                 aria-label={tl("Approval comment")}
                 className="me-2 min-h-11 rounded-md border border-border bg-surface px-2 text-sm sm:min-h-0 sm:py-1.5"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={bulkPending}
-                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:border-burgundy disabled:opacity-50 sm:min-h-0 sm:py-1.5"
+                variant="outline"
               >
                 {bulkPending ? "Approving…" : `Approve ${selectedApprovable.length} for review`}
-              </button>
+              </Button>
             </form>
           )}
-          <button type="button" onClick={() => setSelected(new Set())} className="text-xs text-muted hover:underline">
+          <Button type="button" onClick={() => setSelected(new Set())} variant="link-muted" size="sm">
             <Tx>Clear selection</Tx>
-          </button>
+          </Button>
           {bulkState.error && (
             <span className="text-xs text-danger" role="alert">
               {bulkState.error}

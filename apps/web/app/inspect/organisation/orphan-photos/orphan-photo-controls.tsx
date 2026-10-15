@@ -5,6 +5,7 @@ import { removeOrphanFileAction, reviewOrphanPhotoAction, type OrphanReviewState
 import { isRemoveConfirmed, REMOVE_CONFIRMATION } from "@/lib/orphan-photos/logic";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initial: OrphanReviewState = { error: null };
 const INPUT = "rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy";
@@ -21,15 +22,15 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
       <form action={reviewAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="storage_path" value={storagePath} />
         <input name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
-        <button type="submit" name="decision" value="kept" disabled={pending} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink hover:bg-off-white disabled:opacity-50">
+        <Button type="submit" name="decision" value="kept" disabled={pending} variant="outline" size="sm">
           <Tx>Keep</Tx>
-        </button>
-        <button type="submit" name="decision" value="removed" disabled={pending} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-ink hover:bg-off-white disabled:opacity-50">
+        </Button>
+        <Button type="submit" name="decision" value="removed" disabled={pending} variant="outline" size="sm">
           <Tx>Mark removed</Tx>
-        </button>
-        <button type="button" onClick={() => setConfirmOpen((v) => !v)} className="text-xs text-danger hover:underline">
+        </Button>
+        <Button type="button" onClick={() => setConfirmOpen((v) => !v)} variant="link-danger" size="sm">
           <Tx>Remove file…</Tx>
-        </button>
+        </Button>
       </form>
 
       {confirmOpen && (
@@ -41,13 +42,13 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <input name="confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" aria-label={tl("Type REMOVE FILE to confirm")} className={`w-40 ${INPUT}`} />
             <input name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
-            <button
+            <Button
               type="submit"
               disabled={removing || !isRemoveConfirmed(typed)}
-              className="rounded-md bg-danger px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+              variant="danger" size="sm"
             >
               {removing ? "Removing…" : "Delete file"}
-            </button>
+            </Button>
           </div>
           {removeState.error && <p role="alert" className="mt-2 text-xs text-danger">{removeState.error}</p>}
         </form>

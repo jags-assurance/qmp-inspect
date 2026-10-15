@@ -74,13 +74,13 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
 
       <form action={deleteAction} className="mt-1.5">
         <input type="hidden" name="id" value={level.id} />
-        <button
+        <Button
           type="submit"
           disabled={deletePending}
-          className="text-xs font-medium text-danger hover:underline disabled:opacity-50"
+          variant="link-danger" size="sm"
         >
           {deletePending ? "Removing…" : "Remove level"}
-        </button>
+        </Button>
       </form>
       {deleteState.error && <p role="alert" className="mt-1 text-sm text-danger">{deleteState.error}</p>}
     </div>

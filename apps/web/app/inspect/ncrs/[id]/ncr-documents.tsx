@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { linkNcrDocumentAction, unlinkNcrDocumentAction, type NcrDocumentState } from "@/lib/ncrs/actions";
 import { VaultFilePicker, type VaultPickerDocument } from "@/components/domain/vault-file-picker";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 export interface NcrLinkedDocument {
   linkId: string;
@@ -59,7 +60,7 @@ export function NcrDocuments({
                 {d.documentReference && <span className="text-muted"> ({d.documentReference})</span>}
               </a>
               {!readOnly && (
-                <button
+                <Button
                   type="button"
                   disabled={removing}
                   onClick={() =>
@@ -68,10 +69,10 @@ export function NcrDocuments({
                       setRemoveError(r.error);
                     })
                   }
-                  className="min-h-11 px-2 text-xs text-danger hover:underline disabled:opacity-60"
+                  variant="link-danger" size="sm"
                 >
                   <Tx>Remove</Tx>
-                </button>
+                </Button>
               )}
             </li>
           ))}

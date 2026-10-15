@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { approveDocumentAction, type ApproveDocumentState } from "@/lib/vault/multi-approval-actions";
+import { Button } from "@/components/ui/button";
 
 const initialState: ApproveDocumentState = { error: null };
 
@@ -54,21 +55,21 @@ export function ApproveDocumentButton({
             />
           ) : null}
           {asking ? (
-            <button
+            <Button
               type="submit"
               disabled={pending}
-              className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+              variant="outline" size="sm"
             >
               {pending ? "Approving…" : "Approve as admin"}
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
               onClick={() => setAsking(true)}
-              className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white"
+              variant="outline" size="sm"
             >
               Approve as admin (reason)
-            </button>
+            </Button>
           )}
         </>
       ) : asking ? (
@@ -82,25 +83,25 @@ export function ApproveDocumentButton({
             aria-label="Approval comment"
             className="min-w-48 rounded-md border border-border bg-surface px-2 py-1 text-xs"
           />
-          <button
+          <Button
             type="submit"
             disabled={pending}
-            className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+            variant="outline" size="sm"
           >
             {pending ? "Approving…" : "Confirm approve"}
-          </button>
-          <button type="button" onClick={() => setAsking(false)} className="text-xs text-muted hover:underline">
+          </Button>
+          <Button type="button" onClick={() => setAsking(false)} variant="link-muted" size="sm">
             Cancel
-          </button>
+          </Button>
         </>
       ) : (
-        <button
+        <Button
           type="button"
           onClick={() => setAsking(true)}
-          className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium hover:bg-off-white"
+          variant="outline" size="sm"
         >
           {label}
-        </button>
+        </Button>
       )}
       {state.error && <span className="text-xs text-danger">{state.error}</span>}
     </form>

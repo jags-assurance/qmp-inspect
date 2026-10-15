@@ -243,7 +243,7 @@ export function NewNcrForm({
             placeholder={tl("Jot down factual notes — equipment, what was observed…")}
             className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
           />
-          <button
+          <Button
             type="button"
             disabled={draftPending || !projectId || !notes.trim()}
             onClick={() => {
@@ -252,10 +252,10 @@ export function NewNcrForm({
               fd.set("notes", notes);
               draftFormAction(fd);
             }}
-            className="mt-2 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-off-white disabled:cursor-not-allowed disabled:opacity-50"
+            variant="outline" size="sm" className="mt-2"
           >
             {draftPending ? "Drafting…" : "Draft with AI"}
-          </button>
+          </Button>
           {/* Real gap found live: the button just silently stayed disabled with no explanation when
               a project hadn't been picked yet, or the notes box was still empty — looked broken
               rather than waiting on input. */}

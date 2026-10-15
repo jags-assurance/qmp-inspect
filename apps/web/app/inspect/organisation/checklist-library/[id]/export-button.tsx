@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * Real gap found in a UX audit: this was a plain `<a href>` to a synchronous export route with zero
@@ -21,7 +22,7 @@ export function ExportButton({ templateId }: { templateId: string }) {
         setTimeout(() => setPending(false), 4000);
       }}
       aria-disabled={pending}
-      className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white aria-disabled:pointer-events-none aria-disabled:opacity-50"
+      className={buttonVariants({ variant: "outline" })}
     >
       {pending ? "Preparing…" : "Download .xlsx →"}
     </a>

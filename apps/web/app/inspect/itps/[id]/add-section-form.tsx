@@ -5,6 +5,7 @@ import { addItpSectionAction, type AddSectionState } from "@/lib/itps/sections";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: AddSectionState = { error: null };
 
@@ -41,13 +42,13 @@ export function AddSectionForm({ itpId, isIssued }: { itpId: string; isIssued: b
           />
         </div>
       )}
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-border bg-off-white px-3.5 py-2 text-sm font-medium hover:bg-surface disabled:opacity-50"
+        variant="outline"
       >
         {pending ? "Adding…" : isIssued ? "+ Add section (new revision)" : "+ Add section"}
-      </button>
+      </Button>
       {isIssued && (
         <p className="w-full text-xs text-warning">
           <Tx>This ITP has already been issued — adding a section will record a new revision and freeze the current content into history.</Tx>

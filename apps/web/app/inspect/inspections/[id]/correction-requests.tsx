@@ -73,9 +73,9 @@ function ResolveForm({ requestId }: { requestId: string }) {
         {declining ? (
           <Button type="submit" name="decision" value="decline" size="sm" disabled={pending}>{pending ? "Working…" : "Confirm decline"}</Button>
         ) : (
-          <button type="button" onClick={() => setDeclining(true)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white">
+          <Button type="button" onClick={() => setDeclining(true)} variant="outline" size="sm">
             <Tx>Decline…</Tx>
-          </button>
+          </Button>
         )}
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}

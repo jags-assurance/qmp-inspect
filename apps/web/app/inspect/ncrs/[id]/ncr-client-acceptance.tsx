@@ -8,6 +8,7 @@ import {
 } from "@/lib/ncrs/acceptance-actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const field = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
 
@@ -35,15 +36,15 @@ export function ClientAcceptanceForm({ ncrId }: { ncrId: string }) {
       <input type="hidden" name="ncr_id" value={ncrId} />
       <textarea name="comment" rows={2} maxLength={1000} placeholder={tl("Comment (required if you reject)")} className={field} aria-label={tl("Comment")} />
       <div className="flex flex-wrap gap-2">
-        <button
+        <Button
           type="submit"
           name="decision"
           value="accepted"
           disabled={pending}
-          className="min-h-10 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          
         >
           <Tx>Accept disposition</Tx>
-        </button>
+        </Button>
         <button
           type="submit"
           name="decision"

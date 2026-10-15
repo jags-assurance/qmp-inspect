@@ -50,6 +50,7 @@ import { getSignedPhotoUrls } from "@/lib/storage/signed-urls";
 import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -447,7 +448,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 href={`/inspect/ncrs/new?project_id=${record.project_id}&itp_item_id=${record.itp_item_id}&inspection_record_id=${record.id}&description=${encodeURIComponent(
                   `${record.activity} (${record.record_number}) — see recorded responses/comments below.`
                 )}`}
-                className="mt-3 inline-block rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
+                className={buttonVariants({ variant: "outline", size: "sm", className: "mt-3 inline-block" })}
               >
                 <T>Raise NCR →</T>
               </Link>

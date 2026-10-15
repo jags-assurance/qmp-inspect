@@ -7,6 +7,7 @@ import { addMeasurementAction, type AddMeasurementState } from "@/lib/standalone
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
+import { Button } from "@/components/ui/button";
 
 const initialState: AddMeasurementState = { error: null };
 
@@ -64,13 +65,13 @@ export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
         </select>
         </FormField>
       </div>
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline" size="sm"
       >
         {pending ? "Adding…" : "+ Add measurement"}
-      </button>
+      </Button>
       <MoreDetails label="More fields (nominal, tolerance, unit)" bare className="w-full">
         <div className="flex flex-wrap items-end gap-2">
       <div>

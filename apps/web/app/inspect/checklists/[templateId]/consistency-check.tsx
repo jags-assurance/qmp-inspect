@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { checkChecklistConsistencyAction, type CheckConsistencyState } from "@/lib/checklists/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: CheckConsistencyState = { error: null, flags: null };
 
@@ -20,13 +21,13 @@ export function ConsistencyCheck({ templateId, inspectionRecordId }: { templateI
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-ink"><Tx>AI consistency check</Tx></h2>
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-off-white/70 disabled:cursor-not-allowed disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {pending ? "Checking…" : "Check for inconsistencies"}
-        </button>
+        </Button>
       </div>
       <p className="mt-1 text-xs text-muted">
         <Tx>Advisory only — compares your responses against the acceptance criteria. It never blocks completing the inspection.</Tx>

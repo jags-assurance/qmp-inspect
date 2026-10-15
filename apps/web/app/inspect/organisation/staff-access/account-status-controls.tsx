@@ -24,7 +24,7 @@ export function AccountStatusButton({ userId, active, name }: { userId: string; 
     <form action={formAction} className="flex flex-col items-end gap-1">
       {dialog}
       <input type="hidden" name="user_id" value={userId} />
-      <button
+      <Button
         type="submit"
         disabled={pending}
         onClick={
@@ -37,10 +37,10 @@ export function AccountStatusButton({ userId, active, name }: { userId: string; 
               })
             : undefined
         }
-        className="min-h-9 text-xs font-medium text-burgundy hover:underline disabled:opacity-50"
+        variant="link" size="sm"
       >
         {pending ? "Working…" : active ? "Deactivate account" : "Reactivate account"}
-      </button>
+      </Button>
       <FormMessage error={state.error} success={state.message} className="max-w-xs text-end" />
     </form>
   );

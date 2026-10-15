@@ -7,6 +7,7 @@ import {
   type NoticePeriodConfigState,
 } from "@/lib/signoff/notice-period-config-actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: NoticePeriodConfigState = { error: null };
 
@@ -75,25 +76,25 @@ function NoticePeriodRow({
           }
           className="w-40 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-burgundy"
         />
-        <button
+        <Button
           type="submit"
           disabled={setPending}
-          className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {setPending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </form>
       {currentHours != null && (
         <form action={clearFormAction}>
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="intervention" value={level.code} />
-          <button
+          <Button
             type="submit"
             disabled={clearPending}
-            className="text-xs text-muted hover:underline disabled:opacity-50"
+            variant="link-muted" size="sm"
           >
             {clearPending ? "Clearing…" : "Clear override"}
-          </button>
+          </Button>
         </form>
       )}
       {currentHours == null && <span className="text-xs text-muted"><Tx>Using organisation default</Tx></span>}

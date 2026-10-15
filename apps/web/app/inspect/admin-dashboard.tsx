@@ -12,6 +12,7 @@ import { MoreDetails } from "@/components/domain/more-details";
 import { PageGuide } from "@/components/domain/page-guide";
 import { ProposalReviewForm } from "./itp-master/proposals/proposal-review-form";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 export interface PendingProposalItem {
   id: string;
@@ -160,7 +161,7 @@ export function AdminDashboard({
         </div>
         <Link
           href="/inspect/projects/new"
-          className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark"
+          className={buttonVariants()}
         >
           <Tx>New project</Tx>
         </Link>
@@ -351,13 +352,13 @@ export function AdminDashboard({
                   key: "action",
                   header: "",
                   render: (r) => (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => panel.open(`proposal:${r.id}`)}
-                      className="inline-flex min-h-8 items-center font-medium text-burgundy hover:underline"
+                      variant="link"
                     >
                       <Tx>Review</Tx>
-                    </button>
+                    </Button>
                   ),
                 },
               ]}
@@ -470,7 +471,7 @@ export function AdminDashboard({
             </dl>
             <Link
               href={`/inspect/ncrs/${openNcr.id}`}
-              className="inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 text-sm font-medium text-white hover:bg-burgundy-dark"
+              className={buttonVariants()}
             >
               <Tx>Open full NCR →</Tx>
             </Link>

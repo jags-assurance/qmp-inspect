@@ -6,6 +6,7 @@ import { RETURN_REASON_MIN } from "@/lib/ncrs/rules";
 import { NEXT_STATUS, NEXT_STATUS_LABEL } from "../ncr-shared";
 import type { NcrStatus } from "@/lib/ncrs/types";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const statusInitial: NcrStatusState = { error: null };
 const returnInitial: ReturnNcrState = { error: null };
@@ -46,13 +47,13 @@ export function NcrStatusButton({
     <form action={formAction} className="flex flex-col items-end gap-1">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <input type="hidden" name="status" value={next} />
-      <button
+      <Button
         type="submit"
         disabled={pending || blocked}
-        className="min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline"
       >
         {pending ? "Working…" : NEXT_STATUS_LABEL[status]}
-      </button>
+      </Button>
       {blocked && <p className="max-w-xs text-end text-xs text-muted"><Tx>Save root cause, corrective and preventive action first.</Tx></p>}
       {state.error && <p role="alert" className="max-w-xs text-end text-xs text-danger">{state.error}</p>}
     </form>
@@ -86,13 +87,13 @@ export function ReturnForReworkForm({ ncrId, onDone }: { ncrId: string; onDone?:
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
       />
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="min-h-11 rounded-md border border-border bg-surface px-4 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline"
       >
         {pending ? "Returning…" : "Return for rework"}
-      </button>
+      </Button>
     </form>
   );
 }

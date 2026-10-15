@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Tx } from "@/components/domain/tx";
 import { confirmationMatches } from "@/lib/projects/delete-helpers";
 import type { DeletePreview, DeleteState } from "@/lib/projects/delete-actions";
+import { Button } from "@/components/ui/button";
 
 const initialState: DeleteState = { error: null };
 
@@ -46,9 +47,9 @@ export function DangerDelete({
         <Tx>Deleting permanently removes everything under it and cannot be undone. Only a JAGS Admin can do this.</Tx>
       </p>
       {!open ? (
-        <button type="button" onClick={() => void openPanel()} className="mt-3 rounded-md border border-danger px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/10">
+        <Button type="button" onClick={() => void openPanel()} variant="danger-outline" size="sm" className="mt-3">
           {kind === "project" ? "Delete this project…" : "Delete this organisation…"}
-        </button>
+        </Button>
       ) : (
         <form action={formAction} className="mt-3 max-w-lg space-y-3 text-sm">
           <input type="hidden" name={kind === "project" ? "project_id" : "organization_id"} value={id} />
@@ -83,13 +84,13 @@ export function DangerDelete({
           )}
           {state.error && <p role="alert" className="text-danger">{state.error}</p>}
           <div className="flex gap-2">
-            <button
+            <Button
               type="submit"
               disabled={pending || !preview || !!preview.blockedReason || !confirmationMatches(typed, confirmWord)}
-              className="rounded-md bg-danger px-3 py-1.5 font-medium text-white disabled:opacity-50"
+              variant="danger" size="sm"
             >
               {pending ? "Deleting…" : `Delete this ${noun} permanently`}
-            </button>
+            </Button>
             <button type="button" onClick={() => { setOpen(false); setTyped(""); }} disabled={pending} className="rounded-md border border-border px-3 py-1.5">
               <Tx>Cancel</Tx>
             </button>

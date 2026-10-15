@@ -9,7 +9,7 @@ import {
   type DataBookPdfStatus,
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 
 const initialState: RequestDataBookPdfState = { error: null };
@@ -42,14 +42,14 @@ function PdfViewerDialog({ url, title, onClose }: { url: string; title: string; 
             <a href={url} target="_blank" rel="noreferrer" className="text-sm text-burgundy hover:underline">
               <Tx>Open in new tab ↗</Tx>
             </a>
-            <button
+            <Button
               ref={closeRef}
               type="button"
               onClick={onClose}
-              className="rounded-md border border-border px-3 py-1 text-sm hover:bg-off-white focus:outline-none focus:ring-2 focus:ring-burgundy"
+              variant="outline" size="sm"
             >
               <Tx>Close</Tx>
-            </button>
+            </Button>
           </div>
         </div>
         <iframe src={url} title={title} className="min-h-0 flex-1 bg-white" />
@@ -111,7 +111,7 @@ export function DataBookPdfButton({
         {ready && liveStatus.downloadUrl && (
           <a
             href={liveStatus.downloadUrl}
-            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             <Tx>Download PDF ↓</Tx>
           </a>

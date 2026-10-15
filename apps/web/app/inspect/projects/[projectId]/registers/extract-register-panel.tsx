@@ -95,13 +95,13 @@ export function ExtractRegisterPanel({
 
   return (
     <div className="mt-3 rounded-lg border border-dashed border-border bg-off-white p-3">
-      <button
+      <Button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-xs font-medium text-burgundy hover:underline"
+        variant="link" size="sm"
       >
         {open ? "▾" : "▸"} <Tx>Extract from document text (AI-assisted)</Tx>
-      </button>
+      </Button>
 
       {open && (
         <div className="mt-3 space-y-3">
@@ -156,13 +156,13 @@ export function ExtractRegisterPanel({
                           </div>
                         ))}
                       </div>
-                      <button
+                      <Button
                         type="button"
                         onClick={() => removeRow(rowIdx)}
-                        className="text-xs font-medium text-danger hover:underline"
+                        variant="link-danger" size="sm"
                       >
                         <Tx>Remove</Tx>
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -174,16 +174,16 @@ export function ExtractRegisterPanel({
                 <Button type="submit" size="sm" disabled={addPending || rows.length === 0}>
                   {addPending ? "Adding…" : `Add ${rows.length} row${rows.length === 1 ? "" : "s"}`}
                 </Button>
-                <button
+                <Button
                   type="button"
                   onClick={() => {
                     setRows(null);
                     setAiLogId(null);
                   }}
-                  className="text-xs text-muted hover:underline"
+                  variant="link-muted" size="sm"
                 >
                   <Tx>Discard and re-extract</Tx>
-                </button>
+                </Button>
               </div>
             </form>
           )}

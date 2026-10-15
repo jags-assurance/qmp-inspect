@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const POPULAR = ["UTC", "Asia/Dubai", "Asia/Riyadh", "Asia/Kolkata", "Europe/London", "America/New_York", "Australia/Sydney"];
 const FALLBACK_ZONES = [...POPULAR, "Europe/Paris", "America/Chicago", "America/Los_Angeles", "Asia/Singapore", "Asia/Tokyo"];
@@ -96,9 +97,9 @@ export function TimeZonePicker({
         ))}
       </select>
       {browserZone && browserZone !== value && zones.includes(browserZone) && (
-        <button type="button" onClick={() => setValue(browserZone)} className="mt-1 text-xs font-medium text-burgundy hover:underline">
+        <Button type="button" onClick={() => setValue(browserZone)} variant="link" size="sm" className="mt-1">
           {`${tl("Use my browser's time zone")} (${browserZone})`}
-        </button>
+        </Button>
       )}
     </div>
   );

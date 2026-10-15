@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { assignItpAcceptorAction, type AssignItpAcceptorState } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: AssignItpAcceptorState = { error: null };
 
@@ -43,13 +44,13 @@ export function ItpAcceptorPicker({
             </option>
           ))}
         </select>
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium hover:bg-border/30 disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {pending ? "Saving…" : "Save"}
-        </button>
+        </Button>
       </div>
       {clientPartyUsers.length === 0 && (
         <p className="mt-2 text-xs text-warning">

@@ -10,6 +10,7 @@ import {
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 const initialState: RequestPortfolioSummaryPdfState = { error: null };
 
@@ -51,7 +52,7 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
             href={liveStatus.pdfUrl}
             target="_blank"
             rel="noreferrer"
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+            className={buttonVariants({ variant: "outline" })}
           >
             <Tx>View PDF →</Tx>
           </a>
@@ -59,20 +60,20 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
         {liveStatus?.status === "completed" && liveStatus.downloadUrl && (
           <a
             href={liveStatus.downloadUrl}
-            className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+            className={buttonVariants({ variant: "outline" })}
           >
             <Tx>Download ↓</Tx>
           </a>
         )}
         <form action={formAction}>
-          <button
+          <Button
             type="submit"
             onClick={beginGenerate}
             disabled={pending || polling}
-            className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+            
           >
             {pending ? "Queuing…" : polling ? renderingLabel(liveStatus) : "Export portfolio summary (PDF)"}
-          </button>
+          </Button>
         </form>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}

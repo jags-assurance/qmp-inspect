@@ -68,9 +68,9 @@ export function InspectionEvidenceDocuments({
               <form action={unlinkInspectionEvidenceDocumentAction}>
                 <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
                 <input type="hidden" name="link_id" value={doc.id} />
-                <button type="submit" className="text-xs text-danger hover:underline">
+                <Button type="submit" variant="link-danger" size="sm">
                   <Tx>Unlink</Tx>
-                </button>
+                </Button>
               </form>
             )}
           </li>
@@ -113,9 +113,9 @@ function LinkDocumentForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-2 text-sm font-medium text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link" className="mt-2">
         <Tx>+ Link from Document Vault</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -128,9 +128,9 @@ function LinkDocumentForm({
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Linking…" : "Link selected files"}
         </Button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -9,6 +9,7 @@ import {
 } from "@/lib/standalone/actions";
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
+import { Button } from "@/components/ui/button";
 
 const suggestInitialState: SuggestMeasurementsState = { error: null, suggestions: null };
 
@@ -25,13 +26,13 @@ export function SuggestMeasurements({ assignmentId }: { assignmentId: string }) 
     <div className="border-t border-border bg-surface px-4 py-3">
       <form action={formAction} className="flex items-center gap-3">
         <input type="hidden" name="assignment_id" value={assignmentId} />
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-border bg-off-white px-3 py-1.5 text-xs font-medium hover:bg-surface disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {pending ? "Thinking…" : "Suggest with AI"}
-        </button>
+        </Button>
         <MoreDetails label="What is this?" className="">
           <p><Tx>Drafts test parameters for this equipment. Review each before adding.</Tx></p>
         </MoreDetails>
@@ -82,13 +83,13 @@ function SuggestionRow({
         <input type="hidden" name="nominal_value" value={suggestion.nominal} />
         <input type="hidden" name="tolerance" value={suggestion.tolerance} />
         <input type="hidden" name="unit" value={suggestion.unit} />
-        <button
+        <Button
           type="submit"
           disabled={pending || added}
-          className="rounded-md border border-border bg-surface px-2 py-1 font-medium hover:bg-off-white disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {added ? "Added" : pending ? "Adding…" : "+ Add"}
-        </button>
+        </Button>
       </form>
       {state.error && <p role="alert" className="w-full text-danger">{state.error}</p>}
     </li>

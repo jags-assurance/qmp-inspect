@@ -41,16 +41,16 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
 
   if (!open && !showDiff) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => {
           setDismissed(false);
           setOpen(true);
         }}
-        className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white"
+        variant="outline"
       >
         <Tx>Re-upload edited file…</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -58,9 +58,9 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
     <div className="mt-4 rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-ink"><Tx>Re-upload offline-edited file</Tx></h2>
-        <button type="button" onClick={reset} className="text-xs font-medium text-muted hover:underline">
+        <Button type="button" onClick={reset} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
 
       {!showDiff && (
@@ -170,9 +170,9 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
             <Button type="submit" disabled={applyPending || !reason.trim()}>
               {applyPending ? "Applying…" : "Apply as new revision"}
             </Button>
-            <button type="button" onClick={reset} className="rounded-md border border-border px-3 py-2 text-sm text-ink hover:bg-off-white">
+            <Button type="button" onClick={reset} variant="outline">
               <Tx>Discard</Tx>
-            </button>
+            </Button>
           </div>
         </form>
       )}

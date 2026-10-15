@@ -11,6 +11,7 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { getTranslator } from "@/lib/i18n/server";
 import { withActiveProject } from "@/lib/projects/active-project";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
+import { buttonVariants } from "@/components/ui/button";
 
 interface DocSummary {
   id: string;
@@ -140,7 +141,7 @@ export default async function VaultPage({
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Link
               href={`/inspect/vault/${selectedProject}/pending`}
-              className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
+              className={buttonVariants({ variant: "outline" })}
             >
               <T>My pending approvals</T>
             </Link>
@@ -155,7 +156,7 @@ export default async function VaultPage({
             ) : (
               <a
                 href={`/api/vault/${selectedProject}/download-all`}
-                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-burgundy"
+                className={buttonVariants({ variant: "outline" })}
               >
                 <T>Download approved (.zip)</T>
               </a>

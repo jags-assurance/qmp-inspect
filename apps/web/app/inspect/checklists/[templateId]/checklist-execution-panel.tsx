@@ -8,6 +8,7 @@ import type { VaultPickerDocument } from "@/components/domain/vault-file-picker"
 import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 interface ChecklistItem {
   id: string;
@@ -244,14 +245,14 @@ export function ChecklistExecutionPanel({
                   {mandatoryRemaining > 0 ? `${mandatoryRemaining} mandatory left` : syncStatus.label}
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
                 disabled={!allAnswered}
                 onClick={() => document.getElementById("complete-section")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="min-h-12 shrink-0 rounded-lg bg-burgundy px-5 text-base font-bold text-white disabled:bg-muted disabled:opacity-60"
+                size="lg" className="shrink-0"
               >
                 {allAnswered ? (hasEvidencePhoto ? "Complete" : "Add evidence") : "Complete"}
-              </button>
+              </Button>
             </div>
           </div>
         </>

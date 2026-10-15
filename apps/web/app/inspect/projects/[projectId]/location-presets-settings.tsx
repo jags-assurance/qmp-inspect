@@ -9,6 +9,7 @@ import {
 } from "@/lib/checklists/location-presets-actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialAddState: AddLocationPresetState = { error: null };
 const initialRemoveState: RemoveLocationPresetState = { error: null };
@@ -56,13 +57,13 @@ export function LocationPresetsSettings({
           required
           className="w-full sm:min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
         />
-        <button
+        <Button
           type="submit"
           disabled={addPending}
-          className="rounded-md border border-border bg-off-white px-3 py-1.5 text-sm font-medium hover:bg-border/30 disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {addPending ? "Adding…" : "+ Add location"}
-        </button>
+        </Button>
       </form>
       {addState.error && <p role="alert" className="mt-2 text-sm text-danger">{addState.error}</p>}
     </div>

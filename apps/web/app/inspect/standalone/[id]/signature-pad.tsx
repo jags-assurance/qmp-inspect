@@ -7,6 +7,7 @@ import { notifyOutboxChanged } from "@/lib/offline/sync-client";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: AddSignatureState = { error: null };
 
@@ -145,13 +146,13 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
       {queued && <p className="text-sm text-muted"><Tx>Saved on this device — it will be sent when you&apos;re back online.</Tx></p>}
       {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
-      <button
+      <Button
         type="submit"
         disabled={pending || !hasDrawn}
-        className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline" size="sm"
       >
         {pending ? "Saving…" : "+ Add signature"}
-      </button>
+      </Button>
     </form>
   );
 }

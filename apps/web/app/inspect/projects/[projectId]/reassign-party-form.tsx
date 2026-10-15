@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { reassignSignoffPartyAction, type ReassignPartyState } from "@/lib/signoff/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: ReassignPartyState = { error: null };
 
@@ -18,9 +19,9 @@ export function ReassignPartyForm({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link">
         <Tx>Reassign</Tx>
-      </button>
+      </Button>
     );
   }
 
@@ -39,12 +40,12 @@ export function ReassignPartyForm({
           </option>
         ))}
       </select>
-      <button type="submit" disabled={pending} className="text-burgundy hover:underline disabled:opacity-50">
+      <Button type="submit" disabled={pending} variant="link">
         {pending ? "Reassigning…" : "Confirm"}
-      </button>
-      <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
+      </Button>
+      <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
         <Tx>Cancel</Tx>
-      </button>
+      </Button>
       {state.error && <span className="text-danger">{state.error}</span>}
     </form>
   );

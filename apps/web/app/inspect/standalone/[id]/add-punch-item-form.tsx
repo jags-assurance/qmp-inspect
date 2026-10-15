@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/standalone/actions";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: AddPunchItemState = { error: null };
 
@@ -25,13 +26,13 @@ export function AddPunchItemForm({ assignmentId }: { assignmentId: string }) {
         />
         </FormField>
       </div>
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline" size="sm"
       >
         {pending ? "Adding…" : "+ Add punch item"}
-      </button>
+      </Button>
       {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );

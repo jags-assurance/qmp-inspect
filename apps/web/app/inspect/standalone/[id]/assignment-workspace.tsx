@@ -32,6 +32,7 @@ import { AssignmentEvidenceDocuments, type VaultDocumentOption } from "./assignm
 import type { StandaloneAssignmentEvidenceDocumentRow } from "@/lib/standalone/actions";
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
+import { Button } from "@/components/ui/button";
 
 interface Assignment {
   id: string;
@@ -261,9 +262,9 @@ export function AssignmentWorkspace({
                           >
                             <input type="hidden" name="assignment_id" value={assignment.id} />
                             <input type="hidden" name="measurement_id" value={m.id} />
-                            <button type="submit" className="text-xs text-danger hover:underline">
+                            <Button type="submit" variant="link-danger" size="sm">
                               <Tx>Delete</Tx>
-                            </button>
+                            </Button>
                           </form>
                         </td>
                       )}
@@ -377,9 +378,9 @@ export function AssignmentWorkspace({
                     >
                       <input type="hidden" name="assignment_id" value={assignment.id} />
                       <input type="hidden" name="signature_id" value={sig.id} />
-                      <button type="submit" className="mt-1 text-xs text-danger hover:underline">
+                      <Button type="submit" variant="link-danger" size="sm" className="mt-1">
                         <Tx>Delete</Tx>
-                      </button>
+                      </Button>
                     </form>
                   )}
                 </div>
@@ -462,9 +463,9 @@ function PhotoTile({
         >
           <input type="hidden" name="assignment_id" value={assignmentId} />
           <input type="hidden" name="photo_id" value={photo.id} />
-          <button type="submit" className="mt-1 text-xs text-danger hover:underline">
+          <Button type="submit" variant="link-danger" size="sm" className="mt-1">
             <Tx>Delete</Tx>
-          </button>
+          </Button>
         </form>
       )}
     </div>

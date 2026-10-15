@@ -12,6 +12,7 @@ import { AuditTrailPdfButton } from "./audit-trail-pdf-button";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { Button, buttonVariants } from "@/components/ui/button";
 
 interface ProjectSummary {
   id: string;
@@ -196,7 +197,7 @@ export async function AuditLogView({
             <T>Export this view</T>{filters.cat || filters.actor ? " with the current filters" : ""}<T>. The CSV contains every matching event, not just the rows shown; the PDF lists up to 5,000. Exports are recorded in this log.</T>
           </p>
           <div className="flex flex-wrap items-start gap-2">
-            <a href={csvHref} className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-off-white">
+            <a href={csvHref} className={buttonVariants({ variant: "outline", size: "sm" })}>
               <T>Export CSV ↓</T>
             </a>
             <AuditTrailPdfButton projectId={projectId} range={range} cat={filters.cat} actor={filters.actor} latest={latestPdf} />
@@ -228,9 +229,9 @@ export async function AuditLogView({
                 </option>
               ))}
             </select>
-            <button type="submit" className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white">
+            <Button type="submit" >
               <T>Apply</T>
-            </button>
+            </Button>
           </form>
         )}
       </div>

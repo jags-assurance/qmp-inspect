@@ -14,6 +14,7 @@ import {
 } from "@/lib/media/markup";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 type Outcome = { kind: "saved"; file: File } | { kind: "original" } | { kind: "cancel" };
 
@@ -221,14 +222,14 @@ function MarkupEditor({ file, onDone }: { file: File; onDone: (o: Outcome) => vo
           <button type="button" onClick={() => onDone({ kind: "original" })} className="min-h-10 rounded-md border border-border px-4 py-2 text-sm">
             <Tx>Use without marks</Tx>
           </button>
-          <button
+          <Button
             type="button"
             onClick={save}
             disabled={!ready}
-            className="min-h-10 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            
           >
             {shapes.length === 0 ? "Use photo" : "Save marked photo"}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

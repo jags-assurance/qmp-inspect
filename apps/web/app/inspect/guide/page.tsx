@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { MoreDetails } from "@/components/domain/more-details";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Guide" };
 
@@ -304,7 +305,7 @@ export default async function AppGuidePage() {
                   <Link
                     key={l.href}
                     href={l.href}
-                    className="rounded-md border border-border bg-off-white px-2.5 py-1 text-xs font-medium text-ink hover:bg-burgundy/10"
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
                   >
                     {l.label} →
                   </Link>

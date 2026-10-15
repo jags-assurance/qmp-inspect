@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const INITIAL_STATE: PartyMemberActionState = { error: null };
 
@@ -62,9 +63,9 @@ export function PartyMembersPanel({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link">
         <Tx>Members</Tx>{extraMembers.length > 0 ? ` (${extraMembers.length})` : ""}
-      </button>
+      </Button>
     );
   }
 
@@ -87,9 +88,9 @@ export function PartyMembersPanel({
             </select>
           </form>
         </div>
-        <button type="button" onClick={() => setOpen(false)} className="text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted">
           <Tx>Close</Tx>
-        </button>
+        </Button>
       </div>
       <p className="mt-1 text-xs text-muted">
         {accessMode === "whole_org"
@@ -148,9 +149,9 @@ export function PartyMembersPanel({
             {customRoles.length === 0 && <option value=""><Tx>No custom roles for this org yet</Tx></option>}
           </select>
         )}
-        <button type="submit" disabled={addPending} className="text-burgundy hover:underline disabled:opacity-50">
+        <Button type="submit" disabled={addPending} variant="link">
           {addPending ? "Adding…" : "Add"}
-        </button>
+        </Button>
         {addState.error && <span className="w-full text-danger">{addState.error}</span>}
       </form>
     </div>
@@ -162,9 +163,9 @@ function RemoveMemberButton({ memberId }: { memberId: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="member_id" value={memberId} />
-      <button type="submit" disabled={pending} className="text-danger hover:underline disabled:opacity-50">
+      <Button type="submit" disabled={pending} variant="link-danger">
         {pending ? "Removing…" : "Remove"}
-      </button>
+      </Button>
       {state.error && <span className="ms-1 text-danger">{state.error}</span>}
     </form>
   );

@@ -178,7 +178,7 @@ export function CloseOutForm({
             <Tx>Root cause</Tx>
           </label>
           {!isClosed && !capaLocked && (
-            <button
+            <Button
               type="button"
               onClick={() => {
                 const fd = new FormData();
@@ -186,10 +186,10 @@ export function CloseOutForm({
                 suggestFormAction(fd);
               }}
               disabled={suggestPending}
-              className="text-xs font-medium text-burgundy hover:underline disabled:opacity-50"
+              variant="link" size="sm"
             >
               {suggestPending ? "Suggesting…" : "Suggest with AI"}
-            </button>
+            </Button>
           )}
         </div>
         <textarea

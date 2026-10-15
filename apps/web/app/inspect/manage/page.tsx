@@ -12,6 +12,7 @@ import { hasPermission } from "@/lib/rbac/permissions";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "Manage" };
 
@@ -154,7 +155,7 @@ export default async function ManageHubPage() {
       render: (row) => (
         <Link
           href={row.action === "Generate checklists" ? `/inspect/itps/${row.id}/checklists` : `/inspect/itps/${row.id}`}
-          className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface px-3 py-1 text-xs font-medium hover:bg-off-white sm:min-h-0"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
         >
           {row.action} →
         </Link>

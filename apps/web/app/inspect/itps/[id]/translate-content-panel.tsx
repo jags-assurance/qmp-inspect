@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { translateItpContentAction, type TranslateItpContentState } from "@/lib/itps/actions";
 import { isTranslationStale, type ItpTranslations } from "@/lib/itps/translations";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: TranslateItpContentState = { error: null, translated: null, targetLanguage: null };
 
@@ -28,13 +29,13 @@ export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId:
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="target_language" value={TARGET_LANGUAGE} />
         <p className="text-xs text-muted"><Tx>Show title &amp; scope in French.</Tx></p>
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-off-white disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {pending ? "Translating…" : "Translate to French"}
-        </button>
+        </Button>
       </form>
 
       {state.error && <p role="alert" className="mt-2 text-xs text-danger">{state.error}</p>}

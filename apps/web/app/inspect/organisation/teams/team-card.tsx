@@ -118,16 +118,16 @@ function MemberRow({
               <input type="hidden" name="team_id" value={teamId} />
               <input type="hidden" name="user_id" value={member.userId} />
               <input type="hidden" name="is_team_lead" value={member.isTeamLead ? "" : "on"} />
-              <button type="submit" disabled={leadPending} className="text-xs text-burgundy hover:underline disabled:opacity-50">
+              <Button type="submit" disabled={leadPending} variant="link" size="sm">
                 {member.isTeamLead ? "Unset lead" : "Make lead"}
-              </button>
+              </Button>
             </form>
             <form action={removeAction} className="inline">
               <input type="hidden" name="team_id" value={teamId} />
               <input type="hidden" name="user_id" value={member.userId} />
-              <button type="submit" disabled={removePending} className="text-xs text-danger hover:underline disabled:opacity-50">
+              <Button type="submit" disabled={removePending} variant="link-danger" size="sm">
                 <Tx>Remove</Tx>
-              </button>
+              </Button>
             </form>
           </>
         )}
@@ -185,9 +185,9 @@ function AssignedProjectRow({
         <form action={formAction} className="inline">
           <input type="hidden" name="team_id" value={teamId} />
           <input type="hidden" name="project_id" value={project.projectId} />
-          <button type="submit" disabled={pending} className="text-xs text-danger hover:underline disabled:opacity-50">
+          <Button type="submit" disabled={pending} variant="link-danger" size="sm">
             <Tx>Unassign</Tx>
-          </button>
+          </Button>
         </form>
       )}
       {state.error && <span className="ms-2 text-xs text-danger">{state.error}</span>}

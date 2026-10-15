@@ -12,6 +12,7 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { SettingsBackLink } from "@/app/inspect/settings/settings-back-link";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 interface ProposalWithSourceItp {
   id: string;
@@ -142,7 +143,7 @@ export default async function ItpMasterProposalsPage() {
             <T>Pending proposals to add or update a master template.</T>
           </p>
         </div>
-        <Link href="/inspect/itp-master" className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white">
+        <Link href="/inspect/itp-master" className={buttonVariants({ variant: "outline" })}>
           <T>← Library</T>
         </Link>
       </div>

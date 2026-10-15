@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { acceptItpOnBehalfAction, type AcceptItpState } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: AcceptItpState = { error: null };
 
@@ -20,9 +21,9 @@ export function AcceptOnBehalfForm({ itpId }: { itpId: string }) {
           <input type="hidden" name="itp_id" value={itpId} />
           <input type="text" name="reference" required minLength={5} placeholder="Reference, e.g. client email 12 Oct 2026 or signed form SF-123" className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
           <textarea name="reason" required minLength={10} rows={2} placeholder="Reason (why the client could not accept in the app)" className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
-          <button type="submit" disabled={pending} className="self-start rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white disabled:opacity-50">
+          <Button type="submit" disabled={pending} variant="outline" className="self-start">
             {pending ? "Saving…" : "Accept on the client's behalf"}
-          </button>
+          </Button>
         </form>
         {state.error && <p role="alert" className="mt-1 text-xs text-danger">{state.error}</p>}
       </div>

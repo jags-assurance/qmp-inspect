@@ -43,6 +43,7 @@ import { LocationPresetsSettings } from "./location-presets-settings";
 import { getLocationPresetsForProject } from "@/lib/checklists/location-presets";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -425,9 +426,9 @@ export async function ProjectOverviewView({
         </p>
       )}
       <nav aria-label={tl("Other modules")} className="mt-3 flex flex-wrap gap-2 text-sm">
-        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/start-work?project=${project.id}`}><T>Start work</T></Link>
-        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/inspections?project=${project.id}`}><T>Inspections</T></Link>
-        <Link className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-burgundy hover:bg-off-white" href={`/inspect/vault?project=${project.id}`}><T>Vault</T></Link>
+        <Link className={buttonVariants({ variant: "outline" })} href={`/inspect/start-work?project=${project.id}`}><T>Start work</T></Link>
+        <Link className={buttonVariants({ variant: "outline" })} href={`/inspect/inspections?project=${project.id}`}><T>Inspections</T></Link>
+        <Link className={buttonVariants({ variant: "outline" })} href={`/inspect/vault?project=${project.id}`}><T>Vault</T></Link>
       </nav>
 
       {/* The workspace tab bar (see page.tsx) — replaces the two grids of section cards that used to

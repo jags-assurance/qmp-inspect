@@ -18,6 +18,7 @@ import { StatusLegend } from "@/components/ui/status-legend";
 import { countPunchByStatus, listHitCap } from "@/lib/projects/open-counts";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
+import { buttonVariants } from "@/components/ui/button";
 
 // Outstanding (open / resolved) items are always loaded — they block the Data Book and are the
 // working set. Only the CLOSED history is windowed ("Load more"), newest first.
@@ -169,7 +170,7 @@ export async function PunchListView({
         </div>
         <Link
           href={`/inspect/projects/${projectId}/guide`}
-          className="shrink-0 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-off-white"
+          className={buttonVariants({ variant: "outline", size: "sm", className: "shrink-0" })}
         >
           <T>? Project Guide</T>
         </Link>

@@ -15,6 +15,7 @@ import { MATERIAL_APPROVAL_STATUS_LABELS, MATERIAL_RECEIPT_STATUS_LABELS } from 
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 /** Formats a plain YYYY-MM-DD date as dd/mm/yyyy without the timezone shift `new Date("YYYY-MM-DD")` causes west of UTC. */
 export function formatRegisterDate(date: string | null | undefined): string {
@@ -198,12 +199,12 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
         )}
         {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50">
+          <Button type="submit" disabled={pending} >
             {pending ? "Saving…" : "Save changes"}
-          </button>
-          <button type="button" onClick={onClose} className="text-sm text-muted hover:underline">
+          </Button>
+          <Button type="button" onClick={onClose} variant="link-muted">
             <Tx>Cancel</Tx>
-          </button>
+          </Button>
         </div>
       </form>
     </div>
@@ -224,9 +225,9 @@ function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKi
   }, [pending, state]);
   return (
     <span className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="text-xs text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen((o) => !o)} variant="link" size="sm">
         {hasFile ? "Replace file" : "Attach file"}
-      </button>
+      </Button>
       {open && (
         <form
           action={formAction}
@@ -246,12 +247,12 @@ function ReplaceCertificate({ kind, projectId, id, hasFile }: { kind: RegisterKi
           {hasFile && <p className="text-xs text-muted"><Tx>The previous file is kept on record.</Tx></p>}
           {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={pending} className="rounded-md bg-burgundy px-3 py-1 text-xs font-medium text-white disabled:opacity-50">
+            <Button type="submit" disabled={pending} size="sm">
               {pending ? "Saving…" : "Save"}
-            </button>
-            <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+            </Button>
+            <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
               <Tx>Cancel</Tx>
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -297,14 +298,14 @@ export function RegisterRowActions({
           <input type="hidden" name="kind" value="material" />
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="receipt_status" value="released" />
-          <button type="submit" disabled={releasing} className="rounded border border-border px-2 py-0.5 text-xs font-medium text-success hover:bg-off-white disabled:opacity-50">
+          <Button type="submit" disabled={releasing} variant="outline" size="sm">
             {releasing ? "Releasing…" : "Release"}
-          </button>
+          </Button>
         </form>
       )}
-      <button type="button" onClick={() => setEditing(true)} className="text-xs text-burgundy hover:underline">
+      <Button type="button" onClick={() => setEditing(true)} variant="link" size="sm">
         <Tx>Edit</Tx>
-      </button>
+      </Button>
       {row.id && <ReplaceCertificate kind={kind} projectId={projectId} id={row.id} hasFile={hasCertificate} />}
       {!contributorOnly && <form
         action={deleteAction}
@@ -318,9 +319,9 @@ export function RegisterRowActions({
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="id" value={row.id ?? ""} />
         <input type="hidden" name="project_id" value={projectId} />
-        <button type="submit" disabled={deleting} className="text-xs text-danger hover:underline disabled:opacity-50">
+        <Button type="submit" disabled={deleting} variant="link-danger" size="sm">
           {deleting ? "Deleting…" : "Delete"}
-        </button>
+        </Button>
       </form>}
       {!contributorOnly && row.id && <RegisterLifecycleActions kind={kind} projectId={projectId} id={row.id} verifiedAt={verifiedAt} lifecycleStatus={lifecycleStatus} />}
       {(deleteState.error || releaseState.error) && <span className="block max-w-xs whitespace-normal text-xs text-danger">{deleteState.error ?? releaseState.error}</span>}

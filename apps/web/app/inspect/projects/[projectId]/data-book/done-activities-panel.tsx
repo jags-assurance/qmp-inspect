@@ -18,6 +18,7 @@ import {
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { displayItemNumber } from "@/lib/itps/item-number";
+import { Button } from "@/components/ui/button";
 
 const CAP = 200;
 const ITEM_FETCH_CAP = 3000;
@@ -268,9 +269,9 @@ export async function DoneActivitiesPanel({
                 ))}
               </select>
             </label>
-            <button type="submit" className="rounded-md bg-burgundy px-3 py-1.5 text-sm font-semibold text-white">
+            <Button type="submit" size="sm">
               <T>Apply</T>
-            </button>
+            </Button>
             {(itp || disc || status) && (
               <a href={tabHref("activities")} className="py-1.5 text-sm text-burgundy hover:underline">
                 <T>Clear</T>

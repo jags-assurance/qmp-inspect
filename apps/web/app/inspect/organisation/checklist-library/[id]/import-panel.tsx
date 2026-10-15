@@ -153,9 +153,9 @@ export function ImportPanel({ templateId }: { templateId: string }) {
                       />
                       <Tx>Mandatory</Tx>
                     </label>
-                    <button type="button" onClick={() => removeRow(index)} className="text-xs font-medium text-danger hover:underline">
+                    <Button type="button" onClick={() => removeRow(index)} variant="link-danger" size="sm">
                       <Tx>Remove</Tx>
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 {row.validationError && <p role="alert" className="mt-1 text-xs text-danger">{row.validationError}</p>}
@@ -169,9 +169,9 @@ export function ImportPanel({ templateId }: { templateId: string }) {
             <Button type="submit" size="sm" disabled={commitPending || rows.length === 0 || invalidCount > 0}>
               {commitPending ? "Importing…" : `Import ${rows.length} item${rows.length === 1 ? "" : "s"}`}
             </Button>
-            <button type="button" onClick={() => setRows(null)} className="text-xs text-muted hover:underline">
+            <Button type="button" onClick={() => setRows(null)} variant="link-muted" size="sm">
               <Tx>Discard and re-upload</Tx>
-            </button>
+            </Button>
           </div>
         </form>
       )}

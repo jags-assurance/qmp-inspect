@@ -9,6 +9,7 @@ import { useLocale } from "@/lib/i18n/locale-context";
 import { translateText } from "@/lib/i18n/dictionary";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 import { Tx } from "@/components/domain/tx";
+import { buttonVariants } from "@/components/ui/button";
 
 export interface ProjectRow {
   id: string;
@@ -131,7 +132,7 @@ export function ProjectsTable({ rows, canCreate = false, locale }: { rows: Proje
       <div className="rounded-lg border border-dashed border-border p-8 text-center">
         <p className="text-sm text-muted">{translateText(loc, "No projects to show.")}</p>
         {canCreate && (
-          <Link href="/inspect/projects/new" className="mt-3 inline-flex min-h-11 items-center rounded-md bg-burgundy px-4 text-sm font-medium text-white">
+          <Link href="/inspect/projects/new" className={buttonVariants({ className: "mt-3" })}>
             {translateText(loc, "Create project")}
           </Link>
         )}

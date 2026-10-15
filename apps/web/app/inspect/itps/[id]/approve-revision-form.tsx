@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { approveItpRevisionAction, type ApproveRevisionState } from "@/lib/itps/actions";
+import { Button } from "@/components/ui/button";
 
 const initialState: ApproveRevisionState = { error: null };
 
@@ -11,13 +12,13 @@ export function ApproveRevisionForm({ itpId, revision }: { itpId: string; revisi
   return (
     <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
       <input type="hidden" name="itp_id" value={itpId} />
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-burgundy px-3 py-1.5 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+        size="sm"
       >
         {pending ? "Approving…" : `Approve revision ${revision}`}
-      </button>
+      </Button>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>
   );

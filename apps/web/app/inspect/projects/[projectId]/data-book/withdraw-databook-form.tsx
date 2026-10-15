@@ -15,9 +15,9 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs text-burgundy hover:underline">
+      <Button type="button" onClick={() => setOpen(true)} variant="link" size="sm">
         <Tx>Withdraw to draft…</Tx>
-      </button>
+      </Button>
     );
   }
   return (
@@ -42,9 +42,9 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
         <Button type="submit" size="sm" variant="outline" disabled={pending || reason.trim().length < 10}>
           {pending ? "Withdrawing…" : "Withdraw to draft"}
         </Button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
       {state.error && <p className="text-xs text-danger" role="alert">{state.error}</p>}
     </form>

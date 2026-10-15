@@ -18,6 +18,7 @@ import { getHandoverCertificatePdfInfo } from "@/lib/handover/certificate-pdf";
 import { RealtimeRefresh } from "@/components/domain/realtime-refresh";
 import { PageGuide } from "@/components/domain/page-guide";
 import { getTranslator } from "@/lib/i18n/server";
+import { Button } from "@/components/ui/button";
 
 interface HandoverRow {
   id: string;
@@ -201,9 +202,9 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
           </label>
           <input id="handover_q" name="q" defaultValue={q} className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm" />
         </div>
-        <button type="submit" className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm hover:bg-off-white">
+        <Button type="submit" variant="outline" size="sm">
           <T>Filter</T>
-        </button>
+        </Button>
       </form>
 
       <div className="mt-6 space-y-4">

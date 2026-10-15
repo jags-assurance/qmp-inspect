@@ -5,6 +5,7 @@ import { addStaffGrantAction, type StaffAccessState } from "@/lib/staff-access/a
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: StaffAccessState = { error: null };
 
@@ -140,13 +141,13 @@ export function StaffGrantForm({
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-burgundy px-4 py-1.5 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+        
       >
         {pending ? "Adding…" : "+ Add grant"}
-      </button>
+      </Button>
 
       {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>

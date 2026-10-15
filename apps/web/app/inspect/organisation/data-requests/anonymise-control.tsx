@@ -7,6 +7,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: AnonymiseState = { error: null, message: null };
 
@@ -40,13 +41,13 @@ export function AnonymiseControl({ userId, name }: { userId: string; name: strin
       {dialog}
       <input type="hidden" name="user_id" value={userId} />
       <input type="hidden" name="reason" defaultValue="" />
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="min-h-10 rounded-md bg-danger px-4 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+        variant="danger"
       >
         {pending ? tl("Working…") : tl("Anonymise account…")}
-      </button>
+      </Button>
       <FormMessage error={state.error} success={state.message} />
       <p className="text-xs text-muted">
         <Tx>Anonymising keeps every record; it only removes who the account belonged to.</Tx>

@@ -14,6 +14,7 @@ import {
 } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: EditItemState = { error: null };
 const initialDeleteState: DeleteItemState = { error: null };
@@ -107,37 +108,37 @@ export function ItemControls({
         </p>
         <ActivityDetails acceptanceCriteria={acceptanceCriteria} referenceSpec={referenceSpec} method={method} frequency={frequency} />
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <button
+          <Button
             type="button"
             onClick={() => setIsEditing(true)}
-            className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
+            variant="outline" size="sm"
           >
             <Tx>Edit</Tx>
-          </button>
+          </Button>
           {(["up", "down"] as const).map((direction) => (
             <form key={direction} action={direction === "up" ? moveItemUpAction : moveItemDownAction} onSubmit={gateSubmit(revisionOpts, "revision_reason")}>
               <input type="hidden" name="item_id" value={itemId} />
               <input type="hidden" name="revision_reason" />
-              <button
+              <Button
                 type="submit"
                 aria-label={direction === "up" ? "Move activity up" : "Move activity down"}
-                className="rounded border border-border px-1.5 py-0.5 text-xs font-medium hover:bg-off-white"
+                variant="outline" size="sm"
               >
                 {direction === "up" ? "↑" : "↓"}
-              </button>
+              </Button>
             </form>
           ))}
           <form action={deleteFormAction} onSubmit={gateSubmit(deleteOpts, "revision_reason")}>
             <input type="hidden" name="itp_id" value={itpId} />
             <input type="hidden" name="item_id" value={itemId} />
             <input type="hidden" name="revision_reason" />
-            <button
+            <Button
               type="submit"
               disabled={deletePending}
-              className="rounded border border-border px-1.5 py-0.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-50"
+              variant="danger-outline" size="sm"
             >
               {deletePending ? "Deleting…" : "Delete"}
-            </button>
+            </Button>
           </form>
         </div>
         {deleteState.error && <p role="alert" className="mt-1 text-xs text-danger">{deleteState.error}</p>}
@@ -243,20 +244,20 @@ export function ItemControls({
         ))}
       </fieldset>
       <div className="flex items-center gap-1.5">
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded border border-border bg-off-white px-2 py-1 text-xs font-medium hover:bg-surface disabled:opacity-50"
+          variant="outline" size="sm"
         >
           {pending ? "Saving…" : "Save"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={() => setIsEditing(false)}
-          className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-off-white"
+          variant="outline" size="sm"
         >
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}
     </form>

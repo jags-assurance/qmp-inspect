@@ -140,7 +140,7 @@ export function MonthlyReportPackForm({
         </Button>
 
         {aiConfigured && (
-          <button
+          <Button
             type="button"
             disabled={summaryPending}
             onClick={() => {
@@ -150,10 +150,10 @@ export function MonthlyReportPackForm({
               fd.set("year", String(year));
               summaryFormAction(fd);
             }}
-            className="rounded-md border border-border bg-off-white px-3 py-2 text-sm font-medium hover:bg-surface disabled:opacity-50"
+            variant="outline"
           >
             {summaryPending ? "Summarising…" : "Generate AI summary"}
-          </button>
+          </Button>
         )}
 
         {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}

@@ -17,6 +17,7 @@ import { ItemDocuments, type ItemLinkedDocument } from "./item-documents";
 import type { VaultPickerDocument } from "@/components/domain/vault-file-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const PILLS: { value: ChecklistResponseResult; label: string; activeClass: string }[] = [
   { value: "yes", label: "Yes", activeClass: "bg-success text-white border-success" },
@@ -633,21 +634,21 @@ export function ResponseRow({
           <p role="alert" className="flex flex-wrap items-center gap-2 text-xs text-danger">
             <span>{saveError}</span>
             {conflict ? (
-              <button
+              <Button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
+                variant="danger-outline"
               >
                 <Tx>Reload</Tx>
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={retry}
-                className="min-h-11 rounded-md border border-danger px-3 font-medium text-danger hover:bg-danger/10"
+                variant="danger-outline"
               >
                 <Tx>Retry</Tx>
-              </button>
+              </Button>
             )}
           </p>
         )}

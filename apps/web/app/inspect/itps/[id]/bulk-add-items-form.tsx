@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { bulkAddItpItemsAction, type BulkAddItemsState } from "@/lib/itps/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: BulkAddItemsState = { error: null };
 
@@ -63,16 +64,16 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
         className="w-full rounded-md border border-border bg-surface px-3 py-2 font-mono text-xs outline-none focus:border-burgundy"
       />
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-burgundy px-3 py-1.5 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+          size="sm"
         >
           {pending ? "Adding…" : "Add activities"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-xs text-muted hover:underline">
+        </Button>
+        <Button type="button" onClick={() => setOpen(false)} variant="link-muted" size="sm">
           <Tx>Close</Tx>
-        </button>
+        </Button>
         {done && <span className="text-xs text-success">{state.added} <Tx>activities added.</Tx></span>}
         {state.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>

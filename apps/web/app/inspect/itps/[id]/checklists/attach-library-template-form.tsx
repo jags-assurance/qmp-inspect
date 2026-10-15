@@ -6,6 +6,7 @@ import {
   type AttachLibraryTemplateState,
 } from "@/lib/checklist-library/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: AttachLibraryTemplateState = { error: null };
 
@@ -40,13 +41,13 @@ export function AttachLibraryTemplateForm({
           </option>
         ))}
       </select>
-      <button
+      <Button
         type="submit"
         disabled={pending || !selected}
-        className="rounded-md border border-border bg-off-white px-2 py-1 text-xs font-medium hover:bg-surface disabled:opacity-50"
+        variant="outline" size="sm"
       >
         {pending ? "Attaching…" : "Attach"}
-      </button>
+      </Button>
       {state.error && <p role="alert" className="w-full text-end text-xs text-danger">{state.error}</p>}
     </form>
   );

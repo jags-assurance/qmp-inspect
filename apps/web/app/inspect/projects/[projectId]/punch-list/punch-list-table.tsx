@@ -21,6 +21,7 @@ import { BulkPunchBar, WithdrawPunchItemForm } from "./punch-extras";
 import Link from "next/link";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 export interface PunchListItemDisplayRow {
   id: string;
@@ -231,13 +232,13 @@ export function PunchListTable({
       key: "actions",
       header: "",
       render: (row) => (
-        <button
+        <Button
           type="button"
           onClick={() => panel.open(row.id)}
-          className="inline-flex min-h-11 items-center text-sm font-medium text-burgundy hover:underline"
+          variant="link"
         >
           {row.status === "open" ? "Resolve" : row.status === "resolved" && canVerifyClose ? "Verify" : "Details"}
-        </button>
+        </Button>
       ),
     },
   ];
@@ -279,15 +280,15 @@ export function PunchListTable({
         </label>
         {overdueCount > 0 && <Badge tone="danger">{overdueCount} <Tx>overdue</Tx></Badge>}
         <div className="no-print ms-auto flex gap-2">
-          <button type="button" onClick={() => exportCsv(false)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
+          <Button type="button" onClick={() => exportCsv(false)} variant="outline">
             <Tx>Export filtered (</Tx>{visibleRows.length})
-          </button>
-          <button type="button" onClick={() => exportCsv(true)} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
+          </Button>
+          <Button type="button" onClick={() => exportCsv(true)} variant="outline">
             <Tx>Export all (</Tx>{rows.length})
-          </button>
-          <button type="button" onClick={() => window.print()} className="min-h-11 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink hover:bg-off-white">
+          </Button>
+          <Button type="button" onClick={() => window.print()} variant="outline">
             <Tx>Print</Tx>
-          </button>
+          </Button>
         </div>
       </div>
       {canVerifyClose && <BulkPunchBar projectId={projectId} selectedIds={selected} parties={projectParties} onDone={() => setSelected([])} />}

@@ -25,13 +25,13 @@ export function ReopenPunchItemForm({
 
   if (!expanded) {
     return (
-      <button
+      <Button
         type="button"
         onClick={() => setExpanded(true)}
-        className="min-h-11 text-sm font-medium text-danger hover:underline"
+        variant="link-danger"
       >
         {label}
-      </button>
+      </Button>
     );
   }
 
@@ -53,13 +53,13 @@ export function ReopenPunchItemForm({
         <Button type="submit" size="sm" disabled={pending || !reason.trim()}>
           {pending ? "Reopening…" : "Confirm reopen"}
         </Button>
-        <button
+        <Button
           type="button"
           onClick={() => setExpanded(false)}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-off-white"
+          variant="outline" size="sm"
         >
           <Tx>Cancel</Tx>
-        </button>
+        </Button>
       </div>
     </form>
   );

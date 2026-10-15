@@ -5,6 +5,7 @@ import { addChecklistItemAction, type AddChecklistItemState } from "@/lib/checkl
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { Button } from "@/components/ui/button";
 
 const initialState: AddChecklistItemState = { error: null };
 
@@ -82,13 +83,13 @@ export function AddChecklistItemForm({ templateId, disabledReason }: { templateI
         </div>
       )}
 
-      <button
+      <Button
         type="submit"
         disabled={pending}
-        className="rounded-md border border-border bg-surface px-3.5 py-2 text-sm font-medium hover:bg-off-white disabled:opacity-50"
+        variant="outline"
       >
         {pending ? "Adding…" : "+ Add item"}
-      </button>
+      </Button>
       </fieldset>
       {disabledReason && <p className="w-full text-xs text-muted"><Tx>Adding items is disabled:</Tx> {disabledReason}</p>}
       {state.error && <p className="w-full text-sm text-danger" role="alert">{state.error}</p>}

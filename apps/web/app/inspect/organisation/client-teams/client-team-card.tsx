@@ -110,16 +110,16 @@ function MemberRow({
               <input type="hidden" name="client_team_id" value={clientTeamId} />
               <input type="hidden" name="user_id" value={member.userId} />
               <input type="hidden" name="is_team_lead" value={member.isTeamLead ? "" : "on"} />
-              <button type="submit" disabled={leadPending} className="text-xs text-burgundy hover:underline disabled:opacity-50">
+              <Button type="submit" disabled={leadPending} variant="link" size="sm">
                 {member.isTeamLead ? "Unset lead" : "Make lead"}
-              </button>
+              </Button>
             </form>
             <form action={removeAction} className="inline">
               <input type="hidden" name="client_team_id" value={clientTeamId} />
               <input type="hidden" name="user_id" value={member.userId} />
-              <button type="submit" disabled={removePending} className="text-xs text-danger hover:underline disabled:opacity-50">
+              <Button type="submit" disabled={removePending} variant="link-danger" size="sm">
                 <Tx>Remove</Tx>
-              </button>
+              </Button>
             </form>
           </>
         )}
@@ -171,9 +171,9 @@ function AddMemberForm({ clientTeamId, users }: { clientTeamId: string; users: U
             {pickPending ? "Adding…" : "+ Add member"}
           </Button>
         )}
-        <button type="button" onClick={() => setMode("email")} className="text-xs text-burgundy hover:underline">
+        <Button type="button" onClick={() => setMode("email")} variant="link" size="sm">
           <Tx>Add by email instead</Tx>
-        </button>
+        </Button>
         {pickState.error && <span className="w-full text-xs text-danger">{pickState.error}</span>}
       </form>
     );
@@ -196,9 +196,9 @@ function AddMemberForm({ clientTeamId, users }: { clientTeamId: string; users: U
         {emailPending ? "Adding…" : "+ Add member"}
       </Button>
       {users.length > 0 && (
-        <button type="button" onClick={() => setMode("pick")} className="text-xs text-burgundy hover:underline">
+        <Button type="button" onClick={() => setMode("pick")} variant="link" size="sm">
           <Tx>Pick from existing instead</Tx>
-        </button>
+        </Button>
       )}
       {emailState.error && <span className="w-full text-xs text-danger">{emailState.error}</span>}
     </form>
@@ -223,9 +223,9 @@ function AssignedProjectRow({
         <form action={formAction} className="inline">
           <input type="hidden" name="client_team_id" value={clientTeamId} />
           <input type="hidden" name="project_id" value={project.projectId} />
-          <button type="submit" disabled={pending} className="text-xs text-danger hover:underline disabled:opacity-50">
+          <Button type="submit" disabled={pending} variant="link-danger" size="sm">
             <Tx>Unassign</Tx>
-          </button>
+          </Button>
         </form>
       )}
       {state.error && <span className="ms-2 text-xs text-danger">{state.error}</span>}

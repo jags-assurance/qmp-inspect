@@ -144,14 +144,14 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
           <Button type="button" size="sm" disabled={pending || chosen.length === 0 || chosen.length > BULK_IRN_MAX} onClick={run}>
             {pending ? "Issuing…" : `Issue IRN for selected (${chosen.length})`}
           </Button>
-          <button
+          <Button
             type="button"
-            className="text-burgundy hover:underline disabled:opacity-50"
+            variant="link"
             disabled={pending}
             onClick={() => setSelected(new Set(chosen.length === eligibleIds.length ? [] : eligibleIds.slice(0, BULK_IRN_MAX)))}
           >
             {chosen.length === eligibleIds.length ? "Clear selection" : "Select all eligible on this page"}
-          </button>
+          </Button>
           <span className="text-muted"><Tx>Completed inspections without a live IRN. Up to</Tx> {BULK_IRN_MAX} <Tx>at a time.</Tx></span>
         </div>
       )}
@@ -178,9 +178,9 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
               </ul>
             </>
           )}
-          <button type="button" className="mt-2 text-burgundy hover:underline" onClick={() => setResult(null)}>
+          <Button type="button" variant="link" className="mt-2" onClick={() => setResult(null)}>
             <Tx>Dismiss</Tx>
-          </button>
+          </Button>
         </div>
       )}
       <DataTable

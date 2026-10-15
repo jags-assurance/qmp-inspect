@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
 import { acceptItpAction, type AcceptItpState } from "@/lib/itps/actions";
+import { Button } from "@/components/ui/button";
 
 const initialState: AcceptItpState = { error: null };
 
@@ -20,13 +21,13 @@ export function AcceptItpForm({ itpId, requiresChecklistReview = false }: { itpI
     <form action={formAction}>
       <input type="hidden" name="itp_id" value={itpId} />
       {requiresChecklistReview && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
-      <button
+      <Button
         type="submit"
         disabled={pending || (requiresChecklistReview && !reviewed)}
-        className="rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white hover:bg-burgundy-dark disabled:opacity-50"
+        
       >
         {pending ? "Accepting…" : "Accept ITP"}
-      </button>
+      </Button>
       {state.error && <p role="alert" className="mt-1 max-w-xs text-xs text-danger">{state.error}</p>}
     </form>
   );

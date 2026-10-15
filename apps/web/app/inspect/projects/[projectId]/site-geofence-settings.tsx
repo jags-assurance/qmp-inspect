@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { setSiteGeofenceAction, type SetSiteGeofenceState } from "@/lib/projects/actions";
 import { Tx } from "@/components/domain/tx";
+import { Button } from "@/components/ui/button";
 
 const initialState: SetSiteGeofenceState = { error: null };
 
@@ -36,9 +37,9 @@ export function SiteGeofenceSettings({
         <input name="site_radius_m" defaultValue={radiusM ?? ""} inputMode="numeric" placeholder="500" className={input} />
       </label>
       <div className="flex items-center gap-3 sm:col-span-3">
-        <button type="submit" disabled={pending} className="min-h-10 rounded-md bg-burgundy px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <Button type="submit" disabled={pending} >
           {pending ? "Saving…" : "Save site location"}
-        </button>
+        </Button>
         {state.saved && <span className="text-xs text-success"><Tx>Saved.</Tx></span>}
         {state.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>
