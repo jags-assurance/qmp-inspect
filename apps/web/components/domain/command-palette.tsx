@@ -9,6 +9,8 @@ import { searchEntitiesAction, type EntityHit } from "@/lib/search/actions";
 import { filterEntries, flattenNavItems as flatten, type PaletteEntry as Entry } from "@/lib/search/palette-entries";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
+import { useScrollLock } from "@/lib/hooks/use-scroll-lock";
 
 /**
  * Header search: Ctrl/Cmd+K (or the header box / the mobile search button) opens a jump-to list over
@@ -84,6 +86,10 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
     openerRef.current?.focus?.();
   }
 
+  // Esc works wherever focus is (not just in the input) and background scroll is locked while open.
+  useEscapeLayer(open, close);
+  useScrollLock(open);
+
   function go(entry: Entry | undefined) {
     if (!entry) return;
     setOpen(false);
@@ -123,7 +129,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         aria-label={tl("Search pages and records (Ctrl+K)")}
-        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-control-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink sm:flex lg:w-56 xl:w-72 [@media(pointer:coarse)]:h-11"
+        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-control-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink md:flex xl:w-60 desk:w-72 [@media(pointer:coarse)]:h-11"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
@@ -137,7 +143,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         aria-label={tl("Search pages and records")}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink hover:bg-surface-subtle sm:hidden"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink hover:bg-surface-subtle md:hidden"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />

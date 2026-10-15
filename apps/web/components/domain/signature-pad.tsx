@@ -129,6 +129,8 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
         <canvas
           ref={canvasRef}
           style={{ touchAction: "none" }}
+          role="img"
+          aria-label="Signature drawing area"
           className="absolute inset-0 h-full w-full touch-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

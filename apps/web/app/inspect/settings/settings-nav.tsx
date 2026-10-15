@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { ScrollRow } from "./scroll-row";
 
 export interface SettingsNavItem {
   key: string;
@@ -30,7 +31,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
         aria-label="Settings sections"
         className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 mt-4 border-b border-border-strong bg-background px-3 sm:-mx-6 sm:px-6 lg:hidden"
       >
-        <ul className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]" aria-label="Groups">
+        <ScrollRow className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]" label="Groups">
           {groups.map((g) => {
             const isActive = g === activeGroup;
             return (
@@ -49,8 +50,8 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
               </li>
             );
           })}
-        </ul>
-        <ul className="flex snap-x gap-1 overflow-x-auto border-t border-border py-1 [scrollbar-width:thin]" aria-label={activeGroup.label}>
+        </ScrollRow>
+        <ScrollRow className="flex snap-x gap-1 overflow-x-auto border-t border-border py-1 [scrollbar-width:thin]" label={activeGroup.label}>
           {activeGroup.items.map((item) => {
             const isActive = item.key === active;
             return (
@@ -70,7 +71,7 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
               </li>
             );
           })}
-        </ul>
+        </ScrollRow>
       </nav>
 
       <nav aria-label="Settings sections" className="hidden lg:mt-6 lg:block lg:w-60 lg:shrink-0">

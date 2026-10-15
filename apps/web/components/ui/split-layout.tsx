@@ -144,7 +144,7 @@ export function SplitLayout({
               type="button"
               onClick={() => setExpanded((v) => !v)}
               aria-pressed={expanded}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-ink hover:bg-off-white"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-xs font-medium text-ink hover:bg-surface-subtle"
             >
               {expanded ? "⤡ Show list" : "⤢ Expand"}
             </button>

@@ -285,7 +285,7 @@ export default async function NcrsPage({
 
       <FilterBar
         activeCount={activeFilterCount}
-        clearHref={filtersActive ? "/inspect/ncrs" : undefined}
+        clearHref={filtersActive ? "/inspect/ncrs?project=" : undefined}
         filters={
           <>
             <form method="get" action="/inspect/ncrs" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">

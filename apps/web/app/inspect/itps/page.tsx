@@ -256,7 +256,7 @@ export default async function ItpsPage({
       {projectId && (
         <p className="text-sm text-muted">
           <T>Filtered to one project.</T>{" "}
-          <Link href="/inspect/itps" className="font-medium text-brand hover:underline">
+          <Link href="/inspect/itps?project=" className="font-medium text-brand hover:underline">
             <T>Clear filter</T>
           </Link>
         </p>

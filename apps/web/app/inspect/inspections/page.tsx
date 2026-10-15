@@ -233,7 +233,7 @@ export default async function InspectionsPage({ searchParams }: { searchParams: 
 
       <FilterBar
         activeCount={activeFilterCount}
-        clearHref={hasFilters ? "/inspect/inspections" : undefined}
+        clearHref={hasFilters ? "/inspect/inspections?project=" : undefined}
         filters={
           <form method="get" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
             <FilterField label={<T>Project</T>}>

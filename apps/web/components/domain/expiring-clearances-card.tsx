@@ -27,7 +27,7 @@ export async function ExpiringClearancesCard({ withinDays = 30 }: { withinDays?:
           <li key={`${item.kind}-${item.id}`}>
             <Link
               href={`/inspect/projects/${item.projectId}/registers`}
-              className="flex flex-wrap items-center justify-between gap-2 py-2 hover:bg-off-white"
+              className="flex flex-wrap items-center justify-between gap-2 py-2 hover:bg-surface-subtle"
             >
               <span className="text-ink">
                 {item.label} <span className="text-xs text-muted">· {EXPIRING_KIND_LABEL[item.kind]}</span>

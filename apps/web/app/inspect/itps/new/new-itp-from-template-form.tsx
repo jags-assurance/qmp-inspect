@@ -97,7 +97,7 @@ export function NewItpFromTemplateForm({
 
       <FormMessage error={state.error} />
 
-      <StickyActionBar>
+      <StickyActionBar inCard>
         <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create ITP from template"}
       </Button>

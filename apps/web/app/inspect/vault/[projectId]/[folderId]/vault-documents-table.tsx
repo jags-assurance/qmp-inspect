@@ -347,7 +347,7 @@ export function VaultDocumentsTable({
         <div
           role="region"
           aria-label={tl("Bulk actions")}
-          className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-off-white px-3 py-2 text-sm"
+          className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 flex flex-wrap items-center gap-2 border-b border-border bg-off-white px-3 py-2 text-sm"
         >
           <span className="font-medium text-ink">{selectedRows.length} <Tx>selected</Tx></span>
           {selectedDownloadable ? (

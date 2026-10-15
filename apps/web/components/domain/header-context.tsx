@@ -15,7 +15,7 @@ import { GlobalProjectSelector, type ProjectSelectorOption } from "./global-proj
  */
 /** Same footprint as the context control while it streams in (no header jump). */
 export function HeaderContextSkeleton() {
-  return <div aria-hidden="true" className="h-11 w-11 animate-pulse rounded-md bg-surface-sunken sm:w-24 lg:h-9 lg:w-64" />;
+  return <div aria-hidden="true" className="h-11 w-11 animate-pulse rounded-md bg-surface-sunken sm:w-24 lg:h-9 lg:w-64 [@media(pointer:coarse)]:lg:h-11" />;
 }
 
 export function HeaderContext({

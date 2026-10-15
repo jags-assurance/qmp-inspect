@@ -9,7 +9,6 @@ import type { ChecklistResponseResult } from "@/lib/checklists/db-types";
 import type { RegisterVerificationResult } from "@/lib/registers/verify";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
-import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 
 interface ChecklistItem {
   id: string;
@@ -173,7 +172,7 @@ export function ChecklistExecutionPanel({
     <>
       {totalCount > 0 && (
         <div
-          className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 border-b border-border bg-surface/95 px-3 py-2.5 backdrop-blur sm:-mx-6 sm:px-6 lg:mx-0 lg:rounded-lg lg:border lg:shadow-xs"
+          className="[@media(min-height:520px)]:sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 border-b border-border bg-surface/95 px-3 py-2.5 backdrop-blur sm:-mx-6 sm:px-6 xl:mx-0 xl:rounded-lg xl:border xl:shadow-xs"
           aria-live="polite"
         >
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
@@ -205,7 +204,7 @@ export function ChecklistExecutionPanel({
           )}
         </div>
       )}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
       <div className="space-y-3">
         {items.map((item) => (
           <ResponseRow
@@ -255,7 +254,7 @@ export function ChecklistExecutionPanel({
         {items.length === 0 && <p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted"><Tx>This checklist has no items yet.</Tx></p>}
       </div>
       {/* Right column from lg (summary + evidence + sign-off); stacks under the items on phones/tablets. */}
-      <aside className="space-y-4 lg:sticky lg:top-[calc(var(--header-h)+env(safe-area-inset-top)+6rem)] lg:max-h-[calc(100dvh-var(--header-h)-8rem)] lg:overflow-y-auto">
+      <aside className="space-y-4 xl:sticky xl:top-[calc(var(--header-h)+env(safe-area-inset-top)+6rem)] xl:max-h-[calc(100dvh-var(--header-h)-8rem)] xl:overflow-y-auto">
         {photoSlot}
         {canExecute && (
           <div id="complete-section" className="scroll-mt-[calc(var(--header-h)+env(safe-area-inset-top)+7rem)]">
@@ -265,7 +264,7 @@ export function ChecklistExecutionPanel({
       </aside>
       </div>
       {canExecute && totalCount > 0 && (
-        <StickyActionBar className="lg:hidden" justify="between">
+        <div className="no-print sticky bottom-[var(--notice-h,0px)] z-10 -mx-3 mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-border bg-surface/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6 xl:hidden">
           <div className="min-w-0 flex-1 basis-full text-sm sm:basis-auto" aria-live="polite">
             <p className="font-medium text-ink">
               {answeredCount} <Tx>of</Tx> {totalCount} <Tx>answered</Tx>
@@ -290,7 +289,7 @@ export function ChecklistExecutionPanel({
               {allAnswered ? (hasEvidencePhoto ? "Complete inspection" : "Add evidence") : "Complete inspection"}
             </Button>
           </div>
-        </StickyActionBar>
+        </div>
       )}
     </>
   );

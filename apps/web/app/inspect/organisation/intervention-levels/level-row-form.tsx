@@ -27,7 +27,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
       <form action={formAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
         <input type="hidden" name="id" value={level.id} />
         <div>
-          <label className="block text-xs text-muted"><Tx>Code</Tx></label>
+          <span className="block text-sm font-medium text-ink"><Tx>Code</Tx></span>
           <span className="doc-id mt-1 block text-sm font-semibold text-ink">{level.code}</span>
         </div>
         <div>

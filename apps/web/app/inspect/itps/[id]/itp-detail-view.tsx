@@ -1223,9 +1223,9 @@ const PANES: { key: ItpPane; label: string }[] = [
 function PaneSkeleton() {
   return (
     <div className="mt-4 space-y-3" aria-busy="true" aria-label="Loading section">
-      <div className="h-8 w-56 animate-pulse rounded bg-off-white" />
+      <div className="h-8 w-56 animate-pulse rounded bg-surface-sunken" />
       {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="h-14 animate-pulse rounded-md bg-off-white" />
+        <div key={i} className="h-14 animate-pulse rounded-md bg-surface-sunken" />
       ))}
     </div>
   );

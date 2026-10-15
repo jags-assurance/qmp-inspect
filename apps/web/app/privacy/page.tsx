@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       </p>
 
       <LegalSection heading="What we keep, why, and for how long">
-        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface" role="region" aria-label="What we keep, why, and for how long" tabIndex={0}>
           <table className="w-full min-w-[40rem] text-start text-xs">
             <thead className="bg-off-white text-muted">
               <tr>

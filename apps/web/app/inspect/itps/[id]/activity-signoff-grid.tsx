@@ -131,18 +131,21 @@ export function ActivitySignoffGrid({
   return (
     <div className="relative">
       <span id={labelId} className="sr-only"><T>Activities and party sign-offs</T></span>
-      {parties.length >= 3 && (
-        <p className="hidden items-center gap-1.5 px-4 pb-2 text-xs text-muted md:flex xl:hidden">
-          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 rtl:-scale-x-100">
-            <path d="M4 10h12M12 6l4 4-4 4" />
-          </svg>
-          <T>Scroll sideways to see every party. The activity column stays in place.</T>
-        </p>
-      )}
-      <ScrollRegion labelledBy={labelId} fade={parties.length >= 3}>
+      <ScrollRegion
+        labelledBy={labelId}
+        fade={parties.length >= 3}
+        hint={
+          <p className="hidden items-center gap-1.5 px-4 pb-2 text-xs text-muted md:flex">
+            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 rtl:-scale-x-100">
+              <path d="M4 10h12M12 6l4 4-4 4" />
+            </svg>
+            <T>Scroll sideways to see every party. The activity column stays in place.</T>
+          </p>
+        }
+      >
         <div role="table" aria-labelledby={labelId} style={gridVars} className="text-sm md:min-w-[var(--grid-min)]">
           <div role="row" className="hidden border-y border-border bg-surface-subtle text-xs text-muted md:grid md:[grid-template-columns:var(--grid-cols)]">
-            <div role="columnheader" className="sticky start-0 z-10 bg-surface-subtle px-4 py-2 font-medium"><T>Activity</T></div>
+            <div role="columnheader" className="sticky start-0 z-[1] bg-surface-subtle px-4 py-2 font-medium"><T>Activity</T></div>
             {parties.map((party) => (
               <div key={party.id} role="columnheader" className="border-s border-border/60 px-3 py-2 font-medium">
                 <span className="block truncate" title={party.name}>
@@ -158,7 +161,7 @@ export function ActivitySignoffGrid({
                 role="row"
                 className="max-md:overflow-hidden max-md:rounded-lg max-md:border max-md:border-border max-md:bg-surface md:grid md:[grid-template-columns:var(--grid-cols)] md:border-b md:border-border md:last:border-0"
               >
-                <div role="cell" className="min-w-0 bg-surface px-4 py-3 md:sticky md:start-0 md:z-10">
+                <div role="cell" className="min-w-0 bg-surface px-4 py-3 md:sticky md:start-0 md:z-[1]">
                   {canEditContent ? (
                     <ItemControls
                       itpId={itpId}

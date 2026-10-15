@@ -134,11 +134,15 @@ export function InspectorDashboard({
           />
         }
         primaryAction={
-          <Link href="/inspect/start-work" className={buttonVariants()}>
-            <T>Start work</T>
-          </Link>
+          // Both field actions stay visible on a phone. Quick observation owns a side panel and a toast, so it must
+          // never sit inside the header's "..." menu (that menu unmounts its content as soon as it closes).
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Link href="/inspect/start-work" className={buttonVariants()}>
+              <T>Start work</T>
+            </Link>
+            <QuickRaiseObservation />
+          </div>
         }
-        secondaryActions={<QuickRaiseObservation />}
       />
 
       {/* Order: what needs my attention first, KPIs next, then the full lists. */}

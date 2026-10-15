@@ -173,7 +173,7 @@ export default async function StandaloneAssignmentsPage({
 
       <FilterBar
         activeCount={activeFilterCount}
-        clearHref={hasFilters ? "/inspect/standalone" : undefined}
+        clearHref={hasFilters ? "/inspect/standalone?project=" : undefined}
         filters={
           <form method="get" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
             {statusFilter && <input type="hidden" name="status" value={statusFilter} />}

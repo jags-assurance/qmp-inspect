@@ -290,7 +290,7 @@ export function NewItpFromAiForm({
 
         <FormMessage error={genState.error} />
 
-        <StickyActionBar>
+        <StickyActionBar inCard>
           <Button type="submit" disabled={genPending}>
             {genPending ? "Generating…" : "Generate draft"}
           </Button>

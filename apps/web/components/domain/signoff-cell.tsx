@@ -228,7 +228,7 @@ export function SignoffCell({
     { key: "comment", label: tx("Sign with comment"), show: canSignOff, title: "Sign off and record a comment with it", onSelect: () => setReasonFor("comment") },
     { key: "reject", label: tx("Reject"), show: canSignOff, title: "Return this release with a reason; the inspector is told what to fix", onSelect: () => setReasonFor("reject") },
   ];
-  const visible = all.filter((a) => a.show);
+  const visible = all.filter((a) => a.show).map((a) => ({ ...a, disabled: isPending }));
   const actions = { primary: visible[0] ?? null, menu: visible.slice(1) };
 
   if (layout === "compact") {
@@ -294,6 +294,7 @@ export function SignoffCell({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
+              autoFocus
               maxLength={1000}
               placeholder={reasonPlaceholder}
               aria-label={reasonPlaceholder}

@@ -11,15 +11,19 @@ export function StickyActionBar({
   children,
   className,
   justify = "start",
+  inCard = false,
 }: {
   children: ReactNode;
   className?: string;
   justify?: "start" | "end" | "between";
+  /** Set when the form itself is a padded card (p-4 sm:p-5): the bar then bleeds by the card padding, not the page gutter. */
+  inCard?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "no-print sticky bottom-[var(--notice-h,0px)] z-10 -mx-3 mt-6 flex flex-wrap items-center gap-2 border-t border-border bg-surface/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6",
+        "no-print sticky bottom-[var(--notice-h,0px)] z-10 mt-6 flex flex-wrap items-center gap-2 border-t border-border bg-surface/95 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur",
+        inCard ? "-mx-4 px-4 sm:-mx-5 sm:px-5" : "-mx-3 px-3 sm:-mx-6 sm:px-6",
         "md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0 md:backdrop-blur-none",
         justify === "end" && "justify-end",
         justify === "between" && "justify-between",

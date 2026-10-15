@@ -11,10 +11,15 @@ export function ErrorIdChip({ id }: { id: string }) {
       type="button"
       onClick={() => {
         try {
-          void navigator.clipboard?.writeText(id).then(() => {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          });
+          void navigator.clipboard?.writeText(id).then(
+            () => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            },
+            () => {
+              /* permission denied or insecure context: the ID stays visible and selectable */
+            }
+          );
         } catch {
           /* clipboard unavailable: the ID stays visible and selectable */
         }

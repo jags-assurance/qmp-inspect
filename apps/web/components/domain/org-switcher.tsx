@@ -41,7 +41,7 @@ export function OrgSwitcher({
         className={
           stacked
             ? "min-h-11 w-full min-w-0 truncate rounded-md border border-border bg-surface px-3 text-base text-ink"
-            : "h-9 min-w-0 max-w-[10rem] truncate rounded-md border border-border bg-surface px-2.5 text-sm text-ink hover:bg-surface-subtle xl:max-w-[13rem]"
+            : "h-9 [@media(pointer:coarse)]:h-11 min-w-0 max-w-[10rem] truncate rounded-md border border-border bg-surface px-2.5 text-sm text-ink hover:bg-surface-subtle xl:max-w-[13rem]"
         }
       >
         {options.map((o) => (

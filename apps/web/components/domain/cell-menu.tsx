@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
 
 export interface CellMenuItem {
   key: string;
@@ -30,6 +31,9 @@ export function CellMenu({ items, ariaLabel }: { items: CellMenuItem[]; ariaLabe
     if (refocus) triggerRef.current?.focus();
   }, []);
 
+  // Esc closes only the topmost layer (a menu opened from a side panel must not close the panel too).
+  useEscapeLayer(open, () => close(true));
+
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
     const r = triggerRef.current.getBoundingClientRect();
@@ -37,13 +41,21 @@ export function CellMenu({ items, ariaLabel }: { items: CellMenuItem[]; ariaLabe
     const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
     const spaceBelow = window.innerHeight - r.bottom;
     const estHeight = items.length * 44 + 8;
-    const top = spaceBelow < estHeight && r.top > estHeight ? r.top - estHeight - 4 : r.bottom + 4;
+    const rawTop = spaceBelow < estHeight && r.top > estHeight ? r.top - estHeight - 4 : r.bottom + 4;
+    // Never let the panel run off the bottom/top edge (short landscape phones): clamp into the viewport.
+    const top = Math.max(8, Math.min(rawTop, window.innerHeight - estHeight - 8));
     setPos({ top, left });
   }, [open, items.length]);
 
+  // Move focus into the menu once it is positioned (a visibility:hidden panel cannot take focus).
+  useEffect(() => {
+    if (!open || !pos) return;
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }, [open, pos]);
+
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     function onPointerDown(e: PointerEvent) {
       const t = e.target as Node;
       if (panelRef.current?.contains(t) || triggerRef.current?.contains(t)) return;
@@ -53,6 +65,8 @@ export function CellMenu({ items, ariaLabel }: { items: CellMenuItem[]; ariaLabe
       if (e.key === "Escape") {
         e.stopPropagation();
         close(true);
+      } else if (e.key === "Tab") {
+        close();
       } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         const els = Array.from(panelRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
         if (els.length === 0) return;
@@ -113,7 +127,7 @@ export function CellMenu({ items, ariaLabel }: { items: CellMenuItem[]; ariaLabe
                 disabled={item.disabled}
                 title={item.title ? tl(item.title) : undefined}
                 onClick={() => {
-                  close();
+                  close(true);
                   item.onSelect();
                 }}
                 className="flex min-h-10 w-full items-center rounded px-3 py-2 text-start text-sm text-ink hover:bg-surface-subtle disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"

@@ -143,7 +143,7 @@ export function OfflineBanner() {
   const updateBar = waitingSw ? (
     <div className="flex items-center justify-between gap-3 bg-info/10 px-4 py-2 text-sm text-info" role="status">
       <span><Tx>Update available</Tx></span>
-      <button type="button" className="font-medium underline" onClick={applyUpdate}>
+      <button type="button" className="font-medium underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11" onClick={applyUpdate}>
         <Tx>Reload</Tx>
       </button>
     </div>
@@ -295,17 +295,17 @@ export function OfflineBanner() {
         </span>
         <span className="flex shrink-0 gap-3">
           {isOnline && pendingCount > 0 && !syncing && (
-            <button type="button" onClick={attemptSync} className="font-medium underline">
+            <button type="button" onClick={attemptSync} className="font-medium underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11">
               <Tx>Sync now</Tx>
             </button>
           )}
           {pendingCount > 0 && (staleCount > 0 || failedCount > 0 || !storagePersisted) && (
-            <button type="button" onClick={exportQueue} className="underline">
+            <button type="button" onClick={exportQueue} className="underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11">
               <Tx>Export queue</Tx>
             </button>
           )}
           {authBlocked && (
-            <a href="/login" className="font-medium underline">
+            <a href="/login" className="font-medium underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11">
               <Tx>Sign in</Tx>
             </a>
           )}
@@ -328,7 +328,7 @@ export function OfflineBanner() {
                 {!reviewItems.some((r) => r.id === item.id) && (
                   <button
                     type="button"
-                    className="underline"
+                    className="underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11"
                     onClick={() => {
                       void ask({
                         title: "Discard this queued change?",
@@ -363,17 +363,17 @@ export function OfflineBanner() {
               </span>
               <span className="flex shrink-0 gap-3">
                 {item.status === "conflict" ? (
-                  <button type="button" className="font-medium underline" onClick={() => act(forceOutboxItem, item.id).then(attemptSync)}>
+                  <button type="button" className="font-medium underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11" onClick={() => act(forceOutboxItem, item.id).then(attemptSync)}>
                     <Tx>Keep mine</Tx>
                   </button>
                 ) : (
-                  <button type="button" className="font-medium underline" onClick={() => act(resetOutboxItem, item.id).then(attemptSync)}>
+                  <button type="button" className="font-medium underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11" onClick={() => act(resetOutboxItem, item.id).then(attemptSync)}>
                     <Tx>Retry</Tx>
                   </button>
                 )}
                 <button
                   type="button"
-                  className="underline"
+                  className="underline inline-flex min-h-8 items-center [@media(pointer:coarse)]:min-h-11"
                   onClick={() => {
                     void ask({
                       title: "Discard this queued change?",

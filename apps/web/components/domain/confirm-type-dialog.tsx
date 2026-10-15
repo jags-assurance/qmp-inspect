@@ -3,6 +3,8 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
+import { useScrollLock } from "@/lib/hooks/use-scroll-lock";
 
 /**
  * Confirmation for irreversible actions (compile / issue / acknowledge a Data Book handover). The
@@ -31,17 +33,14 @@ export function ConfirmTypeDialog({
   const inputId = useId();
   const ok = phrase === "" || typed.trim() === phrase;
 
+  useEscapeLayer(true, onCancel);
+  useScrollLock(true);
   useEffect(() => {
     (phrase ? inputRef.current : cancelRef.current)?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, phrase]);
+  }, [phrase]);
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
+    <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
       <div className="w-full max-w-md rounded-lg bg-surface p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-base font-semibold text-ink">{title}</h2>
         {children && <div className="mt-2 space-y-2 text-sm text-ink">{children}</div>}

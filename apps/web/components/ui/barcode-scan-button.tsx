@@ -106,7 +106,7 @@ export function BarcodeScanButton({
       <button
         type="button"
         onClick={open ? cancel : start}
-        className={`min-h-10 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-off-white ${className}`}
+        className={`min-h-10 rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-subtle ${className}`}
       >
         {open ? "Stop scanning" : label}
       </button>

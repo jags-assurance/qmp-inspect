@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEscapeLayer } from "@/lib/hooks/use-escape-layer";
 
 /**
  * Minimal, dependency-free dropdown — a trigger button that toggles a small absolutely-positioned
@@ -38,16 +39,11 @@ export function DropdownMenu({
     function onPointerDown(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
+  // Esc closes only the topmost layer, so a menu inside a sheet / side panel closes alone.
+  useEscapeLayer(open, () => setOpen(false));
 
   return (
     <div ref={ref} className="relative inline-block">
@@ -57,7 +53,7 @@ export function DropdownMenu({
         aria-expanded={open}
         aria-haspopup="true"
         aria-label={ariaLabel}
-        className={"flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-off-white [@media(pointer:coarse)]:min-h-11 " + triggerClassName}
+        className={"flex min-h-10 items-center gap-1.5 rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-surface-subtle [@media(pointer:coarse)]:min-h-11 " + triggerClassName}
       >
         {label}
         {!hideChevron && <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
@@ -91,5 +87,5 @@ export function DropdownMenu({
 
 /** One row inside a DropdownMenu — same visual weight whether it wraps an <a>, a <Link>, or a form's submit button. */
 export function DropdownMenuItem({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={"block px-1 py-0.5 text-sm [&_a]:block [&_a]:w-full [&_a]:px-3 [&_a]:py-2 [&_a]:hover:bg-off-white [&_button]:w-full [&_button]:px-3 [&_button]:py-2 [&_button]:text-start [&_button]:hover:bg-off-white " + className}>{children}</div>;
+  return <div className={"block px-1 py-0.5 text-sm [&_a]:block [&_a]:w-full [&_a]:px-3 [&_a]:py-2 [&_a]:hover:bg-surface-subtle [&_button]:w-full [&_button]:px-3 [&_button]:py-2 [&_button]:text-start [&_button]:hover:bg-surface-subtle " + className}>{children}</div>;
 }

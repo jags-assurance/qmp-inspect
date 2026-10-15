@@ -166,7 +166,7 @@ export function SidePanel({
               aria-pressed={expanded}
               aria-label={expanded ? "Shrink panel" : "Expand panel"}
               title={expanded ? "Shrink panel" : "Expand panel"}
-              className="hidden h-11 w-11 items-center justify-center rounded-md text-lg text-muted hover:bg-off-white hover:text-ink sm:inline-flex"
+              className="hidden h-11 w-11 items-center justify-center rounded-md text-lg text-muted hover:bg-surface-subtle hover:text-ink sm:inline-flex"
             >
               {expanded ? "⤡" : "⤢"}
             </button>
@@ -174,7 +174,7 @@ export function SidePanel({
             type="button"
             onClick={requestClose}
             aria-label={tl("Close panel")}
-            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-lg text-muted hover:bg-off-white hover:text-ink"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-lg text-muted hover:bg-surface-subtle hover:text-ink"
           >
             ✕
           </button>
