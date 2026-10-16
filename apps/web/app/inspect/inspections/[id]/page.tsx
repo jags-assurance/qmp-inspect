@@ -56,6 +56,7 @@ import { Section } from "@/components/ui/section";
 import { Card } from "@/components/ui/section";
 import { DescriptionList } from "@/components/ui/description-list";
 import { Disclosure } from "@/components/ui/disclosure";
+import { formatDate, formatDateTime } from "@/lib/dates/format";
 
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
@@ -378,7 +379,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <p className="mt-2 text-sm text-ink">
               {reviewStatus === "approved" ? "Approved" : "Rejected"}
               {reviewerName ? ` by ${reviewerName}` : ""}
-              {extra?.reviewed_at ? ` on ${new Date(extra.reviewed_at).toLocaleString()}` : ""}
+              {extra?.reviewed_at ? ` on ${formatDateTime(extra.reviewed_at)}` : ""}
               {extra?.review_comment ? <span className="block text-muted"><T>Comment:</T> {extra.review_comment}</span> : null}
             </p>
           ) : (
@@ -518,7 +519,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             <img src={record.inspector_signature} alt="Inspector signature" className="h-28 w-auto" />
             <div className="mt-1 w-64 border-t border-ink/30 pt-1 text-xs text-muted">
               {record.signed_by_name ?? record.users?.full_name ?? "Inspector"} ·{" "}
-              {record.signed_at ? new Date(record.signed_at).toLocaleString() : record.inspection_date}
+              {record.signed_at ? formatDateTime(record.signed_at) : record.inspection_date}
             </div>
           </div>
           {record.witness_signature && (
@@ -541,7 +542,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             </p>
             {irn.voided_at ? (
               <p className="mt-1 text-sm text-danger">
-                <T>Voided</T> {new Date(irn.voided_at).toLocaleDateString()}: {irn.void_reason}
+                <T>Voided</T> {formatDate(irn.voided_at)}: {irn.void_reason}
               </p>
             ) : (
               <>
@@ -573,7 +574,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 <li key={v.id}>
                   <span className="doc-id">{v.irn_number}</span> <Badge tone="danger"><T>VOID</T></Badge>{" "}
                   <span className="text-danger">
-                    {v.voided_at ? new Date(v.voided_at).toLocaleDateString() : ""}: {v.void_reason}
+                    {v.voided_at ? formatDate(v.voided_at) : ""}: {v.void_reason}
                   </span>
                 </li>
               ))}
@@ -636,13 +637,13 @@ export default async function InspectionRecordPage({ params }: { params: Promise
             {amendments.map((a) => (
               <li key={a.id} className="py-2">
                 <p className="text-ink">
-                  <T>Re-opened</T> {new Date(a.amended_at).toLocaleString()} <T>by</T> {a.users?.full_name ?? "JAGS staff"}
+                  <T>Re-opened</T> {formatDateTime(a.amended_at)} <T>by</T> {a.users?.full_name ?? "JAGS staff"}
                 </p>
                 <p className="text-muted"><T>Reason:</T> {a.reason}</p>
                 <p className="text-xs text-muted">
                   <T>Previous result:</T> {(a.previous_overall_result ?? "—").toUpperCase()}
                   {a.previous_signed_by_name ? ` · signed by ${a.previous_signed_by_name}` : ""}
-                  {a.previous_signed_at ? ` on ${new Date(a.previous_signed_at).toLocaleString()}` : ""}
+                  {a.previous_signed_at ? ` on ${formatDateTime(a.previous_signed_at)}` : ""}
                   {a.previous_review_status ? ` · previous review: ${a.previous_review_status}` : ""}
                 </p>
                 <PreviousAnswers amendmentId={a.id} responses={parsePreviousResponses(a.previous_responses)} />

@@ -168,7 +168,17 @@ export function SignoffCell({
   function doNotify() {
     run(() => notifyPartyAction(progressId), "notified");
   }
-  function doSignOff() {
+  async function doSignOff() {
+    // A Hold releases the work that was waiting on it, so one accidental tap must not do it: confirm first.
+    // (Witness / surveillance / review points keep the one-tap flow; "Request correction" undoes a mistake.)
+    if (isBlocking) {
+      const ok = await ask({
+        title: "Sign off this hold point?",
+        message: "This releases the hold and is recorded with your name and the time. If you sign by mistake, use Request correction.",
+        confirmLabel: "Sign off",
+      });
+      if (ok === null) return;
+    }
     run(async () => {
       const first = await signOffAction(progressId);
       if (first.error && first.error.startsWith(ON_BEHALF_REASON_PREFIX)) {

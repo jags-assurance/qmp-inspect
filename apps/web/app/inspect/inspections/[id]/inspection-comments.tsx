@@ -11,6 +11,7 @@ import { canEditComment, MAX_COMMENT_LENGTH, type CommentThread, type Inspection
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { formatDateTime } from "@/lib/dates/format";
 
 const initialState: InspectionCommentState = { error: null };
 const textareaClass = "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
@@ -41,7 +42,7 @@ export function InspectionComments({
             <li key={t.root.id} className={`rounded-md border border-border p-3 ${t.root.resolved_at ? "bg-off-white" : ""}`}>
               <CommentBody comment={t.root} userId={userId} />
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                {t.root.resolved_at && <span className="text-xs font-medium text-success"><Tx>Resolved</Tx> {new Date(t.root.resolved_at).toLocaleString()}</span>}
+                {t.root.resolved_at && <span className="text-xs font-medium text-success"><Tx>Resolved</Tx> {formatDateTime(t.root.resolved_at)}</span>}
                 {isStaff && <ResolveToggle commentId={t.root.id} resolved={!!t.root.resolved_at} />}
               </div>
               {t.replies.length > 0 && (
@@ -77,7 +78,7 @@ function CommentBody({ comment, userId }: { comment: InspectionCommentRow; userI
   return (
     <div>
       <p className="text-xs text-muted">
-        <span className="font-medium text-ink">{comment.users?.full_name ?? "Unknown user"}</span> · {new Date(comment.created_at).toLocaleString()}
+        <span className="font-medium text-ink">{comment.users?.full_name ?? "Unknown user"}</span> · {formatDateTime(comment.created_at)}
         {comment.edited_at ? " · edited" : ""}
       </p>
       {editing ? (

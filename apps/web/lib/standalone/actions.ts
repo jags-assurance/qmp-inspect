@@ -308,41 +308,55 @@ export async function createAssignmentAction(
   // Atomic per-project-per-type counter (next_document_sequence) — a plain count-then-insert would
   // let two assignments of the same type created at the same moment collide on the same number,
   // which is exactly the race the 23505 handling below used to paper over rather than prevent.
-  let rawSeq: number;
-  try {
-    rawSeq = await nextSequenceNumber(supabase, {
-      organizationId: project.organization_id,
-      projectId,
-      seqKey: `standalone_assignment:${assignmentType}`,
-    });
-  } catch (err) {
-    if (err instanceof NumberingError) return { error: err.message };
-    throw err;
+  // The counter can lag behind numbers that already exist (records imported or inserted by hand), so a
+  // number that is already taken is skipped: take the next one, a few times, before asking the user to retry.
+  let assignment: { id: string } | null = null;
+  let assignmentNumber = "";
+  let insertError: { code?: string } | null = null;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    let rawSeq: number;
+    try {
+      rawSeq = await nextSequenceNumber(supabase, {
+        organizationId: project.organization_id,
+        projectId,
+        seqKey: `standalone_assignment:${assignmentType}`,
+      });
+    } catch (err) {
+      if (err instanceof NumberingError) return { error: err.message };
+      throw err;
+    }
+    const seq = String(rawSeq).padStart(3, "0");
+    assignmentNumber = `${project.project_number}-${ASSIGNMENT_TYPE_PREFIX[assignmentType]}-${seq}`;
+
+    const { data: inserted, error } = await supabase
+      .from(STANDALONE_ASSIGNMENTS)
+      .insert({
+        project_id: projectId,
+        assignment_number: assignmentNumber,
+        assignment_type: assignmentType,
+        equipment_description: equipmentDescription,
+        manufacturer: manufacturer || null,
+        model: model || null,
+        serial_tag: serialTag || null,
+        location: normalisedLocation,
+        standard_reference: standardReference || null,
+        assignment_date: assignmentDate || null,
+        discipline_id: disciplineId || null,
+        created_by: user?.id ?? null,
+      })
+      .select("id")
+      .single<{ id: string }>();
+    if (!error && inserted) {
+      assignment = inserted;
+      insertError = null;
+      break;
+    }
+    insertError = error;
+    if (error?.code !== "23505") break; // only a taken number is worth retrying
   }
-  const seq = String(rawSeq).padStart(3, "0");
-  const assignmentNumber = `${project.project_number}-${ASSIGNMENT_TYPE_PREFIX[assignmentType]}-${seq}`;
 
-  const { data: assignment, error } = await supabase
-    .from(STANDALONE_ASSIGNMENTS)
-    .insert({
-      project_id: projectId,
-      assignment_number: assignmentNumber,
-      assignment_type: assignmentType,
-      equipment_description: equipmentDescription,
-      manufacturer: manufacturer || null,
-      model: model || null,
-      serial_tag: serialTag || null,
-      location: normalisedLocation,
-      standard_reference: standardReference || null,
-      assignment_date: assignmentDate || null,
-      discipline_id: disciplineId || null,
-      created_by: user?.id ?? null,
-    })
-    .select("id")
-    .single<{ id: string }>();
-
-  if (error || !assignment) {
-    if (error?.code === "23505") {
+  if (!assignment) {
+    if (insertError?.code === "23505") {
       return { error: "That assignment number was just taken — please try again." };
     }
     return { error: "Could not create the assignment. Check you have permission and try again." };

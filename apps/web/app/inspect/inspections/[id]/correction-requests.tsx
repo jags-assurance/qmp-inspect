@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Disclosure } from "@/components/ui/disclosure";
+import { formatDateTime } from "@/lib/dates/format";
 
 const initialState: CorrectionRequestState = { error: null };
 
@@ -95,7 +96,7 @@ export function CorrectionRequestsPanel({ requests, canResolve }: { requests: Co
           <li key={r.id} className="py-2">
             <p className="text-ink">{r.reason}</p>
             <p className="text-xs text-muted">
-              {r.requesterName}, {new Date(r.createdAt).toLocaleString()} - {r.status}
+              {r.requesterName}, {formatDateTime(r.createdAt)} - {r.status}
               {r.resolutionNote ? `: ${r.resolutionNote}` : ""}
             </p>
             {r.status === "open" && canResolve && <ResolveForm requestId={r.id} />}

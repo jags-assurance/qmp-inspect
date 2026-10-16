@@ -11,6 +11,7 @@ import { Section } from "@/components/ui/section";
 import { FilterBar, FilterField } from "@/components/ui/toolbar";
 import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
 import { EmptyState } from "@/components/ui/empty-state";
+import { formatDate } from "@/lib/dates/format";
 
 export const DOC_PAGE_SIZE = 50;
 const GENERATED_PREFIX = "generated-documents:";
@@ -245,7 +246,7 @@ export function DocumentsSection({
               <div className="min-w-0">
                 <p className="line-clamp-2 font-medium text-ink [overflow-wrap:anywhere]" title={d.title}>{d.title}</p>
                 <p className="mt-0.5 text-xs text-muted">
-                  {d.projectLabel} - {new Date(d.createdAt).toLocaleDateString()}
+                  {d.projectLabel} - {formatDate(d.createdAt)}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <Badge tone="neutral" showIcon={false}>{d.typeLabel}</Badge>

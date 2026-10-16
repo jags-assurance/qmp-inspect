@@ -42,7 +42,7 @@ export function NcrPdfButton({
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <div className="flex gap-2">
+      <div className="flex flex-wrap justify-end gap-2">
         {liveStatus?.status === "completed" && liveStatus.pdfUrl && (
           <a
             href={liveStatus.pdfUrl}
