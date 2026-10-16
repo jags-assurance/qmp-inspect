@@ -887,10 +887,12 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
           </ol>
         </div>
         {(aiEnabled || session.isJagsStaff) && (
-          <div className="flex flex-col gap-3 border-t border-border pt-4">
-            {aiEnabled && <TranslateContentPanel itpId={itp.id} revision={itp.revision} stored={parseItpTranslations(itp.translations)} />}
-            {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
-          </div>
+          <Disclosure variant="pill" summary={<T>More actions (translate, withdraw or supersede)</T>} className="border-t border-border pt-3" bodyClassName="mt-3">
+            <div className="flex flex-col gap-3">
+              {aiEnabled && <TranslateContentPanel itpId={itp.id} revision={itp.revision} stored={parseItpTranslations(itp.translations)} />}
+              {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
+            </div>
+          </Disclosure>
         )}
       </Card>
 
@@ -998,23 +1000,32 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         <InterventionLegend levels={levels} />
       </Disclosure>
 
-      {canRecordExternalApproval && (
-        <ExternalApprovalForm
-          itpId={itp.id}
-          reference={itp.external_approval_reference}
-          recordedByName={externalApprovalRecordedByUser?.full_name ?? null}
-          recordedAt={itp.external_approval_recorded_at}
-        />
-      )}
-      {isAdminStaff(session) && itp.status === "approved" && <AcceptOnBehalfForm itpId={itp.id} />}
+      {/* Rarely needed while working an ITP, so folded into one card: revision and review history,
+          recording an external approval, accepting on the client's behalf, offline (Excel) editing. */}
+      <Disclosure
+        variant="card"
+        summary={<T>History, external approval and offline editing</T>}
+        className="mt-4"
+        bodyClassName="space-y-4 border-t border-border p-4"
+      >
+        {canRecordExternalApproval && (
+          <ExternalApprovalForm
+            itpId={itp.id}
+            reference={itp.external_approval_reference}
+            recordedByName={externalApprovalRecordedByUser?.full_name ?? null}
+            recordedAt={itp.external_approval_recorded_at}
+          />
+        )}
+        {isAdminStaff(session) && itp.status === "approved" && <AcceptOnBehalfForm itpId={itp.id} />}
 
-      <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
-      <ReviewHistoryPanel itpId={itp.id} />
+        <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
+        <ReviewHistoryPanel itpId={itp.id} />
 
-      {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
-          validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on
-          this page) once the reviewer confirms the previewed diff. */}
-      {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
+        {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
+            validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on
+            this page) once the reviewer confirms the previewed diff. */}
+        {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
+      </Disclosure>
 
       {(sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
         <p className="mt-6 hidden text-sm text-muted md:block">
