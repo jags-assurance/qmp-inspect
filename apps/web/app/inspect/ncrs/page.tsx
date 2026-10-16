@@ -235,23 +235,21 @@ export default async function NcrsPage({
         }
       />
 
-      {session.isJagsStaff && (unownedCount ?? 0) > 0 && (
+      {session.isJagsStaff && ((unownedCount ?? 0) > 0 || (unownedObservationCount ?? 0) > 0) && (
         <p className={notice} role="status">
           <span aria-hidden="true" className="font-bold text-warning">!</span>
-          <T>NCRs without an owner:</T> <strong>{unownedCount}</strong>
-          <Link href={hrefWith({ owner: "none", status: undefined, overdue: undefined, assignee: undefined })} className="font-medium text-brand hover:underline">
-            <T>Show them so they can be assigned</T>
-          </Link>
-        </p>
-      )}
-
-      {session.isJagsStaff && (unownedObservationCount ?? 0) > 0 && (
-        <p className={notice} role="status">
-          <span aria-hidden="true" className="font-bold text-warning">!</span>
-          <T>Observations without an owner:</T> <strong>{unownedObservationCount}</strong>
-          <Link href={projectId ? `/inspect/observations?owner=none&project=${projectId}` : "/inspect/observations?owner=none"} className="font-medium text-brand hover:underline">
-            <T>Show them so they can be assigned</T>
-          </Link>
+          <T>Without an owner:</T>
+          {(unownedCount ?? 0) > 0 && (
+            <Link href={hrefWith({ owner: "none", status: undefined, overdue: undefined, assignee: undefined })} className="font-medium text-brand hover:underline">
+              <strong>{unownedCount}</strong> <T>NCRs</T>
+            </Link>
+          )}
+          {(unownedObservationCount ?? 0) > 0 && (
+            <Link href={projectId ? `/inspect/observations?owner=none&project=${projectId}` : "/inspect/observations?owner=none"} className="font-medium text-brand hover:underline">
+              <strong>{unownedObservationCount}</strong> <T>observations</T>
+            </Link>
+          )}
+          <span className="text-muted"><T>(tap to assign)</T></span>
         </p>
       )}
 
