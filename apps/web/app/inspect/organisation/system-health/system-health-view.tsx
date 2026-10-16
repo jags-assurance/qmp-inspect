@@ -36,6 +36,7 @@ export async function SystemHealthView({ embedded = false }: { embedded?: boolea
       ]);
       const first = (r: unknown) => ((r as { data: { updated_at: string }[] | null }).data ?? [])[0]?.updated_at;
       db = {
+        // eslint-disable-next-line react-hooks/purity -- async server component: evaluated once per request, not re-rendered
         heartbeat: workerHeartbeat([first(lease), first(job)], Date.now()),
         email: { pending, sent, failed, skipped },
         failedJobs,

@@ -11,7 +11,7 @@ import { useTranslate } from "@/lib/i18n/locale-context";
  */
 export function SiteLinks({ signedIn, className = "" }: { signedIn: boolean; className?: string }) {
   const tl = useTranslate();
-  const link = "text-xs text-muted underline-offset-2 hover:text-ink hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-burgundy";
+  const link = "inline-flex min-h-8 items-center text-xs text-muted [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:text-sm underline-offset-2 hover:text-ink hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-burgundy";
   return (
     <nav aria-label={tl("Help and legal")} className={`flex flex-wrap items-center gap-x-4 gap-y-1 ${className}`}>
       {signedIn && (

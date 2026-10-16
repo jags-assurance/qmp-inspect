@@ -185,7 +185,7 @@ export default async function StartWorkPage({
   const selectCls = FILTER_CONTROL_CLASS;
 
   return (
-    <div className="max-w-5xl">
+    <div className="max-w-5xl 2xl:max-w-7xl">
       <PageHeader
         title={<T>Start work</T>}
         subtitle={<T>Choose a workflow. Nothing is created until you submit the form.</T>}
@@ -318,7 +318,7 @@ export default async function StartWorkPage({
         ) : (
           <>
             <SaveOfflineButton urls={visible.filter((a) => a.status !== "completed").map((a) => `/inspect/checklists/${a.templateId}`)} />
-            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
               {visible.map((a) => (
                 <li key={a.templateId}>
                   <Card className="flex h-full flex-col gap-3 !p-4">

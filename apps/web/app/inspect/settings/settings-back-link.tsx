@@ -17,7 +17,7 @@ export function SettingsBackLink({
 }) {
   if (embedded) return null;
   return (
-    <Link href={href} className="mb-2 inline-flex min-h-8 items-center text-sm text-burgundy hover:underline">
+    <Link href={href} className="mb-2 inline-flex min-h-8 items-center text-sm [@media(pointer:coarse)]:min-h-11 text-burgundy hover:underline">
       <T>← Back to</T> {label}
     </Link>
   );

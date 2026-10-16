@@ -236,7 +236,7 @@ export async function ReportsView({ projectId, embedded = false }: { projectId: 
                   <Badge tone={ITP_STATUS_TONE[itp.status] ?? "neutral"}>
                     {ITP_STATUS_LABEL[itp.status] ?? itp.status}
                   </Badge>
-                  <Link href={`/inspect/itps/${itp.id}`} className="text-burgundy underline">
+                  <Link href={`/inspect/itps/${itp.id}`} className="inline-flex items-center text-burgundy underline [@media(pointer:coarse)]:min-h-11">
                     <T>View / Download</T>
                   </Link>
                 </span>

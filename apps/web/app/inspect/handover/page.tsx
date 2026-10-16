@@ -167,7 +167,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
   };
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-3xl xl:max-w-5xl">
       <RealtimeRefresh table="handover_certificates" />
       <PageHeader
         title={<T>Handover Portal</T>}
@@ -247,7 +247,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                   {session.isJagsStaff && projectId && (
                     <>
                       {" · "}
-                      <Link href={`/inspect/projects/${projectId}/data-book`} className="text-burgundy hover:underline">
+                      <Link href={`/inspect/projects/${projectId}/data-book`} className="inline-block text-burgundy hover:underline [@media(pointer:coarse)]:py-3">
                         <T>Open Data Book</T>
                       </Link>
                     </>
@@ -312,7 +312,7 @@ export default async function HandoverPage({ searchParams }: { searchParams: Pro
                     )}
                     {cert.verification_token && (
                       <p className="mt-1 text-xs text-muted">
-                        <Link href={`/verify/certificate/${cert.verification_token}`} className="text-burgundy hover:underline" target="_blank">
+                        <Link href={`/verify/certificate/${cert.verification_token}`} className="inline-block text-burgundy hover:underline [@media(pointer:coarse)]:py-3" target="_blank">
                           <T>Verification page</T>
                         </Link>
                       </p>

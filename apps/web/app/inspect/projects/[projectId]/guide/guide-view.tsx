@@ -293,10 +293,10 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
             <p className="mt-2 text-sm text-muted">No ITPs with an applicable standard set yet.</p>
           )}
           <div className="mt-3 flex gap-3 text-sm">
-            <Link href="/inspect/vault" className="font-medium text-burgundy hover:underline">
+            <Link href="/inspect/vault" className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
               Document Vault →
             </Link>
-            <Link href="/inspect/itps" className="font-medium text-burgundy hover:underline">
+            <Link href="/inspect/itps" className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
               ITP Register →
             </Link>
           </div>
@@ -306,16 +306,16 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
       <section className="mt-4 rounded-lg border border-border bg-surface p-5">
         <h2 className="font-medium text-ink">Reports &amp; documents</h2>
         <div className="mt-3 flex flex-wrap gap-3 text-sm">
-          <Link href={`/inspect/projects/${projectId}/reports`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/reports`} className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
             Reports &amp; downloads →
           </Link>
-          <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/data-book`} className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
             Data book →
           </Link>
-          <Link href={`/inspect/projects/${projectId}/activity`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/activity`} className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
             Activity →
           </Link>
-          <Link href={`/inspect/projects/${projectId}/kpis`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/kpis`} className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
             KPIs →
           </Link>
         </div>
@@ -369,10 +369,10 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
           </div>
         </div>
         <p className="mt-4 flex gap-3 text-sm">
-          <Link href={`/inspect/projects/${projectId}/punch-list`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/punch-list`} className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
             Punch List →
           </Link>
-          <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/data-book`} className="inline-flex items-center font-medium text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
             Data Book →
           </Link>
         </p>

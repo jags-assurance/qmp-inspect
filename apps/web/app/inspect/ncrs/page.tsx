@@ -249,7 +249,7 @@ export default async function NcrsPage({
               <strong>{unownedObservationCount}</strong> <T>observations</T>
             </Link>
           )}
-          <span className="text-muted"><T>(tap to assign)</T></span>
+          <span className="text-muted"><T>(open to assign)</T></span>
         </p>
       )}
 

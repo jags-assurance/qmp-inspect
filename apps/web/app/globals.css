@@ -169,6 +169,24 @@ body {
     width: 1.25rem;
     height: 1.25rem;
   }
+  /* Labels that wrap a checkbox/radio are the real tap target: give them the 44px row. */
+  main label:has(> input[type="checkbox"]),
+  main label:has(> input[type="radio"]) {
+    min-height: 2.75rem;
+    align-items: center;
+  }
+  /* Links and buttons written with a 32-36px minimum height (min-h-8 / min-h-9) get the 44px touch minimum. */
+  main a[class*="min-h-8"],
+  main a[class*="min-h-9"],
+  main button[class*="min-h-8"],
+  main button[class*="min-h-9"] {
+    min-height: 2.75rem;
+  }
+  /* Disclosure headers ("Assign to a person", "How this works") are tap targets too. */
+  main summary {
+    min-height: 2.75rem;
+    align-content: center;
+  }
 }
 /* Horizontally scrolling chip rows without a visible scrollbar. */
 .scrollbar-none {
@@ -207,6 +225,7 @@ body {
   .print-area .table-scroll,
   .print-area .overflow-x-auto {
     overflow: visible !important;
+    max-height: none !important;
   }
   .print-area thead {
     display: table-header-group;

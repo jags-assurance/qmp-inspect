@@ -45,9 +45,9 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
 
 // Inline text actions have no box, so no horizontal padding; they only need a little vertical room.
 const LINK_SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: "text-sm py-1 min-h-8 [@media(pointer:coarse)]:min-h-9",
-  md: "text-sm py-1.5 min-h-9 [@media(pointer:coarse)]:min-h-9",
-  lg: "text-base py-2 min-h-10 [@media(pointer:coarse)]:min-h-10",
+  sm: "text-sm py-1 min-h-8 [@media(pointer:coarse)]:min-h-11",
+  md: "text-sm py-1.5 min-h-9 [@media(pointer:coarse)]:min-h-11",
+  lg: "text-base py-2 min-h-10 [@media(pointer:coarse)]:min-h-11",
   icon: "h-9 w-9 p-0",
 };
 

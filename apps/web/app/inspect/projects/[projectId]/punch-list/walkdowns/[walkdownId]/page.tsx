@@ -60,7 +60,7 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
   return (
     <div className="print-area max-w-4xl">
       <div className="flex items-center justify-between print:hidden">
-        <Link href={`/inspect/projects/${projectId}/punch-list`} className="text-sm text-burgundy hover:underline">
+        <Link href={`/inspect/projects/${projectId}/punch-list`} className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
           <T>← Back to punch list</T>
         </Link>
         <PrintButton />

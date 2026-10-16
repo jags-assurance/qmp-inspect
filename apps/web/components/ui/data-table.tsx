@@ -145,7 +145,7 @@ export function DataTable<T>({
           />
         )}
       </div>
-      <div className={mobileCards ? `table-scroll hidden ${bp.table}` : "table-scroll"} tabIndex={0} role="region" aria-label={caption ?? "Data table"}>
+      <div className={mobileCards ? `table-scroll [@media(pointer:fine)]:max-h-[75vh] hidden ${bp.table}` : "table-scroll [@media(pointer:fine)]:max-h-[75vh]"} tabIndex={0} role="region" aria-label={caption ?? "Data table"}>
         <table className="w-full text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead className="sticky top-0 z-10 bg-surface-subtle shadow-[0_1px_0_var(--color-border)]">
@@ -157,7 +157,7 @@ export function DataTable<T>({
                     key={col.key}
                     scope="col"
                     aria-sort={col.sortable && sort ? (sorted ? (sort.direction === "asc" ? "ascending" : "descending") : "none") : undefined}
-                    className="px-4 py-2.5 font-semibold"
+                    className="px-3 py-2.5 font-semibold 2xl:px-4"
                   >
                     {col.sortable && sort ? (
                       <button type="button" onClick={() => sort.onSort(col.key)} className="inline-flex min-h-8 items-center gap-1 font-medium hover:text-ink">
@@ -176,7 +176,7 @@ export function DataTable<T>({
             {filtered.map((row, i) => (
               <tr key={i} className="border-b border-border last:border-0 hover:bg-surface-subtle focus-within:bg-surface-subtle">
                 {columns.map((col) => (
-                  <td key={col.key} className="px-4 py-3">
+                  <td key={col.key} className="px-3 py-3 2xl:px-4">
                     {col.render(row)}
                   </td>
                 ))}

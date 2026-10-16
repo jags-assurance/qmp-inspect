@@ -51,7 +51,7 @@ export default async function NotificationsPage({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-5xl space-y-5">
       <PageHeader
         className="mb-0"
         title={<T>Notifications</T>}

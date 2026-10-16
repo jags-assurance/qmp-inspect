@@ -491,7 +491,7 @@ export async function KpisView({ projectId, embedded = false }: { projectId: str
           </p>
           <ol className="mt-4 space-y-3">
             {qualityByParty.map((row, index) => (
-              <li key={row.partyName} className="flex items-center gap-3">
+              <li key={`${row.partyName}-${index}`} className="flex items-center gap-3">
                 <span className="w-5 shrink-0 text-sm text-muted">{index + 1}</span>
                 <span className="w-36 shrink-0 truncate text-sm text-ink">{row.partyName}</span>
                 <div className="h-2 flex-1 rounded-full bg-border">

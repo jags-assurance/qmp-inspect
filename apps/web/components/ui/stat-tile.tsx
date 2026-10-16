@@ -48,8 +48,8 @@ export function StatTile({
   ) : null;
   const content = (
     <>
-      <div className="flex items-start justify-between gap-2">
-        <span className="text-sm font-medium leading-snug text-muted">{t(label)}</span>
+      <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+        <span className="min-w-0 text-sm font-medium leading-snug text-muted">{t(label)}</span>
         {chip && <span className="shrink-0">{chip}</span>}
       </div>
       <div className="mt-auto pt-3">

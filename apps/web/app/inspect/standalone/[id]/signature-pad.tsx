@@ -21,6 +21,12 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
   const [queued, setQueued] = useState(false);
   const [padKey, setPadKey] = useState(0);
 
+  function handleClear() {
+    setPadKey((k) => k + 1);
+    setSignatureData("");
+    setHasDrawn(false);
+  }
+
   // Clear the pad after a successful save so the same signature cannot be double-submitted.
   const wasPending = useRef(false);
   useEffect(() => {
@@ -28,16 +34,11 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
       wasPending.current = true;
     } else if (wasPending.current) {
       wasPending.current = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset after the save action completes (external event)
       if (!state.error) handleClear();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleClear only touches refs/setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleClear only touches setters
   }, [pending]);
-
-  function handleClear() {
-    setPadKey((k) => k + 1);
-    setSignatureData("");
-    setHasDrawn(false);
-  }
 
   // Offline: keep the signature on this device and send it when the connection returns.
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {

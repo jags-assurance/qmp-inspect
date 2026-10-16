@@ -35,7 +35,7 @@ export function AuditTrailPdfButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- startPolling is stable; only re-fire on a new success
   }, [state.success]);
 
-  const linkCls = "rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-subtle";
+  const linkCls = "rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-subtle [@media(pointer:coarse)]:min-h-11";
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex flex-wrap gap-2">

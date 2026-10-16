@@ -66,7 +66,7 @@ export default async function ItpRegisterPrintPage({
   return (
     <div>
       <div className="no-print flex items-center justify-between">
-        <Link href="/inspect/itps" className="text-sm text-burgundy hover:underline">
+        <Link href="/inspect/itps" className="inline-flex min-h-11 items-center text-sm text-burgundy hover:underline">
           <T>← Back to ITP Register</T>
         </Link>
         <PrintButton />

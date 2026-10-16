@@ -118,7 +118,7 @@ export function ResponsiveTable<T>({
           </tbody>
         </table>
       </div>
-      <ul className={cn(bordered ? "space-y-3" : "divide-y divide-border", bp.cards)} aria-label={caption}>
+      <ul className={cn(bordered ? "space-y-3 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0" : "divide-y divide-border", bp.cards)} aria-label={caption}>
         {rows.map((row, i) => (
           <li
             key={rowKey(row, i)}

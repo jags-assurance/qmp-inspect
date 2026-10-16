@@ -127,13 +127,13 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         aria-label={tl("Search pages and records (Ctrl+K)")}
-        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-control-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink lg:flex xl:w-48 desk:w-56 [@media(pointer:coarse)]:h-11"
+        className="hidden h-10 w-10 items-center justify-center gap-2 rounded-md border border-control-border bg-surface text-sm text-muted hover:bg-surface-subtle hover:text-ink lg:flex xl:w-48 xl:justify-start xl:px-3 desk:w-56 [@media(pointer:coarse)]:h-11"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17L13.5 13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        <span className="min-w-0 flex-1 truncate text-start"><Tx>Search…</Tx></span>
+        <span className="hidden min-w-0 flex-1 truncate text-start xl:block"><Tx>Search…</Tx></span>
         <kbd className="hidden rounded-sm border border-border px-1.5 text-xs text-muted [@media(pointer:coarse)]:hidden xl:inline"><Tx>Ctrl K</Tx></kbd>
       </button>
 

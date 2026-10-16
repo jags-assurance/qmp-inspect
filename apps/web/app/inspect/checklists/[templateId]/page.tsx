@@ -661,7 +661,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       </Link>
       <p className="mt-2 text-sm text-muted">
         {project.organizations?.name} · {project.name} ·{" "}
-        <Link href={`/inspect/itps/${itp.id}`} className="hover:underline">
+        <Link href={`/inspect/itps/${itp.id}`} className="inline-block hover:underline [@media(pointer:coarse)]:py-3">
           {itp.itp_number}
         </Link>
       </p>

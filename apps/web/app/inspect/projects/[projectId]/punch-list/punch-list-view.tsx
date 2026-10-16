@@ -180,7 +180,7 @@ export async function PunchListView({
       {openCount > 0 ? (
         <div role="status" className="mt-4 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-ink">
           <strong><T>Data Book blocked:</T></strong> {reallyOpenCount} <T>open,</T> {resolvedCount} <T>awaiting verification.</T>{" "}
-          <Link href={`/inspect/projects/${projectId}/data-book`} className="font-medium text-burgundy hover:underline">
+          <Link href={`/inspect/projects/${projectId}/data-book`} className="inline-block font-medium text-burgundy hover:underline [@media(pointer:coarse)]:py-3">
             <T>Open Data Book</T>
           </Link>
         </div>

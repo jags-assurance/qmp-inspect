@@ -179,7 +179,7 @@ export async function DataBookUpdatesPanel({
           <a
             key={c.key}
             href={href(c.key)}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+            className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold [@media(pointer:coarse)]:min-h-11 ${
               cat === c.key ? "border-burgundy bg-burgundy text-white" : "border-border text-muted hover:text-ink"
             }`}
           >
@@ -214,7 +214,7 @@ export async function DataBookUpdatesPanel({
                           {link && (
                             <>
                               {" · "}
-                              <a href={link} className="text-burgundy hover:underline"><T>View record</T></a>
+                              <a href={link} className="inline-block text-burgundy hover:underline [@media(pointer:coarse)]:py-3"><T>View record</T></a>
                             </>
                           )}
                         </p>

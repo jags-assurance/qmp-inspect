@@ -34,7 +34,7 @@ export function HeaderBreadcrumb({ root, navItems }: { root: string; navItems: N
       <Link
         href={homeHref}
         title={root}
-        className={"shrink-0 whitespace-nowrap rounded-sm font-medium hover:text-ink hover:underline " + (hasTrail ? "hidden sm:inline" : "text-ink")}
+        className={"shrink-0 items-center whitespace-nowrap rounded-sm font-medium hover:text-ink hover:underline [@media(pointer:coarse)]:min-h-11 " + (hasTrail ? "hidden sm:inline-flex" : "inline-flex text-ink")}
       >
         {root}
       </Link>

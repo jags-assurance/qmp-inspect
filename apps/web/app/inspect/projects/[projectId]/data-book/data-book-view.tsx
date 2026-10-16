@@ -344,7 +344,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
     <div className={embedded ? "" : "max-w-6xl"}>
       <RealtimeRefresh table="data_books" filter={`project_id=eq.${projectId}`} />
       {!embedded && (
-        <Link href={base} className="text-sm text-burgundy hover:underline">
+        <Link href={base} className="inline-flex min-h-9 items-center text-sm text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11">
           <T>← Back to Project</T>
         </Link>
       )}
@@ -441,7 +441,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
       </section>
 
       <details className="mt-3 rounded-lg border border-border bg-surface px-4 py-2 text-sm">
-        <summary className="cursor-pointer font-medium text-ink focus:outline-none focus:ring-2 focus:ring-burgundy"><T>How this works</T></summary>
+        <summary className="flex min-h-9 cursor-pointer items-center font-medium text-ink [@media(pointer:coarse)]:min-h-11 focus:outline-none focus:ring-2 focus:ring-burgundy"><T>How this works</T></summary>
         <ul className="mt-2 list-disc space-y-1.5 ps-5 text-muted">
           <li><T>A final book needs every category at 100%, no open punch items and a Completed project. Drafts are always allowed.</T></li>
           <li><T>JAGS staff can compile anyway (Conditional Handover) with a documented reason.</T></li>
@@ -565,7 +565,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               <p className="text-sm text-muted">
                 <T>No Data Book started for this project yet.</T>{" "}
                 {session.isJagsStaff ? (
-                  <a href="#generate" className="text-burgundy hover:underline"><T>Create one →</T></a>
+                  <a href="#generate" className="inline-block text-burgundy hover:underline [@media(pointer:coarse)]:py-3"><T>Create one →</T></a>
                 ) : (
                   "Ask JAGS staff to start one."
                 )}

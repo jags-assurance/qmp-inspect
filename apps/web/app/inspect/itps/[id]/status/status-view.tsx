@@ -295,7 +295,7 @@ export async function StatusView({
         </p>
 </Disclosure>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-6 grid items-start gap-3 xl:grid-cols-2">
         {items.map((item) => {
           const evidence = evidenceStatusFor(item);
           const rows = itemSignoffs.get(item.id) ?? [];
@@ -420,7 +420,7 @@ export async function StatusView({
                     // this page — the only place to actually generate one is the ITP's own
                     // Checklists sub-page (generateChecklistTemplatesAction, staff-only, once the
                     // ITP is approved). Points there instead of leaving it unclickable.
-                    <Link href={paneHref("checklists", `/inspect/itps/${itp.id}/checklists`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline">
+                    <Link href={paneHref("checklists", `/inspect/itps/${itp.id}/checklists`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline [@media(pointer:coarse)]:inline-block [@media(pointer:coarse)]:py-3">
                       <T>Generate checklist →</T>
                     </Link>
                   ) : (
@@ -429,7 +429,7 @@ export async function StatusView({
                     // ItpItemMeasurementsSection/ItpItemEvidenceDocumentsSection there), not on
                     // this roadmap page — same "roadmap links out, doesn't duplicate the form"
                     // pattern the Checklist link above already follows.
-                    <Link href={paneHref("details", `/inspect/itps/${itp.id}`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline">
+                    <Link href={paneHref("details", `/inspect/itps/${itp.id}`)} scroll={false} className="ms-2 font-medium text-burgundy hover:underline [@media(pointer:coarse)]:inline-block [@media(pointer:coarse)]:py-3">
                       <T>Manage evidence →</T>
                     </Link>
                   )}

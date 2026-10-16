@@ -39,7 +39,7 @@ export function PageGuide({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-muted hover:border-burgundy/40 hover:text-burgundy"
+        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-muted [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:px-3.5 [@media(pointer:coarse)]:text-sm hover:border-burgundy/40 hover:text-burgundy"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5">
           <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.5" />
@@ -50,9 +50,9 @@ export function PageGuide({
       </button>
 
       {open && (
-        <div className="absolute start-0 top-9 z-20 w-80 rounded-lg border border-border bg-surface p-4 shadow-lg sm:w-96">
+        <div className="absolute start-0 top-9 z-20 w-80 max-sm:fixed max-sm:inset-x-4 max-sm:top-24 max-sm:w-auto max-sm:max-h-[70vh] max-sm:overflow-y-auto rounded-lg border border-border bg-surface p-4 shadow-lg sm:w-96">
           <p className="text-sm font-semibold text-ink">{title}</p>
-          <ul className="mt-2 list-disc space-y-1.5 ps-4 text-xs text-ink">
+          <ul className="mt-2 list-disc space-y-1.5 ps-4 text-xs text-ink [@media(pointer:coarse)]:text-sm">
             {points.map((p, i) => (
               <li key={i}><Tx>{p}</Tx></li>
             ))}
@@ -60,7 +60,7 @@ export function PageGuide({
           {linkToAppGuide && (
             <Link
               href="/inspect/guide"
-              className="mt-3 inline-block text-xs font-medium text-burgundy hover:underline"
+              className="mt-3 inline-flex min-h-8 items-center text-xs [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:text-sm font-medium text-burgundy hover:underline"
               onClick={() => setOpen(false)}
             >
               <Tx>Full app guide →</Tx>

@@ -18,10 +18,10 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
   return (
     <Disclosure variant="inline" summary={<><Tx>Import / export CSV</Tx></>} className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
       <div className="mt-2 flex flex-wrap gap-3 text-xs">
-        <a className="text-burgundy hover:underline" href={`/api/registers/export?kind=${kind}&project_id=${projectId}`}>
+        <a className="inline-flex items-center text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:text-sm" href={`/api/registers/export?kind=${kind}&project_id=${projectId}`}>
           <Tx>Export this register (CSV)</Tx>
         </a>
-        <a className="text-burgundy hover:underline" href={`/api/registers/export?kind=${kind}&project_id=${projectId}&template=1`}>
+        <a className="inline-flex items-center text-burgundy hover:underline [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:text-sm" href={`/api/registers/export?kind=${kind}&project_id=${projectId}&template=1`}>
           <Tx>Download a blank template</Tx>
         </a>
       </div>
