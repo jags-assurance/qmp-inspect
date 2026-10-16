@@ -43,7 +43,7 @@ export function MasterAdminPanel({
       </div>
 
       {open && (
-        <form action={metaAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+        <form action={metaAction} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input type="hidden" name="template_id" value={templateId} />
           <label className="text-sm text-ink sm:col-span-2">
             <Tx>Title</Tx>

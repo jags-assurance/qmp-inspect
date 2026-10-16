@@ -217,7 +217,7 @@ export function ChecklistExecutionPanel({
           </div>
         </div>
       )}
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
       <div className="space-y-3">
         {items.map((item) => (
           <ResponseRow

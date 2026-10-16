@@ -11,7 +11,7 @@ export default function PlatformHomeLoading() {
     <div aria-busy="true">
       <PageHeaderSkeleton action={false} />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
         {Array.from({ length: PLACEHOLDER_COUNT }).map((_, i) => (
           <Skeleton key={i} className="h-16 rounded-lg border border-border" />
         ))}

@@ -375,7 +375,7 @@ export default async function UsageAndCostPage({
         <StatTile label="Total render time" value={formatDuration(totalRenderSeconds || null)} />
       </StatGrid>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
           <h2 className="font-medium text-ink"><T>AI cost by model</T></h2>
           <MoreDetails className="mt-1"><p><T>Real token counts × Google&apos;s published Gemini API pricing.</T></p></MoreDetails>

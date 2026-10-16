@@ -21,7 +21,7 @@ export default async function SupportPage() {
   const email = getSupportEmail();
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-6">
       <PageHeader title={<T>Help and support</T>} subtitle={<T>Where to find answers and who to contact.</T>} />
 
       <section className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">

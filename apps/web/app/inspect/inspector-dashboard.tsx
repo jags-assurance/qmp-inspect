@@ -163,7 +163,7 @@ export function InspectorDashboard({
         <AssignedToMe items={assignedToMe} className="mt-0" />
         {clearancesWidget}
 
-        <div className="grid items-start gap-5 xl:grid-cols-2 xl:has-[>:only-child]:grid-cols-1 empty:hidden">
+        <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2 xl:has-[>:only-child]:grid-cols-1 empty:hidden">
         {overdueHoldItems.length > 0 && (
           <Section
             id="overdue-holds"

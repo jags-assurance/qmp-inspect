@@ -230,7 +230,7 @@ export default async function ManageHubPage() {
               }
             />
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {(projects ?? []).map((project) => (
                 <div key={project.id} className="rounded-lg border border-border bg-surface p-4">
                   <p className="doc-id text-sm text-muted">{project.project_number}</p>
@@ -256,7 +256,7 @@ export default async function ManageHubPage() {
         </Section>
 
         <Section title={<T>Organisation settings</T>}>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {settingsLinks.map((l) => (
               <Link
                 key={l.href}

@@ -182,6 +182,14 @@ body {
   main button[class*="min-h-9"] {
     min-height: 2.75rem;
   }
+  /* Plain links inside running text: vertical padding on an inline element grows the tap area to ~44px without changing line spacing. */
+  main :is(p, li, dd, td) > a:not([class*="flex"]):not([class*="block"]):not([class*="min-h"]):not([class*="px-"]):not([class*="py-"]) {
+    padding-block: 0.75rem;
+  }
+  /* Small pill / chip buttons (filter chips, permission toggles) get the 44px touch height. */
+  main button[class*="rounded-full"]:not([class*="h-"]):not([class*="w-"]):not([class*="size-"]) {
+    min-height: 2.75rem;
+  }
   /* Disclosure headers ("Assign to a person", "How this works") are tap targets too. */
   main summary {
     min-height: 2.75rem;

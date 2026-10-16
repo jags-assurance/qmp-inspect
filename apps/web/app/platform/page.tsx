@@ -37,7 +37,7 @@ export default async function PlatformHomePage() {
 
       {/* Phone and tablet: the orbit diagram is laid out in fixed pixels, so below 1024px the same
           modules show as a card grid instead (laptop and up keep the orbit). */}
-      <ul className="grid gap-3 sm:grid-cols-2 lg:hidden">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden">
         {MODULES.map((mod) => (
           <li key={mod.key} className="flex min-h-16 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3 shadow-xs">
             <div className="min-w-0">

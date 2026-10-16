@@ -165,7 +165,7 @@ function EditDialog({ kind, projectId, row, onClose }: { kind: RegisterKind; pro
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="id" value={row.id ?? ""} />
         <input type="hidden" name="project_id" value={projectId} />
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {FIELDS[kind].map((field) => (
             <div key={field.name} className={field.wide ? "sm:col-span-2" : undefined}>
               <label htmlFor={`edit-${field.name}`} className="block text-xs font-medium text-ink">

@@ -22,7 +22,7 @@ export function SiteGeofenceSettings({
   const [state, formAction, pending] = useActionState(setSiteGeofenceAction, initialState);
   const input = "min-h-10 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy";
   return (
-    <form action={formAction} className="mt-3 grid max-w-2xl gap-3 sm:grid-cols-3">
+    <form action={formAction} className="mt-3 grid grid-cols-1 max-w-2xl gap-3 sm:grid-cols-3">
       <input type="hidden" name="project_id" value={projectId} />
       <label className="text-sm text-ink">
         <Tx>Latitude</Tx>

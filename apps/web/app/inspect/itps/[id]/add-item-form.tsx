@@ -184,7 +184,7 @@ export function AddItemForm({
       {parties.length > 0 && levels.length > 0 && (
         <fieldset className="w-full rounded-md border border-border bg-surface px-3 py-2">
           <legend className="px-1 text-xs font-medium text-muted"><Tx>Sign-off level per party (optional — leave blank for no intervention)</Tx></legend>
-          <div className="mt-1 grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-1 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
             {parties.map((party) => (
               <label key={party.id} className="flex items-center justify-between gap-2 text-sm text-ink">
                 <span className="min-w-0 truncate" title={party.name}>

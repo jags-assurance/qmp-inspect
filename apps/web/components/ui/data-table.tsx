@@ -193,11 +193,11 @@ export function DataTable<T>({
         </table>
       </div>
       {mobileCards && (
-        <ul className={`divide-y divide-border ${bp.cards}`}>
+        <ul className={`divide-y divide-border ${bp.cards} ${breakpoint === "xl" ? "md:grid md:grid-cols-2 md:gap-3 md:divide-y-0 md:p-3" : ""}`}>
           {filtered.map((row, i) => {
             const href = rowHref?.(row) ?? null;
             return (
-              <li key={i} className={renderCard ? "px-4 py-3 text-sm" : "space-y-1.5 px-4 py-3 text-sm"}>
+              <li key={i} className={(renderCard ? "px-4 py-3 text-sm" : "space-y-1.5 px-4 py-3 text-sm") + (breakpoint === "xl" ? " md:rounded-lg md:border md:border-border" : "")}>
                 {renderCard
                   ? renderCard(row)
                   : columns.map((col) => (

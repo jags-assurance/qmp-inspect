@@ -29,7 +29,7 @@ export default async function WhatsNewPage() {
   await requireSession();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="max-w-3xl space-y-8">
       <PageHeader title={<T>What&apos;s new</T>} subtitle={<T>Changes to QMP Inspect, newest first.</T>} />
 
       {RELEASES.map((release, releaseIndex) => (

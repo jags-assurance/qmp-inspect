@@ -125,7 +125,7 @@ export function NewProjectForm({
       </Section>
 
       <Section title={<Tx>Schedule and site</Tx>} bodyClassName="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <FormField label="Country (optional)">
             <input name="country" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />

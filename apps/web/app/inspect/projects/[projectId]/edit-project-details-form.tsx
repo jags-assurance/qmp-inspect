@@ -41,7 +41,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
         {open ? "Close editor" : "Edit project details"}
       </button>
       {open && (
-        <form action={formAction} className="mt-2 grid gap-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
+        <form action={formAction} className="mt-2 grid grid-cols-1 gap-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
           <input type="hidden" name="project_id" value={project.id} />
           <label className="text-sm text-ink">
             <Tx>Project number *</Tx>

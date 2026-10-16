@@ -599,7 +599,7 @@ export function NewItpFromAiForm({
                         <p className="text-xs font-medium text-muted">
                           <Tx>Sign-off level per party — the AI&apos;s suggestion is pre-selected; change or clear any of them before creating the ITP</Tx>
                         </p>
-                        <div className="mt-1.5 grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
+                        <div className="mt-1.5 grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
                           {projectParties.map((party) => {
                             const current = item.suggestedInterventions.find((si) => si.projectPartyId === party.id);
                             return (

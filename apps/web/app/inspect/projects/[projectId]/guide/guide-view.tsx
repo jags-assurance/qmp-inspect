@@ -255,7 +255,7 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
         </section>
       )}
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2">
+      <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-lg border border-border bg-surface p-4">
           <h2 className="text-sm font-semibold text-ink">Project basics</h2>
           <dl className="mt-2 space-y-2 text-sm">
@@ -323,7 +323,7 @@ export async function GuideView({ projectId, embedded = false }: { projectId: st
 
       <section className="mt-4 rounded-lg border border-border bg-surface p-4">
         <h2 className="text-sm font-semibold text-ink">Everyone on this project</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(parties ?? []).map((p) => (
             <div key={p.id} className="flex items-start gap-3 rounded-md border border-border bg-off-white p-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-burgundy/10 text-xs font-semibold text-burgundy">

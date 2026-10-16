@@ -76,7 +76,7 @@ export async function SystemHealthView({ embedded = false }: { embedded?: boolea
         </li>
       </ul>
       {db && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-5">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
           {[
             ["Emails pending", db.email.pending],
             ["Emails sent", db.email.sent],

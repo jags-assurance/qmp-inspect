@@ -152,7 +152,7 @@ export function PhotoUpload({
             className="hidden"
             id="photo-input-camera"
           />
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <Button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="min-h-12">
               {uploading ? "Uploading…" : "Take photo"}
             </Button>

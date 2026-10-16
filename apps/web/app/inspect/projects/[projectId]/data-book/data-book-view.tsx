@@ -493,7 +493,7 @@ export async function DataBookView({ projectId, embedded = false, sp = {} }: { p
               </div>
             )}
             {session.isJagsStaff && latest?.status === "draft" && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-md border border-border p-3">
                   <h3 className="text-sm font-semibold text-ink"><T>Generate draft book now</T></h3>
                   <p className="mt-1 text-xs text-muted">

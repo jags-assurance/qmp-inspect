@@ -107,13 +107,14 @@ export function RoleCard({
                 <button
                   type="submit"
                   disabled={disabled}
+                  aria-pressed={granted}
                   title={disabled ? "Only a JAGS Admin can grant this permission." : undefined}
                   className={
                     "rounded-full border px-2.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 " +
                     (granted ? "border-burgundy bg-burgundy/10 text-burgundy" : "border-border text-muted hover:bg-surface-subtle")
                   }
                 >
-                  {PERMISSION_LABEL[key]}
+                  {granted ? "✓ " : ""}{PERMISSION_LABEL[key]}
                 </button>
               </form>
             );

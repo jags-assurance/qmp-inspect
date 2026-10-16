@@ -295,7 +295,7 @@ export async function StatusView({
         </p>
 </Disclosure>
 
-      <div className="mt-6 grid items-start gap-3 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
         {items.map((item) => {
           const evidence = evidenceStatusFor(item);
           const rows = itemSignoffs.get(item.id) ?? [];

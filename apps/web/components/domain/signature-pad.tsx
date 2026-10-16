@@ -137,7 +137,7 @@ export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) 
 
   return (
     <div>
-      <div ref={wrapRef} className="relative h-[200px] w-full overflow-hidden rounded-md border-2 border-control-border bg-surface sm:h-[160px]">
+      <div ref={wrapRef} className="relative h-[200px] w-full overflow-hidden rounded-md border-2 border-control-border bg-surface sm:h-[240px] lg:h-[200px]">
         {strokeCount === 0 && (
           <span aria-hidden="true" className="pointer-events-none absolute inset-0 flex items-center justify-center text-lg text-muted/60 select-none">
             <Tx>Sign here</Tx>

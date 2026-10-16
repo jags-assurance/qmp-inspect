@@ -329,7 +329,7 @@ export default async function AppGuidePage() {
           Not just your own role — what everyone else on a project is responsible for too, so you know who to expect
           to see doing what.
         </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {Object.entries(ROLE_CONTENT).map(([key, role]) => (
             <div
               key={key}
@@ -362,7 +362,7 @@ export default async function AppGuidePage() {
         {categories.map((category) => (
           <div key={category} className="mt-4">
             <p className="text-sm font-semibold text-ink">{category}</p>
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {MODULES.filter((m) => m.category === category).map((m) => (
                 <Link
                   key={m.title}
@@ -402,7 +402,7 @@ export default async function AppGuidePage() {
           with its own colour, blocking or non-blocking exactly like a built-in one. If you see a level below that
           isn&apos;t one of these four, that&apos;s why.
         </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-md border border-danger/40 bg-danger/5 p-3">
             <p className="text-sm font-semibold text-danger">H — Hold (blocking)</p>
             <p className="mt-1 text-sm text-muted">

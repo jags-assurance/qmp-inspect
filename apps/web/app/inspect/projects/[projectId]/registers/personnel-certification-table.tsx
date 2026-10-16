@@ -108,7 +108,7 @@ export function PersonnelCertificationTable({ rows, projectId, canManage, editab
       {people.length > 0 && (
         <div className="mb-3 rounded-md border border-border bg-off-white p-3" data-testid="personnel-by-person">
           <p className="text-xs font-medium uppercase tracking-wide text-muted"><Tx>By person</Tx></p>
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {people.map((p) => (
               <li key={p.key} className="rounded border border-border bg-surface px-3 py-2 text-xs">
                 <span className="block text-sm font-medium text-ink">{p.name}</span>

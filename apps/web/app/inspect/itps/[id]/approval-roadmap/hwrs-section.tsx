@@ -190,7 +190,7 @@ export function HwrsSection({
         {levels.length === 0 ? (
           <p className="mt-1 text-sm text-muted"><T>No intervention levels are configured.</T></p>
         ) : (
-          <ul className="mt-1.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <ul className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             {levels.map((l, i) => (
               <li
                 key={l.code}

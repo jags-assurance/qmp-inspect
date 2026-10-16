@@ -66,7 +66,7 @@ export default async function WalkdownReportPage({ params }: { params: Promise<{
         <PrintButton />
       </div>
       <h1 className="mt-3 text-2xl font-semibold text-ink"><T>Walkdown record</T>{wd.walkdown_number ? ` ${wd.walkdown_number}` : ""}</h1>
-      <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+      <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
         <div><dt className="inline text-muted"><T>Date:</T> </dt><dd className="inline text-ink">{formatDateOnly(wd.walked_on)}</dd></div>
         <div><dt className="inline text-muted"><T>Area:</T> </dt><dd className="inline text-ink">{wd.area || "-"}</dd></div>
         <div><dt className="inline text-muted"><T>Recorded by:</T> </dt><dd className="inline text-ink">{wd.created_by_user?.full_name ?? "-"}</dd></div>
