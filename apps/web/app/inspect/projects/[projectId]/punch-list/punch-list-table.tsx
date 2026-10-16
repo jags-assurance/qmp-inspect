@@ -302,7 +302,7 @@ export function PunchListTable({
         rows={visibleRows}
         caption="Punch list items"
         mobileCards
-        breakpoint="md"
+        breakpoint="xl"
         searchPlaceholder="Search punch list…"
         searchKeys={(row) => `${row.description} ${row.location ?? ""} ${row.project_parties?.name ?? ""}`}
         emptyMessage={view === "all" && !partyFilter && !priorityFilter && !locationFilter ? "No punch list items yet. Use Record walk-down or Add punch item above." : "Nothing matches these filters."}

@@ -137,7 +137,7 @@ export function ItpsTable({ rows, totalCount, locale }: { rows: ItpRow[]; totalC
       rows={rows}
       caption="Inspection and test plans"
       mobileCards
-      breakpoint="md"
+      breakpoint="xl"
       renderCard={(row) => {
         const phase = normalizeItpPhase(row.phase);
         return (

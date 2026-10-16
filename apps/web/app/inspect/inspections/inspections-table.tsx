@@ -188,7 +188,7 @@ export function InspectionsTable({ rows, totalCount, locale }: { rows: Inspectio
         locale={locale}
         rows={rows}
         caption="Inspection records"
-        breakpoint="md"
+        breakpoint="xl"
         renderCard={(r) => (
           <div className="space-y-2">
             <div className="flex items-start justify-between gap-2">

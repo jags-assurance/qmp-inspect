@@ -182,7 +182,7 @@ export function NcrsTable({
       rows={rows}
       caption="Non-conformance reports"
       mobileCards
-      breakpoint="md"
+      breakpoint="xl"
       renderCard={(row) => (
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">

@@ -408,7 +408,7 @@ export function VaultDocumentsTable({
         rows={visible}
         rowKey={(row) => row.id}
         caption="Documents in this folder"
-        breakpoint="md"
+        breakpoint="xl"
         bordered
         thClassName="px-3 py-2 font-medium"
         tdClassName="px-3 py-3 align-top"

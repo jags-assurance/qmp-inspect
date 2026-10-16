@@ -127,7 +127,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         aria-label={tl("Search pages and records (Ctrl+K)")}
-        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-control-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink md:flex xl:w-48 desk:w-56 [@media(pointer:coarse)]:h-11"
+        className="hidden h-10 w-44 items-center gap-2 rounded-md border border-control-border bg-surface px-3 text-sm text-muted hover:bg-surface-subtle hover:text-ink lg:flex xl:w-48 desk:w-56 [@media(pointer:coarse)]:h-11"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
@@ -141,7 +141,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
         type="button"
         onClick={(e) => openPalette(e.currentTarget)}
         aria-label={tl("Search pages and records")}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink hover:bg-surface-subtle md:hidden"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-ink hover:bg-surface-subtle lg:hidden"
       >
         <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />

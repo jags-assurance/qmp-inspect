@@ -81,5 +81,8 @@ export function StatGrid({ children, max = 4, className }: { children: ReactNode
     6: "grid-cols-2 md:grid-cols-3 xl:grid-cols-4 desk:grid-cols-6",
   }[max];
   // Children.toArray gives every child a stable key, so tiles passed as Suspense/async server nodes do not trigger React key warnings.
-  return <div className={cn("grid gap-3 sm:gap-4", cols, className)}>{Children.toArray(children)}</div>;
+  const tiles = Children.toArray(children);
+  // Exactly four tiles sit in one row from tablet up (never 3 + 1); exactly six make two even rows of three.
+  const layout = tiles.length === 4 && max >= 4 ? "grid-cols-2 md:grid-cols-4" : tiles.length === 6 && max >= 6 ? "grid-cols-2 md:grid-cols-3 desk:grid-cols-6" : cols;
+  return <div className={cn("grid gap-3 sm:gap-4", layout, className)}>{tiles}</div>;
 }

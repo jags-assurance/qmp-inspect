@@ -318,7 +318,7 @@ export default async function StartWorkPage({
         ) : (
           <>
             <SaveOfflineButton urls={visible.filter((a) => a.status !== "completed").map((a) => `/inspect/checklists/${a.templateId}`)} />
-            <ul className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {visible.map((a) => (
                 <li key={a.templateId}>
                   <Card className="flex h-full flex-col gap-3 !p-4">

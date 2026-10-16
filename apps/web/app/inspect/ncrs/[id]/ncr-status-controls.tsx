@@ -51,7 +51,7 @@ export function NcrStatusButton({
         type="submit"
         disabled={pending || blocked}
       >
-        {pending ? "Working…" : NEXT_STATUS_LABEL[status]}
+        {pending ? "Working…" : NEXT_STATUS_LABEL[next]}
       </Button>
       {blocked && <p className="max-w-xs text-end text-xs text-muted"><Tx>Save root cause, corrective and preventive action first.</Tx></p>}
       {state.error && <p role="alert" className="max-w-xs text-end text-xs text-danger">{state.error}</p>}

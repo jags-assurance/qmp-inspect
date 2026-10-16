@@ -50,7 +50,7 @@ export function AddPunchItemForm({
   }
 
   return (
-    <form ref={formRef} action={submit} encType="multipart/form-data" className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
+    <form ref={formRef} action={submit} encType="multipart/form-data" className="grid w-full grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="request_id" value={requestId} />
 
