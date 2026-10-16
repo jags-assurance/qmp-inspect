@@ -201,6 +201,30 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   }
   const Heading = embedded ? "h2" : "h1";
 
+  // Independent reads are started here, before the big batches below, and awaited where their result is used:
+  // they then run alongside those batches instead of adding extra sequential round trips (the page was
+  // waiting on ~5 reads one after another at the end).
+  const vaultFoldersPromise = Promise.resolve(
+    supabase
+      .from("vault_folders")
+      .select("id, folder_key, name")
+      .eq("project_id", itp.projects?.id ?? "")
+      .order("name")
+      .returns<{ id: string; folder_key: string; name: string }[]>()
+  );
+  const siblingItpsPromise = session.isJagsStaff
+    ? Promise.resolve(
+        supabase
+          .from("itps")
+          .select("id, itp_number")
+          .eq("project_id", itp.projects?.id ?? "")
+          .neq("id", itp.id)
+          .order("itp_number")
+          .returns<{ id: string; itp_number: string }[]>()
+      )
+    : Promise.resolve({ data: [] as { id: string; itp_number: string }[], error: null });
+  const aiEnabledPromise = isAiEnabledForOrg(supabase, itp.projects?.organization_id);
+
   // D9: a superseded/withdrawn ITP shows why, when, and a link to the replacement.
   const replacementItp =
     itp.superseded_by_itp_id && (itp.status === "superseded" || itp.status === "withdrawn")
@@ -355,6 +379,25 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     vault_documents: { title: string; document_reference: string | null; status: string } | null;
   };
   const noItems = allItemIds.length === 0;
+  // Best-effort reads that only need the activity ids: started now, awaited where used.
+  const signoffNotesPromise = noItems
+    ? null
+    : Promise.resolve(
+        supabase
+          .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+          .select("id, signoff_comment, rejection_reason")
+          .in("itp_item_id", allItemIds)
+          .returns<{ id: string; signoff_comment: string | null; rejection_reason: string | null }[]>()
+      );
+  const requiredRegistersPromise = noItems
+    ? null
+    : Promise.resolve(
+        supabase
+          .from("itp_items")
+          .select("id, required_registers" as never)
+          .in("id", allItemIds)
+          .returns<{ id: string; required_registers: string[] | null }[]>()
+      );
   const [
     { data: interventions, error: interventionsError },
     { data: signoffs, error: signoffsError },
@@ -472,12 +515,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     revision: d.revision,
     createdAt: d.created_at,
   }));
-  const { data: rawVaultFolders } = await supabase
-    .from("vault_folders")
-    .select("id, folder_key, name")
-    .eq("project_id", itp.projects?.id ?? "")
-    .order("name")
-    .returns<{ id: string; folder_key: string; name: string }[]>();
+  const { data: rawVaultFolders } = await vaultFoldersPromise;
   const vaultFolders = (rawVaultFolders ?? []).map((f) => ({ id: f.id, key: f.folder_key, name: f.name }));
 
   // R103/R125: governing-drawing picker on AddItemForm only offers documents actually filed under
@@ -531,11 +569,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // from migration 20261110000300, and a missing column must not break this page.
   const signoffNotes = new Map<string, { signoffComment: string | null; rejectionReason: string | null }>();
   if (!noItems) {
-    const { data: noteRows, error: noteError } = await supabase
-      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select("id, signoff_comment, rejection_reason")
-      .in("itp_item_id", allItemIds)
-      .returns<{ id: string; signoff_comment: string | null; rejection_reason: string | null }[]>();
+    const { data: noteRows, error: noteError } = (await signoffNotesPromise)!;
     if (!noteError) {
       for (const r of noteRows ?? []) {
         if (r.signoff_comment || r.rejection_reason) signoffNotes.set(r.id, { signoffComment: r.signoff_comment, rejectionReason: r.rejection_reason });
@@ -627,9 +661,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     });
   const canEditContent = (session.isJagsStaff || isEligibleItpCreator) && itp.status !== "superseded" && itp.status !== "withdrawn";
   // Other ITPs on the project, for "superseded by" (staff only).
-  const { data: siblingItps } = session.isJagsStaff
-    ? await supabase.from("itps").select("id, itp_number").eq("project_id", itp.projects?.id ?? "").neq("id", itp.id).order("itp_number").returns<{ id: string; itp_number: string }[]>()
-    : { data: [] as { id: string; itp_number: string }[] };
+  const { data: siblingItps } = await siblingItpsPromise;
   // R24/R101: any section add/rename/delete/reorder past this point is an edit-after-issue once
   // the ITP has left draft/under_review — reused by AddSectionForm and SectionControls below,
   // same condition AddItemForm already keys its own "isIssued" prop off of.
@@ -697,13 +729,8 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
   // still renders if that column isn't there.
   const requiredRegistersByItem = new Map<string, string[]>();
   {
-    const itemIds = (sections ?? []).flatMap((s) => (s.itp_items ?? []).map((it) => it.id));
-    if (itemIds.length > 0) {
-      const { data: reqRows, error: reqError } = await supabase
-        .from("itp_items")
-        .select("id, required_registers" as never)
-        .in("id", itemIds)
-        .returns<{ id: string; required_registers: string[] | null }[]>();
+    if (requiredRegistersPromise) {
+      const { data: reqRows, error: reqError } = await requiredRegistersPromise;
       if (!reqError) for (const r of reqRows ?? []) requiredRegistersByItem.set(r.id, normaliseRequiredRegisters(r.required_registers));
     }
   }
@@ -742,7 +769,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
       }
     />
   );
-  const aiEnabled = await isAiEnabledForOrg(supabase, itp.projects?.organization_id);
+  const aiEnabled = await aiEnabledPromise;
   const signoffPct = signoffTotal > 0 ? Math.round((signoffComplete / signoffTotal) * 100) : 0;
   const showNextStep =
     canSubmitForReview ||
