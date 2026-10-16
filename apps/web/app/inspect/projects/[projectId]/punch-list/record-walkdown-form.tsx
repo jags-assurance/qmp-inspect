@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
@@ -48,7 +48,8 @@ export function RecordWalkdownForm({
     const tooBig = await compressFormPhotos(formData, keys.map((k) => `photos_${k}`));
     setPhotoError(tooBig);
     if (tooBig) return;
-    formAction(formData);
+    // useActionState actions must run inside a transition so the pending state updates (this runs after an await).
+    startTransition(() => formAction(formData));
   }
   const lastAdded = useRef<RecordWalkdownState | null>(null);
   // Start a fresh blank sheet only after a SUCCESSFUL record - on error the rows stay for retry.

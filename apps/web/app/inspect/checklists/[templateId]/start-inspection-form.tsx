@@ -85,7 +85,11 @@ export function StartInspectionForm({
         setLocating(false);
       },
       () => {
-        setLocationError("Could not read your live location — allow location access, or choose a project location instead.");
+        setLocationError(
+          locationPresets.length > 0
+            ? "Could not read your live location — allow location access, or choose a project location instead."
+            : "Could not read your live location. Allow location access for this site in your browser settings and try again, or ask an admin to add project locations."
+        );
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000 }

@@ -110,6 +110,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
             status={ncr.status}
             canWork={detail.canWork}
             capaSaved={Boolean(ncr.root_cause && ncr.corrective_action && ncr.preventive_action)}
+            evidenceCount={detail.evidenceTotal}
           />
         }
       />

@@ -188,7 +188,7 @@ export default async function StartWorkPage({
     <div className="max-w-5xl 2xl:max-w-7xl">
       <PageHeader
         title={<T>Start work</T>}
-        subtitle={<T>Choose a workflow. Nothing is created until you submit the form.</T>}
+        subtitle={<T>Pick up work that is ready, or start something new below.</T>}
         guide={
           <PageGuide
             title={tl("Start work — how this works")}
@@ -201,36 +201,6 @@ export default async function StartWorkPage({
           />
         }
       />
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
-        <WorkModeCard
-          badge="Full workflow"
-          title={tl("ITP-driven project")}
-          description="Plan and control a project through approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off."
-          bullets={[
-            "Structured ITP workflow",
-            "Client approval and intervention points",
-            "Linked inspections, NCRs and data book",
-          ]}
-          bestFor="Best for projects and work packages"
-          href="/inspect/itps/new"
-          cta="Start ITP-driven project"
-          emphasized
-        />
-        <WorkModeCard
-          badge="Quick setup"
-          title={tl("Standalone assignment")}
-          description="Create a focused inspection without building a full project ITP. Ideal for FATs, vendor visits and one-off verification."
-          bullets={[
-            "Fast assignment setup",
-            "Custom checklist and evidence",
-            "Independent report and sign-off",
-          ]}
-          bestFor="Best for one-off or vendor inspections"
-          href="/inspect/standalone/new"
-          cta="Start standalone assignment"
-        />
-      </div>
 
       <AssignedToMe items={assignedQueue} />
 
@@ -351,6 +321,42 @@ export default async function StartWorkPage({
             </ul>
           </>
         )}
+      </section>
+
+      <section className="mt-10 space-y-3" aria-labelledby="start-new-heading">
+        <div>
+          <h2 id="start-new-heading" className="text-lg font-semibold text-ink"><T>Start something new</T></h2>
+          <p className="mt-1 text-sm text-muted"><T>Set up a new project or a one-off inspection. Nothing is created until you submit the form.</T></p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
+          <WorkModeCard
+            badge="Full workflow"
+            title={tl("ITP-driven project")}
+            description="Plan and control a project through approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off."
+            bullets={[
+              "Structured ITP workflow",
+              "Client approval and intervention points",
+              "Linked inspections, NCRs and data book",
+            ]}
+            bestFor="Best for projects and work packages"
+            href="/inspect/itps/new"
+            cta="Start ITP-driven project"
+            emphasized
+          />
+          <WorkModeCard
+            badge="Quick setup"
+            title={tl("Standalone assignment")}
+            description="Create a focused inspection without building a full project ITP. Ideal for FATs, vendor visits and one-off verification."
+            bullets={[
+              "Fast assignment setup",
+              "Custom checklist and evidence",
+              "Independent report and sign-off",
+            ]}
+            bestFor="Best for one-off or vendor inspections"
+            href="/inspect/standalone/new"
+            cta="Start standalone assignment"
+          />
+        </div>
       </section>
     </div>
   );

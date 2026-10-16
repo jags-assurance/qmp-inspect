@@ -21,6 +21,7 @@ export function NcrStatusButton({
   status,
   canWork,
   capaSaved,
+  evidenceCount,
   onDone,
 }: {
   ncrId: string;
@@ -28,6 +29,8 @@ export function NcrStatusButton({
   canWork: boolean;
   /** Root cause, corrective and preventive action are all saved on the NCR. */
   capaSaved: boolean;
+  /** Photos + linked documents on the NCR. When given, sending for verification also needs at least one (same rule the server enforces). */
+  evidenceCount?: number;
   onDone?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(setNcrStatusAction, statusInitial);
@@ -41,7 +44,15 @@ export function NcrStatusButton({
 
   const next = NEXT_STATUS[status];
   if (!next || !canWork) return null;
-  const blocked = next === "pending_verification" && !capaSaved;
+  const sending = next === "pending_verification";
+  const needsCapa = sending && !capaSaved;
+  const needsEvidence = sending && evidenceCount !== undefined && evidenceCount === 0;
+  const blocked = needsCapa || needsEvidence;
+  const blockedHint = needsCapa && needsEvidence
+    ? "Save root cause, corrective and preventive action, and attach a photo or document as evidence first."
+    : needsCapa
+      ? "Save root cause, corrective and preventive action first."
+      : "Attach a photo or linked document as evidence first.";
 
   return (
     <form action={formAction} className="flex flex-col items-end gap-1">
@@ -53,7 +64,7 @@ export function NcrStatusButton({
       >
         {pending ? "Working…" : NEXT_STATUS_LABEL[next]}
       </Button>
-      {blocked && <p className="max-w-xs text-end text-xs text-muted"><Tx>Save root cause, corrective and preventive action first.</Tx></p>}
+      {blocked && <p className="max-w-xs text-end text-xs text-muted"><Tx>{blockedHint}</Tx></p>}
       {state.error && <p role="alert" className="max-w-xs text-end text-xs text-danger">{state.error}</p>}
     </form>
   );

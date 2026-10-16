@@ -220,7 +220,7 @@ export function ItemControls({
                 type="submit"
                 aria-label={direction === "up" ? "Move activity up" : "Move activity down"}
                 variant="outline" size="sm"
-                className="max-sm:hidden"
+                className="hidden"
               >
                 {direction === "up" ? "↑" : "↓"}
               </Button>
@@ -234,12 +234,12 @@ export function ItemControls({
               type="submit"
               disabled={deletePending}
               variant="danger-outline" size="sm"
-              className="max-sm:hidden"
+              className="hidden"
             >
               {deletePending ? "Deleting…" : "Delete"}
             </Button>
           </form>
-          <div className="sm:hidden">
+          <div>
             <CellMenu
               ariaLabel={tl("More activity actions")}
               items={[

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { useRouter } from "next/navigation";
 import {
@@ -96,7 +96,8 @@ export function NewNcrForm({
     const tooBig = await compressFormPhotos(formData, ["photos"]);
     setPhotoError(tooBig);
     if (tooBig) return;
-    formAction(formData);
+    // useActionState actions must run inside a transition so the pending state updates (this runs after an await).
+    startTransition(() => formAction(formData));
   }
   // Idempotency key for this raise attempt; a fresh one is issued after each successful create.
   const [requestId, setRequestId] = useState("");

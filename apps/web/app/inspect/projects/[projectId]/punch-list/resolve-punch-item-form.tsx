@@ -1,7 +1,7 @@
 "use client";
 
 import { MarkupFileInput } from "@/components/domain/photo-markup";
-import { useActionState, useState } from "react";
+import { useActionState, useState, startTransition } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { resolvePunchItemAction, type ResolvePunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,8 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
     const message = tooBig ?? (attached ? null : "Attach at least one photo of the fix.");
     setPhotoError(message);
     if (message) return;
-    formAction(formData);
+    // useActionState actions must run inside a transition so the pending state updates (this runs after an await).
+    startTransition(() => formAction(formData));
   }
 
   if (!expanded) {

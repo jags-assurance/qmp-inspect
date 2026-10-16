@@ -73,7 +73,9 @@ export function NotificationsBell({
     const timer = window.setInterval(refreshIfNotLive, 60_000);
     document.addEventListener("visibilitychange", refreshIfNotLive);
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      // A unique topic per subscription: re-running this effect before the previous channel has finished
+      // closing (React strict mode, fast remounts) must never reuse an already-subscribed channel.
+      .channel(`notifications:${userId}:${typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Date.now())}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `recipient_user_id=eq.${userId}` },

@@ -1,7 +1,7 @@
 "use client";
 
 import { MarkupFileInput } from "@/components/domain/photo-markup";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { addPunchItemAction, type AddPunchItemState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,8 @@ export function AddPunchItemForm({
     const tooBig = await compressFormPhotos(formData, ["photos"]);
     setPhotoError(tooBig);
     if (tooBig) return;
-    formAction(formData);
+    // useActionState actions must run inside a transition so the pending state updates (this runs after an await).
+    startTransition(() => formAction(formData));
   }
 
   return (
