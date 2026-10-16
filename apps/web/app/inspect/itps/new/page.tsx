@@ -135,10 +135,26 @@ export default async function NewItpPage({ searchParams }: { searchParams: Promi
   const aiProjects = projects
     .filter((p) => aiEntryPointVisible(true, p.organizations?.ai_consent))
     .map(({ id, project_number, name }) => ({ id, project_number, name }));
-  const aiConfigured = isAiConfigured() && aiProjects.length > 0;
+  const aiConfigured = isAiConfigured() && process.env.AI_TIER === "paid" && aiProjects.length > 0;
+  // Always show the tab (it is the main way to start an ITP) and, when it cannot run, say exactly why.
+  const aiBlockers = [
+    !isAiConfigured() && "The AI key (GEMINI_API_KEY) is not set on this deployment.",
+    isAiConfigured() && process.env.AI_TIER !== "paid" && "This deployment is not on the paid AI tier (AI_TIER is not \"paid\").",
+    aiProjects.length === 0 && "No customer has AI switched on. A JAGS admin turns it on under Settings > Clients & plans.",
+  ].filter(Boolean) as string[];
   const fromAi = aiConfigured ? (
     <NewItpFromAiForm projects={aiProjects} vaultDocuments={vaultDocuments} disciplines={disciplines ?? []} />
-  ) : undefined;
+  ) : (
+    <div className="mt-4 rounded-md border border-border bg-surface p-4 text-sm">
+      <p className="font-medium text-ink"><T>Generate from vault documents is not available yet</T></p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+        {aiBlockers.map((b) => (
+          <li key={b}>{b}</li>
+        ))}
+      </ul>
+      <p className="mt-2 text-muted"><T>You can still build from scratch or from a master template with the other tabs.</T></p>
+    </div>
+  );
 
   if (clientEligibleProjectIds) {
     return (

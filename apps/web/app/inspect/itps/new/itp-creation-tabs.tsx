@@ -28,12 +28,21 @@ export function ItpCreationTabs({
   fromAi?: ReactNode;
 }) {
   const [tab, setTab] = useState<"manual" | "template" | "ai">(
-    initialTab === "template" && fromTemplate ? "template" : initialTab === "ai" && fromAi ? "ai" : "manual"
+    initialTab === "template" && fromTemplate ? "template" : initialTab === "manual" || !fromAi ? "manual" : "ai"
   );
 
   return (
     <div>
       <div className="flex gap-1 rounded-md border border-border bg-surface p-1 text-sm">
+        {fromAi && (
+          <button
+            type="button"
+            onClick={() => setTab("ai")}
+            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-surface-subtle")}
+          >
+            <Tx>Generate from vault documents</Tx>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setTab("manual")}
@@ -48,15 +57,6 @@ export function ItpCreationTabs({
             className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "template" ? "bg-burgundy text-white" : "text-ink hover:bg-surface-subtle")}
           >
             <Tx>Start from a master template</Tx>
-          </button>
-        )}
-        {fromAi && (
-          <button
-            type="button"
-            onClick={() => setTab("ai")}
-            className={cn("min-h-11 flex-1 rounded px-3 py-1.5 font-medium", tab === "ai" ? "bg-burgundy text-white" : "text-ink hover:bg-surface-subtle")}
-          >
-            <Tx>Generate from vault documents</Tx>
           </button>
         )}
       </div>
