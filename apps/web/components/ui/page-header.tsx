@@ -24,6 +24,7 @@ export function PageHeader({
   secondaryActions,
   meta,
   className,
+  titleAs = "h1",
 }: {
   title: ReactNode;
   /** One calm line under the title (scope, date, count). */
@@ -39,8 +40,11 @@ export function PageHeader({
   /** Extra row below the subtitle (links, key facts). */
   meta?: ReactNode;
   className?: string;
+  /** Heading level for the title; embedded views use "h2" because the host page already has the h1. */
+  titleAs?: "h1" | "h2";
 }) {
   const hasActions = Boolean(primaryAction || secondaryActions);
+  const Title = titleAs;
   return (
     <header className={cn("mb-5 sm:mb-6", className)}>
       {backHref && (
@@ -54,7 +58,7 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 flex-1 basis-64">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-[1.75rem]">{title}</h1>
+            <Title className="text-2xl font-semibold leading-tight tracking-tight text-text-strong sm:text-[1.75rem]">{title}</Title>
             {guide}
             {badges && <div className="flex flex-wrap items-center gap-1.5">{badges}</div>}
           </div>

@@ -41,6 +41,7 @@ export async function addRootCauseCategoryAction(_prev: TaxonomyState, formData:
     changes: { code, label: parsed.label },
   });
   revalidatePath("/inspect/organisation/root-causes");
+  revalidatePath("/inspect/settings");
   return { error: null, success: `"${parsed.label}" added.` };
 }
 
@@ -76,5 +77,6 @@ export async function updateRootCauseCategoryAction(_prev: TaxonomyState, formDa
     changes: { label: parsed.label, sort_order: sort, is_active: isActive },
   });
   revalidatePath("/inspect/organisation/root-causes");
+  revalidatePath("/inspect/settings");
   return { error: null, success: "Saved." };
 }

@@ -53,6 +53,7 @@ export async function reviewOrphanPhotoAction(_prev: OrphanReviewState, formData
 
   await audit(supabase, flag, session.userId, decision === "kept" ? "orphan_photo_kept" : "orphan_photo_marked_removed", decision, false);
   revalidatePath(PATH);
+  revalidatePath("/inspect/settings");
   return { error: null, success: decision === "kept" ? "Kept." : "Marked as removed." };
 }
 
@@ -96,6 +97,7 @@ export async function removeOrphanFileAction(_prev: OrphanReviewState, formData:
   });
   await audit(supabase, flag, session.userId, "orphan_photo_file_deleted", "removed", true);
   revalidatePath(PATH);
+  revalidatePath("/inspect/settings");
   if (error) {
     return { error: "The file was deleted, but recording the decision failed. Use Mark removed to record it." };
   }

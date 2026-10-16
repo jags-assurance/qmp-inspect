@@ -92,7 +92,7 @@ export function GlobalProjectSelector({
   const stacked = variant === "stacked";
   const selectCls = stacked
     ? "min-h-11 w-full min-w-0 truncate rounded-md border border-border bg-surface px-3 text-base text-ink disabled:opacity-60"
-    : "h-9 [@media(pointer:coarse)]:h-11 min-w-0 max-w-[9rem] truncate rounded-md border border-border bg-surface px-2.5 text-sm text-ink hover:bg-surface-subtle disabled:opacity-60 xl:max-w-[11rem] desk:max-w-[14rem]";
+    : "h-9 [@media(pointer:coarse)]:h-11 min-w-0 max-w-[9rem] truncate rounded-md border border-border bg-surface px-2.5 text-sm text-ink hover:bg-surface-subtle disabled:opacity-60 xl:max-w-[9rem] desk:max-w-[10rem]";
   const orgId = `${idPrefix}-org-filter`;
   const projectId = `${idPrefix}-project-select`;
   const orgField = orgs.length > 1 && (

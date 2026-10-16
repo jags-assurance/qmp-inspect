@@ -140,11 +140,22 @@ export default async function DocumentTraceabilityPage({
 }: {
   searchParams: Promise<{ q?: string; project?: string }>;
 }) {
+  return <DocumentTraceabilityView searchParams={await searchParams} />;
+}
+
+/** The traceability lookup; `embedded` renders it as a section of the Settings hub. */
+export async function DocumentTraceabilityView({
+  searchParams,
+  embedded,
+}: {
+  searchParams: { q?: string; project?: string };
+  embedded?: boolean;
+}) {
   const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect?denied=1"); // JAGS staff; row-level security limits what each person can see to their own projects
 
-  const { q, project: projectParam } = await searchParams;
+  const { q, project: projectParam } = searchParams;
   const query = q?.trim() ?? "";
   const supabase = await createSupabaseServerClient();
   // Optional scope: the same document number can exist on several projects, so a lookup can be limited to one.
@@ -171,9 +182,10 @@ export default async function DocumentTraceabilityPage({
 
   return (
     <div>
-      <SettingsBackLink href="/inspect/settings?section=insights" />
+      <SettingsBackLink embedded={embedded} href="/inspect/settings?section=insights" />
       <PageHeader
         className="mt-2"
+        titleAs={embedded ? "h2" : "h1"}
         title={<T>Document Traceability</T>}
         guide={
         <PageGuide
@@ -192,6 +204,7 @@ export default async function DocumentTraceabilityPage({
       </p>
 
       <form className="mt-6 flex max-w-3xl flex-wrap gap-2 print:hidden">
+        {embedded && <input type="hidden" name="section" value="traceability" />}
         <input aria-label={tl("ITP / NCR / IRN number, heat / batch / PO / cert number, instrument ID, welder ID / WPQ")}
           type="text"
           name="q"

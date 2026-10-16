@@ -173,6 +173,10 @@ const FALLBACK = (p: SVGProps<SVGSVGElement>) => (
   </Icon>
 );
 
+// Merged sidebar entries reuse their lead page's icon.
+ICONS["Site work"] = ICONS["Start work"];
+ICONS["NCRs & Observations"] = ICONS.NCRs;
+
 export function NavIcon({ label, className }: { label: string; className?: string }) {
   const Cmp = ICONS[label] ?? FALLBACK;
   return <Cmp className={className ?? "h-4 w-4 shrink-0"} />;

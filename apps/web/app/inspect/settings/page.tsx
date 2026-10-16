@@ -25,6 +25,11 @@ import { InterventionLevelsSettingsView } from "../organisation/intervention-lev
 import { PlansSettingsView } from "../organisation/plans/plans-view";
 import { RetentionSettingsView } from "../organisation/retention/retention-view";
 import { SystemHealthView } from "../organisation/system-health/system-health-view";
+import { DataRequestsView } from "../organisation/data-requests/page";
+import { OrphanPhotosView } from "../organisation/orphan-photos/page";
+import { DocumentTraceabilityView } from "../organisation/traceability/page";
+import { UsageAndCostView } from "../organisation/usage/page";
+import { RootCausesView } from "../organisation/root-causes/root-causes-view";
 import { T } from "@/components/domain/t";
 import { PageHeader } from "@/components/ui/page-header";
 
@@ -48,6 +53,11 @@ const DESCRIPTIONS: Record<string, string> = {
   plans: "Plan limits and seats in use.",
   retention: "How long documents are kept, and the ones past that period.",
   "system-health": "Which features are configured, worker activity and email queue.",
+  "data-requests": "Answer a person's request for a copy of their data, or for deletion.",
+  "orphan-photos": "Photos uploaded but never linked to a record.",
+  traceability: "Look up any ITP, NCR or inspection and see its full history.",
+  usage: "AI and PDF usage with a cost estimate, last 30 days.",
+  "root-causes": "The root-cause list used when closing NCRs.",
 };
 
 type Params = Record<string, string | string[] | undefined>;
@@ -75,6 +85,11 @@ const RENDERERS: Record<string, Render> = {
   plans: () => <PlansSettingsView embedded />,
   retention: (sp) => <RetentionSettingsView searchParams={asView(sp)} embedded />,
   "system-health": () => <SystemHealthView embedded />,
+  "data-requests": (sp) => <DataRequestsView searchParams={asView(sp)} embedded />,
+  "orphan-photos": () => <OrphanPhotosView embedded />,
+  traceability: (sp) => <DocumentTraceabilityView searchParams={asView(sp)} embedded />,
+  usage: (sp) => <UsageAndCostView searchParams={asView(sp)} embedded />,
+  "root-causes": (sp) => <RootCausesView searchParams={asView(sp)} embedded />,
 };
 
 /** Same grouping as the admin "Settings" tree in app/inspect/layout.tsx. Items with `href` are link-only. */
@@ -100,7 +115,7 @@ const ALL_GROUPS: SettingsNavGroup[] = [
       { key: "roles", label: "Custom Roles" },
       { key: "teams", label: "Teams" },
       { key: "module-licensing", label: "Module Licensing" },
-      { key: "data-requests", label: "Data Requests", href: "/inspect/organisation/data-requests" },
+      { key: "data-requests", label: "Data Requests" },
     ],
   },
   {
@@ -115,7 +130,7 @@ const ALL_GROUPS: SettingsNavGroup[] = [
     label: "Insights & Usage",
     items: [
       { key: "insights", label: "Portfolio Insights" },
-      { key: "usage", label: "Usage & Cost", href: "/inspect/organisation/usage" },
+      { key: "usage", label: "Usage & Cost" },
       { key: "system-health", label: "System Health" },
       { key: "reporting", label: "Reporting" },
     ],
@@ -124,12 +139,12 @@ const ALL_GROUPS: SettingsNavGroup[] = [
     label: "Sync & Traceability",
     items: [
       // Cloud Folder Sync hidden: it only stores a folder reference (nothing reads it yet). Renderer kept.
-      { key: "traceability", label: "Document Traceability", href: "/inspect/organisation/traceability" },
+      { key: "traceability", label: "Document Traceability" },
       { key: "intervention-levels", label: "Intervention Levels" },
       { key: "plans", label: "Plans & Seats" },
       { key: "retention", label: "Document Retention" },
-      { key: "root-causes", label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
-      { key: "orphan-photos", label: "Orphaned Photos", href: "/inspect/organisation/orphan-photos" },
+      { key: "root-causes", label: "NCR Root Causes" },
+      { key: "orphan-photos", label: "Orphaned Photos" },
     ],
   },
 ];

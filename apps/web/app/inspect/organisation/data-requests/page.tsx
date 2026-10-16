@@ -28,11 +28,16 @@ interface UserRow {
  * email, download everything held about it as JSON, or anonymise it. Admin only.
  */
 export default async function DataRequestsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  return <DataRequestsView searchParams={await searchParams} />;
+}
+
+/** The data-requests tool; `embedded` renders it as a section of the Settings hub. */
+export async function DataRequestsView({ searchParams, embedded }: { searchParams: { q?: string }; embedded?: boolean }) {
   const tl = await getTranslator();
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
-  const q = ((await searchParams).q ?? "").trim().slice(0, 254);
+  const q = (searchParams.q ?? "").trim().slice(0, 254);
   let matches: UserRow[] = [];
   if (q) {
     const supabase = await createSupabaseServerClient();
@@ -48,9 +53,10 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
 
   return (
     <div className="max-w-3xl">
-      <SettingsBackLink />
+      <SettingsBackLink embedded={embedded} />
       <PageHeader
         className="mt-2"
+        titleAs={embedded ? "h2" : "h1"}
         title={<T>Data requests</T>}
         guide={
         <PageGuide
@@ -69,6 +75,7 @@ export default async function DataRequestsPage({ searchParams }: { searchParams:
       </p>
 
       <form method="get" className="mt-6 flex flex-wrap items-end gap-2">
+        {embedded && <input type="hidden" name="section" value="data-requests" />}
         <label className="text-xs font-medium text-ink">
           <T>Email</T>
           <input

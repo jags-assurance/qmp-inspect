@@ -105,11 +105,22 @@ export default async function UsageAndCostPage({
 }: {
   searchParams: Promise<{ project?: string }>;
 }) {
+  return <UsageAndCostView searchParams={await searchParams} />;
+}
+
+/** The usage & cost report; `embedded` renders it as a section of the Settings hub. */
+export async function UsageAndCostView({
+  searchParams,
+  embedded,
+}: {
+  searchParams: { project?: string };
+  embedded?: boolean;
+}) {
   const tl = await getTranslator();
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
-  const { project: selectedProjectId } = await searchParams;
+  const { project: selectedProjectId } = searchParams;
   const supabase = await createSupabaseServerClient();
 
   const windowStart = new Date();
@@ -341,11 +352,11 @@ export default async function UsageAndCostPage({
 
   return (
     <div className="max-w-6xl">
-      <SettingsBackLink href="/inspect/settings?section=insights" />
+      <SettingsBackLink embedded={embedded} href="/inspect/settings?section=insights" />
       <div className="mt-2 flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Usage &amp; Cost</T></h1>
+            {embedded ? <h2 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Usage &amp; Cost</T></h2> : <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"><T>Usage &amp; Cost</T></h1>}
             <PageGuide
               title={tl("Usage & Cost — how this works")}
               points={[

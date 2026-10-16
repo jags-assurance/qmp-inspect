@@ -34,6 +34,11 @@ interface FlagRow {
  * was removed by hand, or deletes it here after a typed confirmation.
  */
 export default async function OrphanPhotosPage() {
+  return <OrphanPhotosView />;
+}
+
+/** The orphaned-photos review; `embedded` renders it as a section of the Settings hub. */
+export async function OrphanPhotosView({ embedded }: { embedded?: boolean }) {
   const tl = await getTranslator();
   const session = await requireSession();
   if (!isAdminStaff(session)) redirect("/inspect?denied=1");
@@ -71,9 +76,10 @@ export default async function OrphanPhotosPage() {
 
   return (
     <div className="max-w-4xl">
-      <SettingsBackLink />
+      <SettingsBackLink embedded={embedded} />
       <PageHeader
         className="mt-2"
+        titleAs={embedded ? "h2" : "h1"}
         title={<T>Orphaned photos</T>}
         guide={
         <PageGuide

@@ -59,6 +59,7 @@ export async function anonymiseUserAction(_prev: AnonymiseState, formData: FormD
   const result = (data ?? {}) as AnonymiseResult;
   if (result.status === "already_anonymised") {
     revalidatePath(PATH);
+  revalidatePath("/inspect/settings");
     return { error: null, message: "That account was already anonymised. Nothing was changed." };
   }
 
@@ -83,5 +84,6 @@ export async function anonymiseUserAction(_prev: AnonymiseState, formData: FormD
   }
 
   revalidatePath(PATH);
+  revalidatePath("/inspect/settings");
   return { error: null, message: `Account anonymised and deactivated; all records were kept.${notes.length ? ` ${notes.join(" ")}` : ""}` };
 }

@@ -134,15 +134,48 @@ export default async function InspectLayout({ children }: { children: React.Reac
     },
     { label: "Projects", href: "/inspect/projects", group: "Plan" },
     ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps", group: "Plan" }] : []),
-    ...(session.isJagsStaff ? [{ label: "Start work", href: "/inspect/start-work", group: "Execute" }] : []),
-    { label: "Inspections", href: "/inspect/inspections", group: "Execute" },
-    ...(!isClientRole && isLicensed("standalone_assignments")
-      ? [{ label: "Standalone Assignments", href: "/inspect/standalone", group: "Execute" }]
-      : []),
-    ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs", group: "Quality" }] : []),
-    ...(isLicensed("observations")
-      ? [{ label: "Observations", href: "/inspect/observations", group: "Quality" }]
-      : []),
+    // Site work: for JAGS staff, Start work, Inspections and Standalone assignments are ONE sidebar entry
+    // (the "Related pages" strip on each page moves between them in one tap); every address is unchanged.
+    // Other roles keep the plain Inspections / Standalone rows.
+    ...(session.isJagsStaff
+      ? [
+          {
+            label: "Site work",
+            href: "/inspect/start-work",
+            group: "Execute",
+            activePrefixes: ["/inspect/inspections", "/inspect/standalone"],
+            palette: [
+              { label: "Inspections", href: "/inspect/inspections" },
+              ...(!isClientRole && isLicensed("standalone_assignments")
+                ? [{ label: "Standalone Assignments", href: "/inspect/standalone" }]
+                : []),
+            ],
+          },
+        ]
+      : [
+          { label: "Inspections", href: "/inspect/inspections", group: "Execute" },
+          ...(!isClientRole && isLicensed("standalone_assignments")
+            ? [{ label: "Standalone Assignments", href: "/inspect/standalone", group: "Execute" }]
+            : []),
+        ]),
+    // Issues: NCRs and Observations are the same records (an Observation is an NCR of severity "observation"),
+    // so when both are available they share one sidebar entry; the strip switches between the two registers.
+    ...(isLicensed("ncrs") && isLicensed("observations")
+      ? [
+          {
+            label: "NCRs & Observations",
+            href: "/inspect/ncrs",
+            group: "Quality",
+            activePrefixes: ["/inspect/observations"],
+            palette: [{ label: "Observations register", href: "/inspect/observations" }],
+          },
+        ]
+      : [
+          ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs", group: "Quality" }] : []),
+          ...(isLicensed("observations")
+            ? [{ label: "Observations", href: "/inspect/observations", group: "Quality" }]
+            : []),
+        ]),
     // Per-project pages (Reports, Data Book, Activity, KPIs) are reached through this index.
     { label: "Reports & Documents", href: "/inspect/reports-documents", group: "Records" },
     ...(isLicensed("vault") ? [{ label: "Document Vault", href: "/inspect/vault", group: "Records" }] : []),
@@ -184,20 +217,20 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Custom Roles", href: "/inspect/settings?section=roles" },
               { label: "Teams", href: "/inspect/settings?section=teams" },
               { label: "Module Licensing", href: "/inspect/settings?section=module-licensing" },
-              { label: "Data Requests", href: "/inspect/organisation/data-requests" },
+              { label: "Data Requests", href: "/inspect/settings?section=data-requests" },
               { label: "Numbering", href: "/inspect/settings?section=numbering" },
               { label: "Brand Colors", href: "/inspect/settings?section=branding" },
               { label: "Automation Rules", href: "/inspect/settings?section=automation" },
               { label: "Portfolio Insights", href: "/inspect/settings?section=insights" },
-              { label: "Usage & Cost", href: "/inspect/organisation/usage" },
+              { label: "Usage & Cost", href: "/inspect/settings?section=usage" },
               { label: "Reporting", href: "/inspect/settings?section=reporting" },
               { label: "System Health", href: "/inspect/settings?section=system-health" },
-              { label: "Document Traceability", href: "/inspect/organisation/traceability" },
+              { label: "Document Traceability", href: "/inspect/settings?section=traceability" },
               { label: "Intervention Levels", href: "/inspect/settings?section=intervention-levels" },
               { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
               { label: "Document Retention", href: "/inspect/settings?section=retention" },
-              { label: "NCR Root Causes", href: "/inspect/organisation/root-causes" },
-              { label: "Orphaned Photos", href: "/inspect/organisation/orphan-photos" },
+              { label: "NCR Root Causes", href: "/inspect/settings?section=root-causes" },
+              { label: "Orphaned Photos", href: "/inspect/settings?section=orphan-photos" },
             ],
           },
         ]
