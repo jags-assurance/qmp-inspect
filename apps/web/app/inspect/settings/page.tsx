@@ -7,7 +7,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isLeadOfAnyTeam } from "@/lib/teams/helpers";
 import { isModuleLicensed } from "@/lib/module-licensing/access";
-import { SettingsNav, SettingsSkeleton, type SettingsNavGroup } from "./settings-nav";
+import { SettingsAreaTabs, SettingsLanding, SettingsSkeleton, type SettingsArea } from "./settings-nav";
 import { ClientOrganisationsView } from "../organisation/clients/clients-view";
 import { ClientTeamsView } from "../organisation/client-teams/client-teams-view";
 import { ChecklistLibraryView } from "../organisation/checklist-library/checklist-library-view";
@@ -92,58 +92,73 @@ const RENDERERS: Record<string, Render> = {
   "root-causes": (sp) => <RootCausesView searchParams={asView(sp)} embedded />,
 };
 
-/** Same grouping as the admin "Settings" tree in app/inspect/layout.tsx. Items with `href` are link-only. */
-const ALL_GROUPS: SettingsNavGroup[] = [
+/**
+ * Settings, in six plain-language areas. A person picks the job, then the section; related sections sit
+ * together as tabs. Every section key and address is unchanged (?section=<key>); items with `href` open
+ * their own page.
+ */
+const ALL_AREAS: SettingsArea[] = [
   {
-    label: "Client Management",
-    items: [
-      { key: "clients", label: "Client Organisations" },
-      { key: "client-teams", label: "Client Teams" },
-    ],
-  },
-  {
-    label: "Libraries",
-    items: [
-      { key: "checklist-library", label: "Checklist Library" },
-      { key: "itp-master", label: "Master ITP Library", href: "/inspect/itp-master" },
-    ],
-  },
-  {
-    label: "Access & Roles",
+    key: "people",
+    label: "People & access",
+    description: "Who can sign in, what each person can do, and how people are grouped into teams.",
     items: [
       { key: "staff-access", label: "Staff Access" },
       { key: "roles", label: "Custom Roles" },
       { key: "teams", label: "Teams" },
-      { key: "module-licensing", label: "Module Licensing" },
-      { key: "data-requests", label: "Data Requests" },
+      { key: "client-teams", label: "Client Teams" },
     ],
   },
   {
-    label: "Numbering & Branding",
+    key: "clients",
+    label: "Clients & plans",
+    description: "The companies you work for, which features each one has, and their plan and seats.",
+    items: [
+      { key: "clients", label: "Client Organisations" },
+      { key: "module-licensing", label: "Module Licensing" },
+      { key: "plans", label: "Plans & Seats" },
+    ],
+  },
+  {
+    key: "templates",
+    label: "Templates & standards",
+    description: "The libraries, sign-off levels and root-cause lists your ITPs and checklists are built from.",
+    items: [
+      { key: "checklist-library", label: "Checklist Library" },
+      { key: "itp-master", label: "Master ITP Library", href: "/inspect/itp-master" },
+      { key: "intervention-levels", label: "Intervention Levels" },
+      { key: "root-causes", label: "NCR Root Causes" },
+    ],
+  },
+  {
+    key: "look",
+    label: "Numbering, look & automation",
+    description: "How record numbers are made, your logo and colours, automatic reminders and reports.",
     items: [
       { key: "numbering", label: "Numbering" },
       { key: "branding", label: "Brand Colors" },
       { key: "automation", label: "Automation Rules" },
-    ],
-  },
-  {
-    label: "Insights & Usage",
-    items: [
-      { key: "insights", label: "Portfolio Insights" },
-      { key: "usage", label: "Usage & Cost" },
-      { key: "system-health", label: "System Health" },
       { key: "reporting", label: "Reporting" },
     ],
   },
   {
-    label: "Sync & Traceability",
+    key: "insights",
+    label: "Insights & health",
+    description: "Quality trends, what the system costs to run, whether everything is working, and record lookups.",
     items: [
-      // Cloud Folder Sync hidden: it only stores a folder reference (nothing reads it yet). Renderer kept.
+      { key: "insights", label: "Portfolio Insights" },
+      { key: "usage", label: "Usage & Cost" },
+      { key: "system-health", label: "System Health" },
       { key: "traceability", label: "Document Traceability" },
-      { key: "intervention-levels", label: "Intervention Levels" },
-      { key: "plans", label: "Plans & Seats" },
+    ],
+  },
+  {
+    key: "data",
+    label: "Data & privacy",
+    description: "How long documents are kept, requests about people's data, and uploaded photos nothing uses.",
+    items: [
       { key: "retention", label: "Document Retention" },
-      { key: "root-causes", label: "NCR Root Causes" },
+      { key: "data-requests", label: "Data Requests" },
       { key: "orphan-photos", label: "Orphaned Photos" },
     ],
   },
@@ -190,20 +205,32 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const visible = await visibleKeys();
 
-  const groups = ALL_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.filter((i) => (visible === "all" ? true : !i.href && visible.has(i.key))),
-  })).filter((g) => g.items.length > 0);
-  if (groups.length === 0) redirect("/inspect");
+  const areas = ALL_AREAS.map((a) => ({
+    ...a,
+    items: a.items.filter((i) => (visible === "all" ? true : !i.href && visible.has(i.key))),
+  })).filter((a) => a.items.length > 0);
+  if (areas.length === 0) redirect("/inspect");
 
-  const rendered = groups.flatMap((g) => g.items).filter((i) => !i.href);
+  const rendered = areas.flatMap((a) => a.items).filter((i) => !i.href);
   const requested = typeof params.section === "string" ? params.section : undefined;
-  const current = rendered.find((i) => i.key === requested) ?? rendered[0];
-  if (!current) redirect("/inspect");
+  // One area only: skip the front door and open its first section. Otherwise a missing or unknown
+  // section shows the front door (the areas), not an arbitrary first section.
+  const current = rendered.find((i) => i.key === requested) ?? (areas.length === 1 ? rendered[0] : undefined);
+  if (!current && rendered.length === 0) redirect("/inspect");
 
   // Pass every other param (org picker etc.) through to the view; `section` is ours.
   const { section: _section, ...viewParams } = params;
   void _section;
+
+  if (!current) {
+    return (
+      <div>
+        <PageHeader className="mb-0" title={<T>Settings</T>} subtitle={<T>Choose what you want to manage.</T>} />
+        <SettingsLanding areas={areas} />
+      </div>
+    );
+  }
+  const area = areas.find((a) => a.items.some((i) => i.key === current.key)) ?? areas[0];
 
   return (
     <div>
@@ -212,14 +239,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         title={<T>Settings</T>}
         subtitle={DESCRIPTIONS[current.key] ?? "Manage your organisation."}
       />
-      <div className="lg:flex lg:gap-8">
-        <SettingsNav groups={groups} active={current.key} />
-        <section className="mt-6 min-w-0 flex-1 lg:mt-6" aria-label={current.label}>
-          <Suspense key={current.key} fallback={<SettingsSkeleton />}>
-            {RENDERERS[current.key](viewParams)}
-          </Suspense>
-        </section>
-      </div>
+      <SettingsAreaTabs area={area} active={current.key} showAllLink={areas.length > 1} />
+      <section className="mt-6 min-w-0" aria-label={current.label}>
+        <Suspense key={current.key} fallback={<SettingsSkeleton />}>
+          {RENDERERS[current.key](viewParams)}
+        </Suspense>
+      </section>
     </div>
   );
 }

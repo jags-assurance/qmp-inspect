@@ -9,8 +9,12 @@ export interface SettingsNavItem {
   href?: string;
 }
 
-export interface SettingsNavGroup {
+/** One plain-language area of settings ("People & access") holding the sections that belong together. */
+export interface SettingsArea {
+  key: string;
   label: string;
+  /** One sentence in everyday words: what you can do here. */
+  description: string;
   items: SettingsNavItem[];
 }
 
@@ -19,40 +23,57 @@ function hrefFor(item: SettingsNavItem) {
 }
 
 /**
- * Settings navigation. On lg+ a grouped left rail; on phone/tablet a sticky two-row bar (groups,
- * then the active group's sections) that scrolls sideways instead of wrapping. Plain links, so
- * every section is a shareable URL, and every target is 44px tall.
+ * The Settings front door: one card per area, each listing its sections. Nothing is nested more than one
+ * level, so a person picks the job ("People & access"), then the section, and never sees a long rail.
  */
-export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; active: string }) {
-  const activeGroup = groups.find((g) => g.items.some((i) => i.key === active)) ?? groups[0];
+export function SettingsLanding({ areas }: { areas: SettingsArea[] }) {
   return (
-    <>
-      <nav
-        aria-label="Settings sections"
-        className="sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 -mx-3 mt-4 border-b border-border-strong bg-background px-3 sm:-mx-6 sm:px-6 lg:hidden"
-      >
-        <ScrollRow className="flex snap-x gap-1 overflow-x-auto [scrollbar-width:thin]" label="Groups">
-          {groups.map((g) => {
-            const isActive = g === activeGroup;
-            return (
-              <li key={g.label} className="snap-start">
+    <ul className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Settings areas">
+      {areas.map((a) => (
+        <li key={a.key} className="flex flex-col rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+          <h2 className="text-base font-semibold text-text-strong">{a.label}</h2>
+          <p className="mt-1 text-sm text-muted">{a.description}</p>
+          <ul className="mt-3 divide-y divide-border border-t border-border">
+            {a.items.map((item) => (
+              <li key={item.key}>
                 <Link
-                  href={hrefFor(g.items[0])}
-                  scroll={false}
-                  aria-current={isActive ? "true" : undefined}
-                  className={cn(
-                    "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors",
-                    isActive ? "border-burgundy text-burgundy" : "border-transparent text-muted hover:text-ink"
-                  )}
+                  href={hrefFor(item)}
+                  className="flex min-h-11 items-center justify-between gap-2 py-2 text-sm font-medium text-ink hover:text-burgundy"
                 >
-                  {g.label}
+                  <span>{item.label}</span>
+                  <span aria-hidden="true" className="text-muted">{item.href ? "↗" : "›"}</span>
                 </Link>
               </li>
-            );
-          })}
-        </ScrollRow>
-        <ScrollRow className="flex snap-x gap-1 overflow-x-auto border-t border-border py-1 [scrollbar-width:thin]" label={activeGroup.label}>
-          {activeGroup.items.map((item) => {
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * Inside a section: a way back to all settings, the area's name, and ONE row of tabs for the sections of
+ * that area only (not the whole settings tree). Same on phone, tablet and desktop; scrolls sideways when it
+ * has to, never wraps, and every target is 44px tall.
+ */
+export function SettingsAreaTabs({ area, active, showAllLink }: { area: SettingsArea; active: string; showAllLink: boolean }) {
+  return (
+    <nav aria-label="Settings" className="mt-4">
+      <div className="flex flex-wrap items-center gap-x-2 text-sm">
+        {showAllLink && (
+          <>
+            <Link href="/inspect/settings" className="inline-flex min-h-9 items-center font-medium text-brand hover:underline [@media(pointer:coarse)]:min-h-11">
+              ← All settings
+            </Link>
+            <span aria-hidden="true" className="text-muted">/</span>
+          </>
+        )}
+        <span className="font-semibold text-ink">{area.label}</span>
+      </div>
+      {area.items.length > 1 && (
+        <ScrollRow className="mt-2 flex snap-x gap-1 overflow-x-auto border-b border-border [scrollbar-width:thin]" label={area.label}>
+          {area.items.map((item) => {
             const isActive = item.key === active;
             return (
               <li key={item.key} className="snap-start">
@@ -61,8 +82,8 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
                   scroll={false}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-3 text-sm transition-colors",
-                    isActive ? "bg-burgundy font-medium text-white" : "text-muted hover:bg-surface-subtle hover:text-ink"
+                    "-mb-px inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-3 text-sm font-medium transition-colors",
+                    isActive ? "border-burgundy text-burgundy" : "border-transparent text-muted hover:text-ink"
                   )}
                 >
                   {item.label}
@@ -72,38 +93,8 @@ export function SettingsNav({ groups, active }: { groups: SettingsNavGroup[]; ac
             );
           })}
         </ScrollRow>
-      </nav>
-
-      <nav aria-label="Settings sections" className="hidden lg:mt-6 lg:block lg:w-60 lg:shrink-0">
-        <div className="sticky top-[calc(var(--header-h)+1rem)] max-h-[calc(100dvh-6rem)] space-y-5 overflow-y-auto pe-2">
-          {groups.map((g) => (
-            <div key={g.label}>
-              <p className="px-3 text-xs font-semibold uppercase tracking-wide text-muted">{g.label}</p>
-              <ul className="mt-1 space-y-0.5">
-                {g.items.map((item) => {
-                  const isActive = item.key === active;
-                  return (
-                    <li key={item.key}>
-                      <Link
-                        href={hrefFor(item)}
-                        aria-current={isActive ? "page" : undefined}
-                        className={cn(
-                          "flex min-h-11 items-center rounded-md px-3 text-sm transition-colors",
-                          isActive ? "bg-burgundy/10 font-medium text-burgundy" : "text-ink hover:bg-surface-subtle"
-                        )}
-                      >
-                        {item.label}
-                        {item.href ? <span aria-hidden="true" className="ms-1 text-muted">↗</span> : null}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </nav>
-    </>
+      )}
+    </nav>
   );
 }
 
