@@ -20,6 +20,7 @@ import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
 import { AccessDeniedNotice } from "./access-denied-notice";
+import { RelatedPages } from "./related-pages";
 import { HeaderContext, HeaderContextSkeleton } from "./header-context";
 import type { ProjectSelectorOption } from "./global-project-selector";
 import { setActiveProjectAction } from "@/lib/projects/active-project-actions";
@@ -152,6 +153,7 @@ export async function AppShell({
               <Suspense fallback={null}>
                 <AccessDeniedNotice />
               </Suspense>
+              <RelatedPages navItems={navItems} />
               {children}
             </div>
           </main>
