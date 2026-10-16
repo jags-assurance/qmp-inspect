@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import type { NavItem } from "./app-shell";
 import { useBreadcrumbTail } from "./breadcrumb-context";
 
+// Sidebar items only: palette-only (Ctrl+K) shortcuts can share a link with a real item and must not name the page.
 function flatten(items: NavItem[]): NavItem[] {
-  return items.flatMap((i) => [i, ...flatten(i.children ?? []), ...flatten(i.palette ?? [])]);
+  return items.flatMap((i) => [i, ...flatten(i.children ?? [])]);
 }
 
 /**

@@ -133,6 +133,13 @@ body {
   font-size: 1rem;
   line-height: 1.5;
 }
+/* Phones: the smallest text step (labels, meta, chips) is 13px instead of 12px so it stays readable at arm's length. */
+@media (max-width: 639px) {
+  :root {
+    --text-xs: 0.8125rem;
+    --text-xs--line-height: 1.125rem;
+  }
+}
 /* Phones: 16px inputs stop iOS Safari zooming the page on focus. */
 @media (max-width: 639px) {
   main select,
