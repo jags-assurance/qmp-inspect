@@ -51,7 +51,7 @@ const ENGAGEMENT_SCOPE_LABEL: Record<string, string> = {
 export async function ClientOrganisationsView({ embedded }: { embedded?: boolean }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const supabase = await createSupabaseServerClient();
 

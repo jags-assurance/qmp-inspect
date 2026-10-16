@@ -32,7 +32,7 @@ export function VoidIrnForm({ irnId }: { irnId: string }) {
     <Disclosure variant="inline" summary={<><Tx>Void this IRN…</Tx></>} className="mt-3 text-sm">
       <form action={formAction} className="mt-2 space-y-2">
         <input type="hidden" name="irn_id" value={irnId} />
-        <textarea
+        <textarea aria-label={tl("Reason for voiding (required, min 15 characters)")}
           name="reason"
           required
           minLength={15}

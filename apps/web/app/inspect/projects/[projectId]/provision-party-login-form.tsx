@@ -116,7 +116,7 @@ export function ProvisionPartyLoginForm({
           <label className="flex items-center gap-1 text-muted">
             <input type="checkbox" name="seat_override" /> <Tx>Override seat limit (Admin, audited)</Tx>
           </label>
-          <input
+          <input aria-label={tl("Reason (required if ticked)")}
             name="seat_override_reason"
             placeholder={tl("Reason (required if ticked)")}
             className="w-44 rounded-md border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"

@@ -118,7 +118,7 @@ export function PartyMembersPanel({
 
       <form action={addAction} className="mt-2 flex flex-wrap items-center gap-1.5">
         <input type="hidden" name="project_party_id" value={projectPartyId} />
-        <input
+        <input aria-label={tl("person@company.com")}
           name="email"
           type="email"
           required

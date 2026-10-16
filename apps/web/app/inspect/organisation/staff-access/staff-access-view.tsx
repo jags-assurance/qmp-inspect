@@ -35,7 +35,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
   const session = await requireSession();
   // Deciding who has access to which clients is an Admin/account-administration concern, same
   // boundary as project creation and numbering settings — not a day-to-day Inspector task.
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const supabase = await createSupabaseServerClient();
 

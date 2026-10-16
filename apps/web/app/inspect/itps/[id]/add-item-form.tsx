@@ -211,7 +211,7 @@ export function AddItemForm({
       {isIssued && (
         <div className="w-full sm:min-w-64 flex-1">
           <label className="block text-xs font-medium text-danger"><Tx>Reason for revision (required — this ITP is already issued)</Tx></label>
-          <input
+          <input aria-label={tl("Why this activity is being added after issue")}
             name="revision_reason"
             required
             placeholder={tl("Why this activity is being added after issue")}

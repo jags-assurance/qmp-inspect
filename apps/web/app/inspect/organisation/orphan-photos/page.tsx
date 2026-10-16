@@ -36,7 +36,7 @@ interface FlagRow {
 export default async function OrphanPhotosPage() {
   const tl = await getTranslator();
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const supabase = await createSupabaseServerClient();
   const { data, error } = await untypedFrom(supabase, "orphan_photo_flags")

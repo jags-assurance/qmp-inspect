@@ -188,7 +188,7 @@ export function DocumentsSection({
         filters={
           <form key={JSON.stringify(sp)} method="get" className="flex w-full flex-col gap-4 md:w-auto md:flex-row md:flex-wrap md:items-end md:gap-3">
             <FilterField label={<T>Search</T>}>
-              <input name="q" defaultValue={sp.q ?? ""} placeholder="Search title" className={FILTER_CONTROL_CLASS} />
+              <input aria-label="Search title" name="q" defaultValue={sp.q ?? ""} placeholder="Search title" className={FILTER_CONTROL_CLASS} />
             </FilterField>
             <FilterField label={<T>Project</T>}>
               <select name="project" defaultValue={sp.project === "all" ? "all" : (selectedProject ?? "")} className={FILTER_CONTROL_CLASS}>

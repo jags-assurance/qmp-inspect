@@ -19,7 +19,7 @@ export function ReopenInspectionForm({ inspectionRecordId }: { inspectionRecordI
         <p className="text-xs text-muted">
           <Tx>Clears the result and signatures so the inspection can be corrected, and voids any issued IRN. The original signed result is kept in the amendment history.</Tx>
         </p>
-        <textarea
+        <textarea aria-label={tl("Reason for re-opening (required, min 15 characters)")}
           name="reason"
           required
           minLength={15}

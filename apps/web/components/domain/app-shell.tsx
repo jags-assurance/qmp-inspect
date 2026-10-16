@@ -19,6 +19,7 @@ import { BreadcrumbProvider } from "./breadcrumb-context";
 import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
+import { AccessDeniedNotice } from "./access-denied-notice";
 import { HeaderContext, HeaderContextSkeleton } from "./header-context";
 import type { ProjectSelectorOption } from "./global-project-selector";
 import { setActiveProjectAction } from "@/lib/projects/active-project-actions";
@@ -147,7 +148,12 @@ export async function AppShell({
             tabIndex={-1}
             className="min-w-0 flex-1 bg-background px-3 py-4 pb-[calc(1rem+var(--notice-h,0px))] outline-none sm:px-6 sm:py-6 sm:pb-[calc(1.5rem+var(--notice-h,0px))] lg:px-8 lg:py-8 lg:pb-[calc(2rem+var(--notice-h,0px))]"
           >
-            <div className="mx-auto w-full max-w-[var(--content-max)]">{children}</div>
+            <div className="mx-auto w-full max-w-[var(--content-max)]">
+              <Suspense fallback={null}>
+                <AccessDeniedNotice />
+              </Suspense>
+              {children}
+            </div>
           </main>
           <NoticeStack />
           <footer className="no-print border-t border-border bg-surface px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8">

@@ -66,7 +66,9 @@ function NoticePeriodRow({
       <form action={setFormAction} className="flex items-center gap-2">
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="intervention" value={level.code} />
-        <input
+        <input aria-label={
+            level.default_notice_hours != null ? `Org default: ${level.default_notice_hours}h` : "No default set"
+          }
           name="hours"
           type="number"
           min={0}

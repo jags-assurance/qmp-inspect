@@ -86,7 +86,7 @@ function MeasurementRow({
           <form action={formAction} className="flex flex-wrap items-center gap-1.5 px-1">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
-            <input
+            <input aria-label={tl("What's being measured")}
               name="description"
               required
               defaultValue={measurement.description}
@@ -111,7 +111,7 @@ function MeasurementRow({
               placeholder={tl("Actual e.g. 11.8")}
               className="w-24 rounded border border-border bg-surface px-2 py-1"
             />
-            <input name="unit" defaultValue={measurement.unit ?? ""} placeholder={tl("mm")} className="w-14 rounded border border-border bg-surface px-2 py-1" />
+            <input aria-label={tl("mm")} name="unit" defaultValue={measurement.unit ?? ""} placeholder={tl("mm")} className="w-14 rounded border border-border bg-surface px-2 py-1" />
             <select name="result" defaultValue={measurement.result ?? ""} className="rounded border border-border bg-surface px-2 py-1">
               <option value=""><Tx>No result yet</Tx></option>
               <option value="pass"><Tx>Pass</Tx></option>
@@ -184,7 +184,7 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
   return (
     <form action={formAction} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
-      <input
+      <input aria-label={tl("What's being measured")}
         name="description"
         required
         placeholder={tl("What's being measured")}
@@ -194,7 +194,7 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
         <input name="nominal_value" placeholder={tl("Nominal e.g. 12.0")} className="flex-1 rounded border border-border bg-surface px-2 py-1" />
         <input name="tolerance" placeholder={tl("Tolerance e.g. ±0.5")} className="flex-1 rounded border border-border bg-surface px-2 py-1" />
         <input name="actual_value" placeholder={tl("Actual e.g. 11.8")} className="flex-1 rounded border border-border bg-surface px-2 py-1" />
-        <input name="unit" placeholder={tl("mm")} className="w-16 rounded border border-border bg-surface px-2 py-1" />
+        <input aria-label={tl("mm")} name="unit" placeholder={tl("mm")} className="w-16 rounded border border-border bg-surface px-2 py-1" />
       </div>
       <select name="result" defaultValue="" className="rounded border border-border bg-surface px-2 py-1">
         <option value=""><Tx>No result yet</Tx></option>

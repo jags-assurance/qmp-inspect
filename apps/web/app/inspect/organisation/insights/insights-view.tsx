@@ -115,7 +115,7 @@ export async function PortfolioInsightsView({ embedded }: { embedded?: boolean }
   const tl = await getTranslator();
   const Heading = embedded ? "h2" : "h1";
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const supabase = await createSupabaseServerClient();
 

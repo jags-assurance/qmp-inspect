@@ -142,7 +142,7 @@ export default async function DocumentTraceabilityPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  if (!session.isJagsStaff) redirect("/inspect"); // JAGS staff; row-level security limits what each person can see to their own projects
+  if (!session.isJagsStaff) redirect("/inspect?denied=1"); // JAGS staff; row-level security limits what each person can see to their own projects
 
   const { q, project: projectParam } = await searchParams;
   const query = q?.trim() ?? "";
@@ -192,7 +192,7 @@ export default async function DocumentTraceabilityPage({
       </p>
 
       <form className="mt-6 flex max-w-3xl flex-wrap gap-2 print:hidden">
-        <input
+        <input aria-label={tl("ITP / NCR / IRN number, heat / batch / PO / cert number, instrument ID, welder ID / WPQ")}
           type="text"
           name="q"
           defaultValue={query}

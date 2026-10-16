@@ -26,7 +26,7 @@ export function DiscardDraftForm({ inspectionRecordId }: { inspectionRecordId: s
         <p className="text-xs text-muted">
           <Tx>Deletes this unfinished draft with its answers and photos. A completed inspection cannot be discarded.</Tx>
         </p>
-        <textarea
+        <textarea aria-label={tl("Reason for discarding (required)")}
           name="reason"
           required
           minLength={5}

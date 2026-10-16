@@ -107,7 +107,7 @@ export default async function UsageAndCostPage({
 }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const { project: selectedProjectId } = await searchParams;
   const supabase = await createSupabaseServerClient();

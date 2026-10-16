@@ -118,7 +118,7 @@ export function StaffGrantForm({
 
       <div>
         <FormField required label="Role label">
-          <input
+          <input aria-label={tl("jags_inspector")}
           name="role"
           required
           placeholder={tl("jags_inspector")}
@@ -133,7 +133,7 @@ export function StaffGrantForm({
           <label className="flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" name="seat_override" /> <Tx>Override seat limit if this organisation is full (audited)</Tx>
           </label>
-          <input
+          <input aria-label={tl("Reason for the override (required if ticked)")}
             name="seat_override_reason"
             placeholder={tl("Reason for the override (required if ticked)")}
             className="mt-1 w-full max-w-md rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"

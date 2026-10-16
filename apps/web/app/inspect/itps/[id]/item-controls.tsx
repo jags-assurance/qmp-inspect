@@ -143,15 +143,15 @@ export function ItemControls({
         </label>
         <label className="block text-sm font-medium text-ink sm:col-span-2">
           <Tx>Reference spec / clause</Tx>
-          <input name="reference_spec" defaultValue={referenceSpec ?? ""} placeholder={tl("Reference spec / clause")} className={fld + " mt-1 font-normal"} />
+          <input aria-label={tl("Reference spec / clause")} name="reference_spec" defaultValue={referenceSpec ?? ""} placeholder={tl("Reference spec / clause")} className={fld + " mt-1 font-normal"} />
         </label>
         <label className="block text-sm font-medium text-ink">
           <Tx>Method</Tx>
-          <input name="method" defaultValue={method ?? ""} placeholder={tl("Method")} className={fld + " mt-1 font-normal"} />
+          <input aria-label={tl("Method")} name="method" defaultValue={method ?? ""} placeholder={tl("Method")} className={fld + " mt-1 font-normal"} />
         </label>
         <label className="block text-sm font-medium text-ink">
           <Tx>Frequency / sample</Tx>
-          <input name="frequency" defaultValue={frequency ?? ""} placeholder={tl("Frequency / sample")} className={fld + " mt-1 font-normal"} />
+          <input aria-label={tl("Frequency / sample")} name="frequency" defaultValue={frequency ?? ""} placeholder={tl("Frequency / sample")} className={fld + " mt-1 font-normal"} />
         </label>
         <label className="block text-sm font-medium text-ink">
           <Tx>Evidence</Tx>
@@ -174,7 +174,7 @@ export function ItemControls({
         </label>
         <label className="block text-sm font-medium text-ink">
           <Tx>Notice hrs</Tx>
-          <input name="notice_hours_override" type="number" min={0} defaultValue={noticeHoursOverride ?? ""} placeholder={tl("Notice hrs")} className={fld + " mt-1 font-normal"} />
+          <input aria-label={tl("Notice hrs")} name="notice_hours_override" type="number" min={0} defaultValue={noticeHoursOverride ?? ""} placeholder={tl("Notice hrs")} className={fld + " mt-1 font-normal"} />
         </label>
         <label className="block text-sm font-medium text-ink">
           <Tx>Planned date</Tx>

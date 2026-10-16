@@ -56,7 +56,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
         </label>
         <div>
           <FormField label="Notice hrs">
-            <input
+            <input aria-label={tl("none")}
             name="default_notice_hours"
             type="number"
             min={0}

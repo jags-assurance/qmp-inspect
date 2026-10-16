@@ -62,7 +62,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
         </div>
         <div className="sm:col-span-2">
           <FormField label="Their JAGS Assurance account email">
-            <input
+            <input aria-label={tl("name@company.com")}
             name="email"
             type="email"
             required

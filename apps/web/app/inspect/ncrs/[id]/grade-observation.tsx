@@ -24,7 +24,7 @@ export function GradeObservation({ ncrId }: { ncrId: string }) {
         <option value="minor_ncr"><Tx>Minor NCR (due in 14 days)</Tx></option>
         <option value="major_ncr"><Tx>Major NCR (due in 7 days)</Tx></option>
       </select>
-      <textarea
+      <textarea aria-label={tl("Reason for grading up (required)")}
         name="reason"
         required
         rows={2}

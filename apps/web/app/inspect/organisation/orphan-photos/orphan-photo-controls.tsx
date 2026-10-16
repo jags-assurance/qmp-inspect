@@ -21,7 +21,7 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
     <div className="mt-3 space-y-2">
       <form action={reviewAction} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="storage_path" value={storagePath} />
-        <input name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
+        <input aria-label={tl("Note (optional)")} name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
         <Button type="submit" name="decision" value="kept" disabled={pending} variant="outline" size="sm">
           <Tx>Keep</Tx>
         </Button>
@@ -41,7 +41,7 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <input name="confirm" value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" aria-label={tl("Type REMOVE FILE to confirm")} className={`w-40 ${INPUT}`} />
-            <input name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
+            <input aria-label={tl("Note (optional)")} name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
             <Button
               type="submit"
               disabled={removing || !isRemoveConfirmed(typed)}

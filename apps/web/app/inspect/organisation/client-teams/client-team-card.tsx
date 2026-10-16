@@ -182,7 +182,7 @@ function AddMemberForm({ clientTeamId, users }: { clientTeamId: string; users: U
   return (
     <form action={emailAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
       <input type="hidden" name="client_team_id" value={clientTeamId} />
-      <input
+      <input aria-label={tl("person@company.com")}
         name="email"
         type="email"
         required

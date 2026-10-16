@@ -20,7 +20,7 @@ export function RequestCorrectionForm({ inspectionRecordId }: { inspectionRecord
         <p className="text-xs text-muted">
           <Tx>Ask a JAGS admin or team lead to re-open this inspection so it can be corrected. They are notified and will approve or decline.</Tx>
         </p>
-        <textarea
+        <textarea aria-label={tl("What needs correcting and why (min 10 characters)")}
           name="reason"
           required
           minLength={10}
@@ -54,7 +54,7 @@ function ResolveForm({ requestId }: { requestId: string }) {
     <form action={formAction} className="mt-2 space-y-2">
       <input type="hidden" name="request_id" value={requestId} />
       {declining && (
-        <textarea
+        <textarea aria-label={tl("Why is this declined? (required)")}
           name="note"
           required
           minLength={5}

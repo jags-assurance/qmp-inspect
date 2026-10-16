@@ -127,7 +127,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
 
       <div className="w-44">
         <FormField label="CoC / MTC ref.">
-          <input
+          <input aria-label={tl("Certificate of conformance / material test cert")}
           name="certificate_reference"
           placeholder={tl("Certificate of conformance / material test cert")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"

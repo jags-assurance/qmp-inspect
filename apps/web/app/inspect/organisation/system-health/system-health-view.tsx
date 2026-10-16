@@ -13,7 +13,7 @@ import { computeConfigHealth, workerHeartbeat } from "@/lib/system-health/config
  */
 export async function SystemHealthView({ embedded = false }: { embedded?: boolean }) {
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const features = computeConfigHealth(process.env);
 

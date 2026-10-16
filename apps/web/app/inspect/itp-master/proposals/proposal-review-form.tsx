@@ -28,7 +28,7 @@ export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
       {dialog}
       <input type="hidden" name="proposal_id" value={proposalId} />
 
-      <textarea
+      <textarea aria-label={tl("Review notes (required if rejecting)…")}
         name="review_notes"
         rows={2}
         placeholder={tl("Review notes (required if rejecting)…")}

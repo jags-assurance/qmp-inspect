@@ -26,7 +26,7 @@ export function NotesForm({
   return (
     <form action={formAction} className="space-y-2">
       <input type="hidden" name="assignment_id" value={assignmentId} />
-      <textarea
+      <textarea aria-label={tl("General notes about this assignment…")}
         name="notes"
         rows={6}
         defaultValue={notes ?? ""}

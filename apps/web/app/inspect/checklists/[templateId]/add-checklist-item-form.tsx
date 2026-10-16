@@ -76,7 +76,7 @@ export function AddChecklistItemForm({ templateId, disabledReason }: { templateI
           </div>
           <div>
             <FormField label="Unit">
-              <input name="numeric_unit" maxLength={20} placeholder={tl("mm")} className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
+              <input aria-label={tl("mm")} name="numeric_unit" maxLength={20} placeholder={tl("mm")} className="mt-1 w-20 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy" />
             </FormField>
           </div>
           <p className="pb-2 text-xs text-muted"><Tx>Give a minimum, a maximum, or both. A reading outside the limits fails the item.</Tx></p>

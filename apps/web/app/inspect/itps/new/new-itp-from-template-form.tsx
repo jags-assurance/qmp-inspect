@@ -68,7 +68,7 @@ export function NewItpFromTemplateForm({
 
       <div>
         <FormField label="ITP number (optional)">
-          <input
+          <input aria-label={tl("Leave blank to auto-number")}
           name="itp_number"
           placeholder={tl("Leave blank to auto-number")}
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm doc-id"

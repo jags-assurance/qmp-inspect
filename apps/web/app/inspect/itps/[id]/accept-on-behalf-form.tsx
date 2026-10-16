@@ -20,7 +20,7 @@ export function AcceptOnBehalfForm({ itpId }: { itpId: string }) {
         <form action={formAction} className="mt-3 flex flex-col gap-2">
           <input type="hidden" name="itp_id" value={itpId} />
           <input type="text" name="reference" required minLength={5} placeholder="Reference, e.g. client email 12 Oct 2026 or signed form SF-123" className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
-          <textarea name="reason" required minLength={10} rows={2} placeholder="Reason (why the client could not accept in the app)" className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+          <textarea aria-label="Reason (why the client could not accept in the app)" name="reason" required minLength={10} rows={2} placeholder="Reason (why the client could not accept in the app)" className="rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
           <Button type="submit" disabled={pending} variant="outline" className="self-start">
             {pending ? "Saving…" : "Accept on the client's behalf"}
           </Button>

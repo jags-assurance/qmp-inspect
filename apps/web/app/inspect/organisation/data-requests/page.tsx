@@ -30,7 +30,7 @@ interface UserRow {
 export default async function DataRequestsPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  if (!isAdminStaff(session)) redirect("/inspect");
+  if (!isAdminStaff(session)) redirect("/inspect?denied=1");
 
   const q = ((await searchParams).q ?? "").trim().slice(0, 254);
   let matches: UserRow[] = [];

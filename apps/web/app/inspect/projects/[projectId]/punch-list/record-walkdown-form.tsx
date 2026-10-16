@@ -113,7 +113,7 @@ export function RecordWalkdownForm({
         </label>
         <label className="text-xs font-medium text-ink">
           <Tx>Attendees</Tx>
-          <input name="walkdown_attendees" maxLength={500} placeholder={tl("Names / organisations")} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+          <input aria-label={tl("Names / organisations")} name="walkdown_attendees" maxLength={500} placeholder={tl("Names / organisations")} className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
         </label>
         <label className="text-xs font-medium text-ink">
           <Tx>Notes</Tx>

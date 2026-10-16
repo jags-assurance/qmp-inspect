@@ -48,7 +48,7 @@ export function CloudFolderSyncForm({
 
           <div className="sm:col-span-2">
             <FormField label="Folder URL or ID">
-              <input
+              <input aria-label={tl("https://yourtenant.sharepoint.com/sites/.../Shared Documents/Project Files")}
               name="folder_reference"
               defaultValue={folderReference ?? ""}
               placeholder={tl("https://yourtenant.sharepoint.com/sites/.../Shared Documents/Project Files")}
