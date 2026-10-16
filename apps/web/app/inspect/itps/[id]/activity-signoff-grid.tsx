@@ -64,7 +64,7 @@ function cellToneClass(intervention: InterventionLevel | null, isBlocking: boole
 
 // Column geometry shared by the header row and every activity row (>= md). The activity column flexes,
 // each party column has a floor so its status chip, primary action and "..." menu always fit.
-const ACTIVITY_COL_PX = 260;
+const ACTIVITY_COL_PX = 320;
 const PARTY_COL_PX = 156;
 
 /**
@@ -138,7 +138,7 @@ export function ActivitySignoffGrid({
         labelledBy={labelId}
         fade={parties.length >= 3}
         hint={
-          <p className="hidden items-center gap-1.5 px-4 pb-2 text-xs text-muted md:flex">
+          <p className="hidden items-center gap-1.5 px-4 pb-2 text-xs text-muted xl:flex">
             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 rtl:-scale-x-100">
               <path d="M4 10h12M12 6l4 4-4 4" />
             </svg>
@@ -146,8 +146,8 @@ export function ActivitySignoffGrid({
           </p>
         }
       >
-        <div role="table" aria-labelledby={labelId} aria-colcount={parties.length + 1} aria-rowcount={rows.length + 1} style={gridVars} className="text-sm md:min-w-[var(--grid-min)]">
-          <div role="row" aria-rowindex={1} className="hidden border-y border-border bg-surface-subtle text-xs text-muted md:sticky md:top-[calc(var(--header-h)+env(safe-area-inset-top)+var(--jump-h))] md:z-[2] md:grid md:[grid-template-columns:var(--grid-cols)] group-data-[overflowing=true]/scroll:md:top-0">
+        <div role="table" aria-labelledby={labelId} aria-colcount={parties.length + 1} aria-rowcount={rows.length + 1} style={gridVars} className="text-sm xl:min-w-[var(--grid-min)]">
+          <div role="row" aria-rowindex={1} className="hidden border-y border-border bg-surface-subtle text-xs text-muted xl:sticky xl:top-[calc(var(--header-h)+env(safe-area-inset-top)+var(--jump-h))] xl:z-[2] xl:grid xl:[grid-template-columns:var(--grid-cols)] group-data-[overflowing=true]/scroll:xl:top-0">
             <div role="columnheader" className="sticky start-0 z-[1] bg-surface-subtle px-4 py-2 font-medium group-data-[scrolled=true]/scroll:shadow-[4px_0_6px_-4px_rgba(0,0,0,0.25)]"><T>Activity</T></div>
             {parties.map((party) => (
               <div key={party.id} role="columnheader" className="border-s border-border/60 px-3 py-2 font-medium">
@@ -157,15 +157,15 @@ export function ActivitySignoffGrid({
               </div>
             ))}
           </div>
-          <div role="rowgroup" className="max-md:space-y-3 max-md:px-3 max-md:pb-3">
+          <div role="rowgroup" className="max-xl:space-y-3 max-xl:px-3 max-xl:pb-3">
             {rows.map((row, rowIdx) => (
               <div
                 key={row.itemId}
                 role="row"
                 aria-rowindex={rowIdx + 2}
-                className="max-md:overflow-hidden max-md:rounded-lg max-md:border max-md:border-border max-md:bg-surface md:grid md:[grid-template-columns:var(--grid-cols)] md:border-b md:border-border md:last:border-0 [break-inside:avoid]"
+                className="max-xl:overflow-hidden max-xl:rounded-lg max-xl:border max-xl:border-border max-xl:bg-surface xl:grid xl:[grid-template-columns:var(--grid-cols)] xl:border-b xl:border-border xl:last:border-0 [break-inside:avoid]"
               >
-                <div role="rowheader" className="min-w-0 bg-surface px-4 py-3 md:sticky md:start-0 md:z-[1] group-data-[scrolled=true]/scroll:md:shadow-[4px_0_6px_-4px_rgba(0,0,0,0.25)]">
+                <div role="rowheader" className="min-w-0 bg-surface px-4 py-3 xl:sticky xl:start-0 xl:z-[1] group-data-[scrolled=true]/scroll:xl:shadow-[4px_0_6px_-4px_rgba(0,0,0,0.25)]">
                   {canEditContent ? (
                     <ItemControls
                       itpId={itpId}
@@ -202,19 +202,20 @@ export function ActivitySignoffGrid({
                     )}
                   </div>
                 </div>
+                <div role="presentation" className="max-xl:grid max-xl:grid-cols-1 max-xl:gap-2 max-xl:border-t max-xl:border-border max-xl:p-3 sm:max-xl:grid-cols-2 lg:max-xl:grid-cols-3 xl:contents">
                 {row.partyCells.map(({ party, intervention, signoff, canSignOff }) => (
                   <div
                     key={party.id}
                     role="cell"
                     className={cn(
-                      "min-w-0 space-y-2 px-4 py-3 md:border-s md:border-border/60 md:px-3",
-                      "max-md:border-t max-md:border-border",
+                      "min-w-0 space-y-2 px-4 py-3 xl:border-s xl:border-border/60 xl:px-3",
+                      "max-xl:rounded-md max-xl:border max-xl:border-border",
                       cellToneClass(intervention, !!intervention && blockingCodes.has(intervention)),
-                      !intervention && !canEditContent && "max-md:hidden"
+                      !intervention && !canEditContent && "max-xl:hidden"
                     )}
                   >
-                    <div className="flex items-center justify-between gap-2 md:justify-start">
-                      <span className="min-w-0 truncate text-sm font-medium text-ink md:hidden" title={party.name}>
+                    <div className="flex items-center justify-between gap-2 xl:justify-start">
+                      <span className="min-w-0 truncate text-sm font-medium text-ink xl:hidden" title={party.name}>
                         <span className="sr-only"><T>Party:</T> </span>
                         {party.name}
                       </span>
@@ -252,6 +253,7 @@ export function ActivitySignoffGrid({
                     )}
                   </div>
                 ))}
+                </div>
               </div>
             ))}
           </div>

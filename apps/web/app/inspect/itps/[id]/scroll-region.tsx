@@ -44,12 +44,12 @@ export function ScrollRegion({ children, labelledBy, fade = true, hint }: { chil
         role="region"
         aria-labelledby={labelledBy}
         tabIndex={overflowing ? 0 : undefined}
-        className={overflowing ? "md:max-h-[calc(100dvh-var(--header-h)-var(--jump-h)-1rem)] md:overflow-auto md:overscroll-x-contain" : undefined}
+        className={overflowing ? "xl:max-h-[calc(100dvh-var(--header-h)-var(--jump-h)-1rem)] xl:overflow-auto xl:overscroll-x-contain" : undefined}
       >
         {children}
       </div>
       {fade && more && (
-        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 end-0 hidden w-8 bg-gradient-to-l from-surface to-transparent md:block" />
+        <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 end-0 hidden w-8 bg-gradient-to-l from-surface to-transparent xl:block" />
       )}
     </div>
   );

@@ -9,6 +9,8 @@ import { assignmentNotification } from "./inspection-notify-logic";
 
 export interface AssignActivityState {
   error: string | null;
+  /** True after a successful save, so the form can say so. */
+  saved?: boolean;
 }
 
 /**
@@ -73,5 +75,5 @@ export async function assignActivityAction(_prev: AssignActivityState, formData:
 
   if (templateId) revalidatePath(`/inspect/checklists/${templateId}`);
   revalidatePath("/inspect/start-work");
-  return { error: null };
+  return { error: null, saved: true };
 }

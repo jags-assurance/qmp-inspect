@@ -1133,60 +1133,71 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                   {/* R54-R56: expected -> received third-party test record tracking per activity —
                       kept as its own per-activity block below the grid, since it isn't part of the
                       per-party intervention/sign-off grid itself. */}
-                  <div>
-                    {sortedItems.length > 0 && (
-                      <p className="border-t border-border bg-off-white/40 px-4 pt-3 text-xs font-semibold uppercase tracking-wide text-muted">
-                        <T>Records and evidence per activity</T>
-                      </p>
-                    )}
-                    {sortedItems.map((item) => (
-                      <div key={item.id} className="border-b border-border px-4 py-2.5 last:border-0 bg-off-white/40">
-                        <p className="mb-1.5 text-xs text-muted">
-                          <span className="doc-id me-1">{item.item_number}</span>
-                          {item.activity}
+                  {/* Records and evidence (expected records, measurements, evidence documents) are only needed once
+                      work is being done, so they stay folded away: the page is the activities and who signs. */}
+                  {sortedItems.length > 0 && (
+                    <div className="border-t border-border px-4 py-3">
+                      <Disclosure
+                        variant="inline"
+                        summary={<T>Records and evidence</T>}
+                        summaryClassName="font-medium"
+                      >
+                        <p className="mb-2 text-xs text-muted">
+                          <T>Expected test records, measurements and evidence documents for each activity. Open this when the work is done.</T>
+                          {' '}({sortedItems.reduce((n, it) => n + (expectedRecordsByItem.get(it.id) ?? []).length + (measurementsByItem.get(it.id) ?? []).length + (evidenceDocumentsByItem.get(it.id) ?? []).length, 0)})
                         </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          <ActivityEvidenceToggle
-                            label={`Expected records${(expectedRecordsByItem.get(item.id) ?? []).length > 0 ? ` (${(expectedRecordsByItem.get(item.id) ?? []).length})` : ""}`}
-                          >
-                            <ExpectedRecordsSection
-                              itpItemId={item.id}
-                              records={expectedRecordsByItem.get(item.id) ?? []}
-                              canAdd={session.isJagsStaff}
-                              canMarkReceivedByProvider={canMarkReceivedByProvider}
-                              projectId={itp.projects?.id ?? ""}
-                              vaultDocuments={vaultDocuments}
-                            />
-                          </ActivityEvidenceToggle>
-                          {item.evidence_type === 3 && (
-                            <ActivityEvidenceToggle
-                              label={`Measurements${(measurementsByItem.get(item.id) ?? []).length > 0 ? ` (${(measurementsByItem.get(item.id) ?? []).length})` : ""}`}
-                            >
-                              <ItpItemMeasurementsSection
-                                itpItemId={item.id}
-                                measurements={measurementsByItem.get(item.id) ?? []}
-                                canRecord={canExecuteItemEvidence(item.id)}
-                              />
-                            </ActivityEvidenceToggle>
-                          )}
-                          {item.evidence_type === 2 && (
-                            <ActivityEvidenceToggle
-                              label={`Evidence documents${(evidenceDocumentsByItem.get(item.id) ?? []).length > 0 ? ` (${(evidenceDocumentsByItem.get(item.id) ?? []).length})` : ""}`}
-                            >
-                              <ItpItemEvidenceDocumentsSection
-                                itpItemId={item.id}
-                                documents={evidenceDocumentsByItem.get(item.id) ?? []}
-                                vaultDocuments={vaultDocuments}
-                                projectId={itp.projects?.id ?? ""}
-                                vaultFolders={vaultFolders}
-                                canLink={canExecuteItemEvidence(item.id)}
-                              />
-                            </ActivityEvidenceToggle>
-                          )}
+                        <div>
+                    {sortedItems.map((item) => (
+                            <div key={item.id} className="border-b border-border px-4 py-2.5 last:border-0 bg-off-white/40">
+                              <p className="mb-1.5 text-xs text-muted">
+                                <span className="doc-id me-1">{item.item_number}</span>
+                                {item.activity}
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                <ActivityEvidenceToggle
+                                  label={`Expected records${(expectedRecordsByItem.get(item.id) ?? []).length > 0 ? ` (${(expectedRecordsByItem.get(item.id) ?? []).length})` : ""}`}
+                                >
+                                  <ExpectedRecordsSection
+                                    itpItemId={item.id}
+                                    records={expectedRecordsByItem.get(item.id) ?? []}
+                                    canAdd={session.isJagsStaff}
+                                    canMarkReceivedByProvider={canMarkReceivedByProvider}
+                                    projectId={itp.projects?.id ?? ""}
+                                    vaultDocuments={vaultDocuments}
+                                  />
+                                </ActivityEvidenceToggle>
+                                {item.evidence_type === 3 && (
+                                  <ActivityEvidenceToggle
+                                    label={`Measurements${(measurementsByItem.get(item.id) ?? []).length > 0 ? ` (${(measurementsByItem.get(item.id) ?? []).length})` : ""}`}
+                                  >
+                                    <ItpItemMeasurementsSection
+                                      itpItemId={item.id}
+                                      measurements={measurementsByItem.get(item.id) ?? []}
+                                      canRecord={canExecuteItemEvidence(item.id)}
+                                    />
+                                  </ActivityEvidenceToggle>
+                                )}
+                                {item.evidence_type === 2 && (
+                                  <ActivityEvidenceToggle
+                                    label={`Evidence documents${(evidenceDocumentsByItem.get(item.id) ?? []).length > 0 ? ` (${(evidenceDocumentsByItem.get(item.id) ?? []).length})` : ""}`}
+                                  >
+                                    <ItpItemEvidenceDocumentsSection
+                                      itpItemId={item.id}
+                                      documents={evidenceDocumentsByItem.get(item.id) ?? []}
+                                      vaultDocuments={vaultDocuments}
+                                      projectId={itp.projects?.id ?? ""}
+                                      vaultFolders={vaultFolders}
+                                      canLink={canExecuteItemEvidence(item.id)}
+                                    />
+                                  </ActivityEvidenceToggle>
+                                )}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      </Disclosure>
+                    </div>
+                  )}
                 </>
               );
             })()}

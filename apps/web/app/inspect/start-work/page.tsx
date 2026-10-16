@@ -25,7 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar, FilterField } from "@/components/ui/toolbar";
 import { FILTER_CONTROL_CLASS } from "@/components/ui/filter-styles";
-import { Disclosure } from "@/components/ui/disclosure";
 
 type StatusKey = "not_started" | "in_progress" | "completed";
 const STATUS_LABEL: Record<StatusKey, string> = {
@@ -183,12 +182,21 @@ export default async function StartWorkPage({
 
   const activeFilterCount = [projectFilter, statusFilter, dueFilter, archiveFilter === "archived" ? "archived" : "", assignedFilter].filter(Boolean).length;
   const selectCls = FILTER_CONTROL_CLASS;
+  const chipCls = "inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-control-border px-4 font-medium";
+  const baseParams: Record<string, string> = { q: sp.q ?? "", project: projectFilter, status: statusFilter, due: dueFilter, archived: archiveFilter === "archived" ? "archived" : "", assigned: assignedFilter };
+  // Every chip keeps the other active filters (a chip never silently drops the search or project).
+  const hrefFor = (o: Record<string, string>) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...baseParams, ...o })) if (v) params.set(k, v);
+    const q = params.toString();
+    return `/inspect/start-work${q ? `?${q}` : ""}`;
+  };
 
   return (
     <div className="max-w-5xl 2xl:max-w-7xl">
       <PageHeader
         title={<T>Start work</T>}
-        subtitle={<T>Pick up work that is ready, or start something new below.</T>}
+        subtitle={<T>Pick up work that is ready, or start something new.</T>}
         guide={
           <PageGuide
             title={tl("Start work — how this works")}
@@ -202,6 +210,23 @@ export default async function StartWorkPage({
         }
       />
 
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label={tl("Start something new")}>
+        <Link href="/inspect/itps/new" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-burgundy bg-burgundy/5 px-4 py-2.5 hover:bg-burgundy/10">
+          <span>
+            <span className="block text-sm font-semibold text-ink"><T>+ New ITP project</T></span>
+            <span className="block text-xs text-muted"><T>Full workflow: ITP, checklists, sign-off</T></span>
+          </span>
+          <span aria-hidden="true" className="text-burgundy">→</span>
+        </Link>
+        <Link href="/inspect/standalone/new" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-gold bg-gold/10 px-4 py-2.5 hover:bg-gold/20">
+          <span>
+            <span className="block text-sm font-semibold text-ink"><T>+ Standalone assignment</T></span>
+            <span className="block text-xs text-muted"><T>One-off FAT, vendor visit or verification</T></span>
+          </span>
+          <span aria-hidden="true" className="text-burgundy">→</span>
+        </Link>
+      </div>
+
       <AssignedToMe items={assignedQueue} />
 
       <section className="mt-8 space-y-3" aria-labelledby="activities-heading">
@@ -212,14 +237,28 @@ export default async function StartWorkPage({
           </p>
         </div>
 
-        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 text-sm sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+        <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1 text-sm sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0" role="group" aria-label={tl("Quick filters")}>
+          {([
+            ["", "All", { status: "" }],
+            ["in_progress", "In progress", { status: "in_progress" }],
+            ["not_started", "Not started", { status: "not_started" }],
+            ["completed", "Completed", { status: "completed" }],
+          ] as const).map(([k, label, o]) => (
+            <Link key={`s-${k}`} href={hrefFor(o)} aria-current={statusFilter === k ? "true" : undefined}
+              className={cn(chipCls, statusFilter === k ? "border-burgundy bg-burgundy text-white" : "bg-surface text-ink")}>
+              {statusFilter === k && <span aria-hidden="true">✓</span>}
+              {label}
+            </Link>
+          ))}
+          <span aria-hidden="true" className="mx-1 hidden w-px self-stretch bg-border sm:block" />
+          <Link href={hrefFor({ assigned: assignedFilter === "me" ? "" : "me" })} aria-current={assignedFilter === "me" ? "true" : undefined}
+            className={cn(chipCls, assignedFilter === "me" ? "border-burgundy bg-burgundy text-white" : "bg-surface text-ink")}>
+            {assignedFilter === "me" && <span aria-hidden="true">✓</span>}
+            <T>Assigned to me</T> ({assignedMine.length})
+          </Link>
           {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger", "!"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]", "★"], ["held", "Awaiting hold release", heldCount, "bg-surface-sunken text-ink", "•"]] as const).map(([k, label, n, cls, glyph]) => (
-            <Link
-              key={k}
-              href={`/inspect/start-work?due=${dueFilter === k ? "" : k}`}
-              aria-current={dueFilter === k ? "true" : undefined}
-              className={cn("inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-control-border px-4 font-medium", cls, dueFilter === k && "ring-2 ring-burgundy")}
-            >
+            <Link key={k} href={hrefFor({ due: dueFilter === k ? "" : k })} aria-current={dueFilter === k ? "true" : undefined}
+              className={cn(chipCls, cls, dueFilter === k && "ring-2 ring-burgundy")}>
               <span aria-hidden="true">{dueFilter === k ? "✓" : glyph}</span>
               {label}: {n}
             </Link>
@@ -227,6 +266,10 @@ export default async function StartWorkPage({
         </div>
 
         <form method="get" action="/inspect/start-work">
+          {/* Chips own status / assignment / schedule; keep them when the form is applied. */}
+          {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+          {assignedFilter && <input type="hidden" name="assigned" value={assignedFilter} />}
+          {dueFilter && <input type="hidden" name="due" value={dueFilter} />}
           <FilterBar
             activeCount={activeFilterCount}
             clearHref={activeFilterCount > 0 || sp.q ? "/inspect/start-work" : undefined}
@@ -241,35 +284,13 @@ export default async function StartWorkPage({
                     ))}
                   </select>
                 </FilterField>
-                <FilterField label={<T>Status</T>}>
-                  <select name="status" defaultValue={statusFilter} className={selectCls}>
-                    <option value=""><T>Any status</T></option>
-                    {(Object.keys(STATUS_LABEL) as StatusKey[]).map((k) => (
-                      <option key={k} value={k}>{STATUS_LABEL[k]}</option>
-                    ))}
-                  </select>
-                </FilterField>
-                <FilterField label={<T>Schedule</T>}>
-                  <select name="due" defaultValue={dueFilter} className={selectCls}>
-                    <option value=""><T>Any schedule</T></option>
-                    <option value="overdue"><T>Overdue (</T>{overdueCount})</option>
-                    <option value="soon"><T>Due soon - 7 days (</T>{dueSoonCount})</option>
-                    <option value="held"><T>Awaiting hold release (</T>{heldCount})</option>
-                  </select>
-                </FilterField>
                 <FilterField label={<T>Archived</T>}>
                   <select name="archived" defaultValue={archiveFilter === "archived" ? "archived" : ""} className={selectCls}>
                     <option value=""><T>Active checklists</T></option>
                     <option value="archived"><T>Archived (</T>{archivedIds.size})</option>
                   </select>
                 </FilterField>
-                <FilterField label={<T>Assignment</T>}>
-                  <select name="assigned" defaultValue={assignedFilter} className={selectCls}>
-                    <option value=""><T>Everyone&apos;s activities</T></option>
-                    <option value="me"><T>Assigned to me (</T>{assignedMine.length})</option>
-                  </select>
-                </FilterField>
-                <Button type="submit" className="w-full md:w-auto"><T>Apply filters</T></Button>
+                <Button type="submit" className="w-full md:w-auto"><T>Apply</T></Button>
               </div>
             }
           />
@@ -306,6 +327,7 @@ export default async function StartWorkPage({
                       {a.dueSoon && <Badge tone="gold"><T>Due soon</T></Badge>}
                       {a.awaitingHold && a.status !== "completed" && <Badge tone="warning"><T>Awaiting hold release</T></Badge>}
                       {a.assignedToUserId === session.userId && <Badge tone="info"><T>Assigned to you</T></Badge>}
+                      {a.assignedToUserId && a.assignedToUserId !== session.userId && <Badge tone="neutral"><T>Assigned to a team member</T></Badge>}
                       {a.plannedDate && <span className="text-xs text-muted"><T>Due</T> {a.plannedDate}</span>}
                     </div>
                     <Link
@@ -322,115 +344,6 @@ export default async function StartWorkPage({
           </>
         )}
       </section>
-
-      <section className="mt-10 space-y-3" aria-labelledby="start-new-heading">
-        <div>
-          <h2 id="start-new-heading" className="text-lg font-semibold text-ink"><T>Start something new</T></h2>
-          <p className="mt-1 text-sm text-muted"><T>Set up a new project or a one-off inspection. Nothing is created until you submit the form.</T></p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
-          <WorkModeCard
-            badge="Full workflow"
-            title={tl("ITP-driven project")}
-            description="Plan and control a project through approved Inspection & Test Plans, linked checklists, intervention points and multi-party sign-off."
-            bullets={[
-              "Structured ITP workflow",
-              "Client approval and intervention points",
-              "Linked inspections, NCRs and data book",
-            ]}
-            bestFor="Best for projects and work packages"
-            href="/inspect/itps/new"
-            cta="Start ITP-driven project"
-            emphasized
-          />
-          <WorkModeCard
-            badge="Quick setup"
-            title={tl("Standalone assignment")}
-            description="Create a focused inspection without building a full project ITP. Ideal for FATs, vendor visits and one-off verification."
-            bullets={[
-              "Fast assignment setup",
-              "Custom checklist and evidence",
-              "Independent report and sign-off",
-            ]}
-            bestFor="Best for one-off or vendor inspections"
-            href="/inspect/standalone/new"
-            cta="Start standalone assignment"
-          />
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function WorkModeCard({
-  badge,
-  title,
-  description,
-  bullets,
-  bestFor,
-  href,
-  cta,
-  emphasized = false,
-}: {
-  badge: string;
-  title: string;
-  description: string;
-  bullets: string[];
-  bestFor: string;
-  href: string;
-  cta: string;
-  emphasized?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col rounded-lg border bg-surface shadow-xs",
-        emphasized ? "border-burgundy" : "border-border"
-      )}
-    >
-      <div
-        className={cn(
-          "rounded-t-lg px-5 pb-4 pt-5",
-          emphasized ? "bg-burgundy/5" : "bg-gold/10"
-        )}
-      >
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-            emphasized ? "bg-burgundy text-white" : "bg-gold/30 text-[color:var(--color-burgundy-dark)]"
-          )}
-        >
-          {badge}
-        </span>
-        <h2 className="mt-3 text-xl font-semibold text-ink">{title}</h2>
-        <p className="mt-2 text-sm text-muted">{description}</p>
-      </div>
-
-      <Disclosure variant="pill" className="flex-1 px-5 py-3" bodyClassName="" summary={<T>Details</T>}>
-      <ul className="flex-1 space-y-2 px-5 py-4 text-sm text-ink">
-        {bullets.map((b) => (
-          <li key={b} className="flex items-start gap-2">
-            <span className={cn("mt-0.5", emphasized ? "text-burgundy" : "text-gold")}>✓</span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-
-      <p className="border-t border-border px-5 py-3 text-xs text-muted">
-        <span className={emphasized ? "text-burgundy" : "text-[color:var(--color-burgundy-dark)]"}>★</span>{" "}
-        {bestFor}
-      </p>
-
-      </Disclosure>
-
-      <div className="px-5 pb-5">
-        <Link
-          href={href}
-          className={buttonVariants({ variant: emphasized ? "primary" : "outline", size: "lg", className: "w-full" })}
-        >
-          {cta}
-        </Link>
-      </div>
     </div>
   );
 }
