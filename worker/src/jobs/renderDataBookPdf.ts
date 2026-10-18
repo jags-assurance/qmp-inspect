@@ -24,6 +24,7 @@ import { decideIssuedRender, describeReprintCheck, mayRecordCertifiedHash } from
 import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, fetchCountedRegisterRows, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
 import { setHtmlContentAndSettle } from "./renderHtml";
+import { attemptLetterFor, selectFinalAndEarlierAttempts } from "./vaultFiling";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 
@@ -413,6 +414,7 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
   standalone: NonNullable<DataBookPdfData["standalone"]>;
   ncrs: DataBookPdfData["ncrs"];
   punchItems: DataBookPdfData["punchItems"];
+  earlierAttempts: NonNullable<DataBookPdfData["earlierAttempts"]>;
   nameById: Map<string, string>;
   parties: { name: string; partyType: string }[];
 }> {
@@ -686,9 +688,24 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
   const nameById = new Map(users.map((u) => [u.id, u.full_name]));
   const name = (id: string | null) => (id ? (nameById.get(id) ?? null) : null);
 
-  // Newest inspection record per activity is the one the book presents (a re-inspection supersedes).
-  const latestRecord = new Map<string, RecordRow>();
-  for (const r of records) if (!latestRecord.has(r.itp_item_id)) latestRecord.set(r.itp_item_id, r);
+  // The record the book presents per activity is the FINAL PASSING attempt (the newest attempt while none
+  // has passed); every other failed attempt is listed in the appendix (vaultFiling.selectFinalAndEarlierAttempts).
+  const recordsByItem = new Map<string, RecordWithMeta[]>();
+  for (const r of records) {
+    const list = recordsByItem.get(r.itp_item_id);
+    if (list) list.push(r);
+    else recordsByItem.set(r.itp_item_id, [r]);
+  }
+  const latestRecord = new Map<string, RecordWithMeta>();
+  const earlierByItem = new Map<string, RecordWithMeta[]>();
+  for (const [itemId, list] of recordsByItem) {
+    const { final, earlier } = selectFinalAndEarlierAttempts(list as (RecordWithMeta & { overall_result: "pass" | "fail" | "partial" | null })[]);
+    if (final) latestRecord.set(itemId, final);
+    if (earlier.length > 0) earlierByItem.set(itemId, earlier);
+  }
+  const attemptOf = (rec: RecordWithMeta) =>
+    attemptLetterFor((recordsByItem.get(rec.itp_item_id) ?? []) as (RecordWithMeta & { overall_result: "pass" | "fail" | "partial" | null })[], rec.id);
+  const earlierAttempts: NonNullable<DataBookPdfData["earlierAttempts"]> = [];
 
   const sectionOrder = new Map(sections.map((s) => [s.id, s.sort_order]));
   const sectionItp = new Map(sections.map((s) => [s.id, s.itp_id]));
@@ -709,6 +726,22 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
           a.sort_order - b.sort_order ||
           a.item_number.localeCompare(b.item_number, undefined, { numeric: true })
       );
+    for (const item of itpItems) {
+      const rec = latestRecord.get(item.id);
+      for (const e of earlierByItem.get(item.id) ?? []) {
+        earlierAttempts.push({
+          itpNumber: itp.itp_number,
+          itemNumber: item.item_number,
+          activity: item.activity,
+          attempt: attemptOf(e),
+          recordNumber: e.record_number,
+          inspectionDate: e.inspection_date,
+          inspector: name(e.inspector_id),
+          result: e.overall_result ?? "no result",
+          supersededByRecordNumber: rec && (rec.overall_result === "pass" || rec.overall_result === "partial") ? rec.record_number : null,
+        });
+      }
+    }
     const activities: DataBookPdfActivity[] = itpItems.map((item) => {
       const rec = latestRecord.get(item.id);
       const irn = rec
@@ -735,6 +768,8 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
         inspector: name(rec?.inspector_id ?? null),
         irnNumber: irn,
         state: rec ? recordState(rec.overall_result, irn) : "Missing",
+        attempt: rec ? attemptOf(rec) : null,
+        earlierFailedCount: earlierByItem.get(item.id)?.length ?? 0,
       };
     });
     return {
@@ -827,6 +862,7 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
       verificationNotes: p.verification_notes,
       verifiedBy: name(p.closed_by),
     })),
+    earlierAttempts,
     nameById,
     parties: projectPartyRows.map((p) => ({ name: p.name, partyType: p.party_type })),
   };
@@ -1197,6 +1233,7 @@ export async function buildDataBookHtml(
     standalone: content.standalone,
     ncrs: content.ncrs,
     punchItems: content.punchItems,
+    earlierAttempts: content.earlierAttempts,
     generatedAt: new Date(),
     branding: await getOrgBranding(supabase, project?.organization_id),
   };

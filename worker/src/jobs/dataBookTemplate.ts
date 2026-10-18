@@ -54,6 +54,24 @@ export interface DataBookPdfActivity {
   inspector: string | null;
   irnNumber: string | null;
   state: DataBookRecordState;
+  /** Attempt letter (A, B, ...) of the presented record: the final PASSING attempt when one exists. */
+  attempt?: string | null;
+  /** Number of earlier failed attempts of this activity (listed in the appendix). */
+  earlierFailedCount?: number;
+}
+
+/** One earlier FAILED inspection attempt, listed in the Data Book appendix (the report stays filed in the vault). */
+export interface DataBookPdfEarlierAttempt {
+  itpNumber: string;
+  itemNumber: string;
+  activity: string;
+  attempt: string;
+  recordNumber: string;
+  inspectionDate: string | null;
+  inspector: string | null;
+  result: string;
+  /** Record number of the attempt that finally passed (null while still failing). */
+  supersededByRecordNumber: string | null;
 }
 
 export interface DataBookPdfItp {
@@ -196,6 +214,8 @@ export interface DataBookPdfData {
   standalone?: DataBookPdfStandalone[];
   ncrs: DataBookPdfNcr[];
   punchItems: DataBookPdfPunch[];
+  /** Earlier failed inspection attempts per activity (appendix). Empty / absent = no appendix page. */
+  earlierAttempts?: DataBookPdfEarlierAttempt[];
 
   generatedAt: Date;
   /**
@@ -371,6 +391,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     ["readiness", "Readiness calculations and hard gates"],
     ["certification", "Final completeness certification"],
     ["acceptance", "Final acceptance and handover record"],
+    ...((data.earlierAttempts ?? []).length > 0 ? ([["attempts", "Appendix — Earlier failed inspection attempts"]] as Array<[string, string]>) : []),
   ];
 
   // ── Part A ──────────────────────────────────────────────────────────────────────────────────
@@ -586,7 +607,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       const criteria = a.criteria ? `<div>Criteria: ${escapeHtml(a.criteria)}</div>` : "";
       const reference = a.reference ? `<div>Ref: ${escapeHtml(a.reference)}</div>` : "";
       const evidence = a.recordNumber
-        ? `<div><b>${escapeHtml(a.recordNumber)}</b> — ${escapeHtml(a.result ?? "no result")}</div><div>${fmtDate(a.inspectionDate)}${a.inspector ? ` · ${escapeHtml(a.inspector)}` : ""}</div><div>${a.irnNumber ? `IRN ${escapeHtml(a.irnNumber)}` : "IRN not issued"}</div>`
+        ? `<div><b>${escapeHtml(a.recordNumber)}</b>${a.attempt ? ` (Attempt ${escapeHtml(a.attempt)})` : ""} — ${escapeHtml(a.result ?? "no result")}</div>${a.earlierFailedCount ? `<div>${a.earlierFailedCount} earlier failed attempt${a.earlierFailedCount === 1 ? "" : "s"} — see Appendix</div>` : ""}<div>${fmtDate(a.inspectionDate)}${a.inspector ? ` · ${escapeHtml(a.inspector)}` : ""}</div><div>${a.irnNumber ? `IRN ${escapeHtml(a.irnNumber)}` : "IRN not issued"}</div>`
         : "<div>No inspection record</div>";
       return [`${escapeHtml(a.itemNumber)} ${escapeHtml(a.activity)}${reference}`, `${intervention}${criteria}`, `${evidence}<div>${stateBadge(a.state)}</div>`];
     });
@@ -606,6 +627,30 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       ${signLines(itp.preparedBy, null, itp.reviewedBy, itp.reviewedAt, itp.approvedBy ? `${itp.approvedBy} (${fmtDate(itp.approvedAt)})` : null)}`
     );
   });
+
+  const earlierAttempts = data.earlierAttempts ?? [];
+  const attemptsAppendix =
+    earlierAttempts.length > 0
+      ? page(
+          "attempts",
+          "APPENDIX",
+          "Earlier failed inspection attempts",
+          "Failed attempts stay on record and filed in the Document Vault; the register above presents the final passing attempt of each activity.",
+          table(
+            ["ITP / point", "Attempt", "Record", "Date", "Inspector", "Result", "Superseded by"],
+            earlierAttempts.map((e) => [
+              `${escapeHtml(e.itpNumber)} / ${escapeHtml(e.itemNumber)} ${escapeHtml(e.activity)}`,
+              escapeHtml(e.attempt),
+              escapeHtml(e.recordNumber),
+              fmtDate(e.inspectionDate),
+              cell(e.inspector),
+              escapeHtml(e.result),
+              e.supersededByRecordNumber ? escapeHtml(e.supersededByRecordNumber) : "Not yet passed",
+            ]),
+            ["24%", "8%", "17%", "11%", "14%", "8%", "18%"]
+          )
+        )
+      : "";
 
   const registerPage = (
     id: string,
@@ -963,6 +1008,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   ${readiness}
   ${certification}
   ${acceptance}
+  ${attemptsAppendix}
   <p class="small" style="text-align:right;margin-top:10px">Generated ${escapeHtml(generatedAtLabel)} &middot; Uncontrolled when printed</p>
 </body>
 </html>`;

@@ -216,7 +216,39 @@ export async function autoFileVaultDocument(
     /** Document revisions are owned by the source record (ITPs): keep `revision` as given and let a
      *  regeneration of the same revision supersede the earlier copy of that revision. */
     keepRevision?: boolean;
+    /** Deterministic "project / discipline / ITP / activity" path (vaultFiling.ts), stored as
+     *  vault_documents.filing_path. Best-effort: ignored until migration 20261018S6B00002 is applied. */
+    filingPath?: string | null;
   }
+): Promise<void> {
+  await fileVaultDocumentRow(supabase, params);
+  if (params.filingPath) await recordFilingPath(supabase, params.projectId, params.folderKey, `${GENERATED_DOCUMENTS_BUCKET}:${params.storagePath}`, params.filingPath);
+}
+
+/** Best-effort: stamps the filing path on the row filed for `storedPath`. Never throws (column may not exist yet). */
+async function recordFilingPath(supabase: SupabaseClient, projectId: string, folderKey: string, storedPath: string, filingPath: string): Promise<void> {
+  try {
+    const { data: folder } = await supabase
+      .from("vault_folders" as never)
+      .select("id")
+      .eq("project_id", projectId)
+      .eq("folder_key", folderKey)
+      .maybeSingle<{ id: string }>();
+    if (!folder) return;
+    const { error } = await supabase
+      .from("vault_documents" as never)
+      .update({ filing_path: filingPath } as never)
+      .eq("folder_id", folder.id)
+      .eq("storage_path", storedPath);
+    if (error && error.code !== "42703" && error.code !== "PGRST204") console.warn("[vault] could not record filing_path:", error.message);
+  } catch (err) {
+    console.warn("[vault] could not record filing_path:", err instanceof Error ? err.message : err);
+  }
+}
+
+async function fileVaultDocumentRow(
+  supabase: SupabaseClient,
+  params: Parameters<typeof autoFileVaultDocument>[1]
 ): Promise<void> {
   assertNotAborted();
 

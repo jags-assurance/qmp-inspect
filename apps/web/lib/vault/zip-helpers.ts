@@ -1,5 +1,7 @@
 // Pure helpers for the vault "download all" zip (unit tested).
 
+import { parseFilingPath } from "@/lib/checklists/attempts";
+
 /**
  * One zip path segment: strips path separators, control characters and leading dots (a folder or file
  * named ".." would otherwise produce "../file" - zip-slip when extracted by a naive tool) and keeps it short.
@@ -37,4 +39,15 @@ export function buildManifestCsv(rows: ManifestRow[]): string {
   const header = ["path", "title", "document_number", "revision", "status", "size_bytes", "sha256"].join(",");
   const lines = rows.map((r) => [r.path, r.title, r.documentNumber, r.revision, r.status, r.sizeBytes, r.sha256].map(csvCell).join(","));
   return `${[header, ...lines].join("\r\n")}\r\n`;
+}
+
+/**
+ * Directory of a zip entry: the vault category, then (for auto-filed generated records) the deterministic
+ * filing path below the project - discipline / ITP / activity (lib/checklists/attempts.ts). The leading
+ * project segment is dropped because the zip is already one project. Without a filing path it is just the
+ * category folder, exactly as before.
+ */
+export function buildZipEntryDir(folderName: string, filingPath: string | null | undefined): string {
+  const segments = parseFilingPath(filingPath).slice(1).map(sanitizeZipSegment);
+  return [sanitizeZipSegment(folderName), ...segments].join("/");
 }
