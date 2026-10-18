@@ -14,6 +14,7 @@ import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { generateDocumentNumber, NumberingError } from "@/lib/numbering/generate";
 import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { validateItpDraft } from "@/lib/itps/draft-validation";
 
 // Reqs R34-R43: spec-to-ITP draft generation, grounded in the project's own vault documents (the
 // actual attached specs/standards/method statements) rather than a free-typed description alone.
@@ -39,6 +40,8 @@ export interface GenerateItpDraftState {
    *  regeneration doesn't burn a fresh number each time. Null if numbering couldn't be generated,
    *  in which case the field just starts blank as before. */
   suggestedItpNumber: string | null;
+  /** Plain-language notes on what automatic validation changed in the AI draft (removed unknown sign-off levels, merged duplicates...). */
+  draftNotices: string[];
 }
 
 const EMPTY_DRAFT_STATE: GenerateItpDraftState = {
@@ -48,6 +51,7 @@ const EMPTY_DRAFT_STATE: GenerateItpDraftState = {
   interventionLevels: [],
   aiLogId: null,
   suggestedItpNumber: null,
+  draftNotices: [],
 };
 
 export async function generateItpDraftAction(
@@ -224,7 +228,23 @@ export async function generateItpDraftAction(
     }
   }
 
-  return { error: null, draft, projectParties, interventionLevels, aiLogId: logId, suggestedItpNumber };
+  // Strict validation/normalisation before the reviewer sees anything. The audit log above keeps the
+  // model's raw answer; the validated copy is what is shown and (after review) saved.
+  const validated = validateItpDraft(draft, {
+    levelCodes: interventionLevels.map((l) => l.code),
+    partyIds: projectParties.map((p) => p.id),
+    disciplineCodes: (disciplines ?? []).map((d) => d.code),
+  });
+
+  return {
+    error: null,
+    draft: validated.draft,
+    projectParties,
+    interventionLevels,
+    aiLogId: logId,
+    suggestedItpNumber,
+    draftNotices: validated.notices,
+  };
 }
 
 /**
