@@ -2,6 +2,7 @@ import { T } from "@/components/domain/t";
 import { Tx } from "@/components/domain/tx";
 import { Badge, type Tone } from "@/components/ui/badge";
 import type { OutstandingActions } from "@/lib/itps/workspace";
+import { OpenActivityLink } from "./activity-panel-item";
 
 const REASON_LABEL = {
   hold: "Hold open",
@@ -49,11 +50,11 @@ export function OutstandingActionsPanel({ outstanding }: { outstanding: Outstand
         <ul className="mt-3 divide-y divide-border text-sm">
           {outstanding.jumpTargets.map((t) => (
             <li key={t.itemId}>
-              <a href={`#activity-${t.itemId}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-ink hover:text-brand [@media(pointer:coarse)]:min-h-11">
+              <OpenActivityLink id={t.itemId} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-ink hover:text-brand [@media(pointer:coarse)]:min-h-11">
                 <span className="doc-id text-xs text-muted">{t.itemNumber}</span>
                 <span className="min-w-0 flex-1 truncate" title={t.activity}>{t.activity}</span>
                 <Badge tone={REASON_TONE[t.reason]}><Tx>{REASON_LABEL[t.reason]}</Tx></Badge>
-              </a>
+              </OpenActivityLink>
             </li>
           ))}
         </ul>

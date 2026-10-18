@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { partyState, summariseActivity, summariseOutstanding, summariseSection, type WorkspaceCell } from "../workspace";
+import { checklistInspectionState, nextNeed, partyState, summariseActivity, summariseOutstanding, summariseSection, type WorkspaceCell } from "../workspace";
 
 const cell = (over: Partial<WorkspaceCell> = {}): WorkspaceCell => ({ intervention: "W", status: "pending", isBlocking: false, canSignOff: false, ...over });
 
@@ -94,5 +94,28 @@ describe("summariseOutstanding", () => {
   it("limits the jump targets", () => {
     const many = Array.from({ length: 10 }, (_, i) => item(`2.${i}`, [cell({ status: "pending" })]));
     expect(summariseOutstanding(many, 3).jumpTargets).toHaveLength(3);
+  });
+});
+
+describe("checklistInspectionState", () => {
+  it("reads the newest inspection record", () => {
+    expect(checklistInspectionState(false, [])).toBe("not_generated");
+    expect(checklistInspectionState(true, [])).toBe("not_started");
+    expect(checklistInspectionState(true, [{ overall_result: null }])).toBe("in_progress");
+    expect(checklistInspectionState(true, [{ overall_result: "pass" }, { overall_result: "fail" }])).toBe("pass");
+    expect(checklistInspectionState(true, [{ overall_result: "fail" }, { overall_result: "pass" }])).toBe("fail");
+    expect(checklistInspectionState(true, [{ overall_result: "partial" }])).toBe("partial");
+  });
+});
+
+describe("nextNeed", () => {
+  const s = (cells: WorkspaceCell[]) => summariseActivity(cells);
+  it("says what is needed now, most urgent first", () => {
+    expect(nextNeed(s([cell({ intervention: null, status: null })]), []).kind).toBe("none");
+    expect(nextNeed(s([cell({ status: "signed_off" })]), []).kind).toBe("done");
+    expect(nextNeed(s([cell({ status: "notified", canSignOff: true }), cell({ intervention: "H", isBlocking: true, status: "notified" })]), []).kind).toBe("your_signoff");
+    expect(nextNeed(s([cell({ intervention: "H", isBlocking: true, status: "notified" })]), ["GFL"]).kind).toBe("hold");
+    expect(nextNeed(s([cell({ status: "notified" })]), ["GFL", "Voltway"]).text).toBe("Waiting for GFL, Voltway.");
+    expect(nextNeed(s([cell({ status: "pending" })]), []).kind).toBe("to_notify");
   });
 });

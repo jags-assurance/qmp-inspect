@@ -147,3 +147,40 @@ export function summariseOutstanding(items: OutstandingItem[], limit = 6): Outst
   out.total = out.toNotify + out.awaitingParty + out.evidenceMissing + out.recordsOutstanding;
   return out;
 }
+
+export type ChecklistInspectionState = "not_generated" | "not_started" | "in_progress" | "pass" | "fail" | "partial";
+
+/**
+ * Where the activity's checklist inspection stands, from the activity's inspection records (newest first):
+ * no checklist yet, no record yet (not started), a record with no result (in progress, i.e. started but not
+ * completed), or the newest record's result. Same reading the ITP checklists page uses.
+ */
+export function checklistInspectionState(
+  hasChecklist: boolean,
+  newestRecordFirst: { overall_result: string | null }[]
+): ChecklistInspectionState {
+  if (!hasChecklist) return "not_generated";
+  const latest = newestRecordFirst[0];
+  if (!latest) return "not_started";
+  if (latest.overall_result === "pass" || latest.overall_result === "fail" || latest.overall_result === "partial") return latest.overall_result;
+  return "in_progress";
+}
+
+/** The one plain sentence at the top of an activity: what, if anything, is needed now. */
+export function nextNeed(
+  summary: ActivitySummary,
+  waitingOn: string[]
+): { kind: "your_signoff" | "hold" | "waiting" | "to_notify" | "done" | "none"; text: string } {
+  if (summary.required === 0) return { kind: "none", text: "No one has been asked to sign off this activity." };
+  if (summary.status === "signed_off") return { kind: "done", text: "Everything on this activity is signed off." };
+  if (summary.yourSignoffs > 0) return { kind: "your_signoff", text: "Your sign-off is needed." };
+  if (summary.holdOpen) {
+    return {
+      kind: "hold",
+      text: "A Hold point is open: work that depends on this activity must wait until it is signed off.",
+    };
+  }
+  if (summary.notified > 0 && waitingOn.length > 0) return { kind: "waiting", text: `Waiting for ${waitingOn.join(", ")}.` };
+  if (summary.pending > 0) return { kind: "to_notify", text: "Nobody has been notified yet." };
+  return { kind: "waiting", text: "Waiting for sign-off." };
+}

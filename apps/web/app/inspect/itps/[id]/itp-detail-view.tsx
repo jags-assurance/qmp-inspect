@@ -14,7 +14,7 @@ import { ActivityWorkspace, type WorkspaceRow } from "./activity-workspace";
 import { WorkspaceControls } from "./workspace-controls";
 import { OutstandingActionsPanel } from "./outstanding-actions";
 import { computeActivityProgress } from "@/lib/itps/progress";
-import { summariseActivity, summariseOutstanding, summariseSection, type OutstandingItem } from "@/lib/itps/workspace";
+import { checklistInspectionState, summariseActivity, summariseOutstanding, summariseSection, type OutstandingItem } from "@/lib/itps/workspace";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { AcceptItpForm } from "./accept-itp-form";
 import { ReviewChainStatus } from "./review-chain-status";
@@ -394,6 +394,16 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
           .in("itp_item_id", allItemIds)
           .returns<{ id: string; signoff_comment: string | null; rejection_reason: string | null }[]>()
       );
+  const inspectionRecordsPromise = noItems
+    ? null
+    : Promise.resolve(
+        supabase
+          .from("inspection_records")
+          .select("itp_item_id, overall_result, created_at")
+          .in("itp_item_id", allItemIds)
+          .order("created_at", { ascending: false })
+          .returns<{ itp_item_id: string; overall_result: string | null; created_at: string }[]>()
+      );
   const requiredRegistersPromise = noItems
     ? null
     : Promise.resolve(
@@ -746,6 +756,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
       .map((i) => [
         i.itemId,
         {
+          templateId: i.generated?.id ?? null,
           number: i.generated?.number ?? null,
           lines: i.generated?.lines.length ? i.generated.lines : i.previewLines.map((text) => ({ text, mandatory: true })),
         },
@@ -775,6 +786,15 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
     />
   );
   const aiEnabled = await aiEnabledPromise;
+  const inspectionRes = inspectionRecordsPromise ? await inspectionRecordsPromise : null;
+  // A failed read must not show "inspection not started" for work that has been done.
+  if (inspectionRes?.error) throw new Error(`Could not load the inspection records: ${inspectionRes.error.message}`);
+  const inspectionsByItem = new Map<string, { overall_result: string | null }[]>();
+  for (const r of inspectionRes?.data ?? []) {
+    const list = inspectionsByItem.get(r.itp_item_id) ?? [];
+    list.push({ overall_result: r.overall_result });
+    inspectionsByItem.set(r.itp_item_id, list);
+  }
 
   // What needs attention across the whole ITP, from the same sign-off rows and evidence the sections show.
   const outstandingItems: OutstandingItem[] = (sections ?? [])
@@ -1219,9 +1239,11 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
               evidenceCount: item.evidence_type === 2 ? evidenceDocs.length : item.evidence_type === 3 ? measurements.length : null,
               recordsExpected: expected.length,
               recordsReceived: expected.filter((r) => r.received_at).length,
+              checklistTemplateId: row.checklist?.templateId ?? null,
+              inspectionState: checklistInspectionState(!!row.checklist?.templateId, inspectionsByItem.get(item.id) ?? []),
               evidenceNode: (
                 <>
-                  <ActivityEvidenceToggle label={`Expected records${expected.length > 0 ? ` (${expected.length})` : ""}`}>
+                  <ActivityEvidenceToggle label={`Documents and test records${expected.length > 0 ? ` (${expected.length})` : ""}`}>
                     <ExpectedRecordsSection
                       itpItemId={item.id}
                       records={expected}

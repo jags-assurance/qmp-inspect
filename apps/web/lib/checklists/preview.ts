@@ -9,7 +9,7 @@ export interface ItpChecklistPreviewItem {
   /** True for checklist-type activities (evidence_type = 1) — the only ones that get a checklist. */
   hasChecklist: boolean;
   /** The real, already-generated checklist, if there is one. */
-  generated: { number: string; name: string; lines: { text: string; mandatory: boolean }[] } | null;
+  generated: { id: string; number: string; name: string; lines: { text: string; mandatory: boolean }[] } | null;
   /** What generation would start from when none exists yet: the activity's acceptance criteria
    *  (the same fallback generateChecklistsForItp uses when the AI draft isn't available). */
   previewLines: string[];
@@ -78,7 +78,7 @@ export async function loadItpChecklistPreview(supabase: SupabaseClient, itpId: s
       activity: it.activity,
       acceptanceCriteria: it.acceptance_criteria,
       hasChecklist,
-      generated: t ? { number: t.checklist_number, name: t.name, lines: linesByTemplate.get(t.id) ?? [] } : null,
+      generated: t ? { id: t.id, number: t.checklist_number, name: t.name, lines: linesByTemplate.get(t.id) ?? [] } : null,
       previewLines: hasChecklist && !t ? [it.acceptance_criteria?.trim() || it.activity].filter(Boolean) : [],
     };
   });

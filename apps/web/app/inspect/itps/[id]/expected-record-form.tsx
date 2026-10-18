@@ -66,7 +66,7 @@ export function ExpectedRecordsSection({
   return (
     <div className="border-t border-border px-3 py-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-medium text-muted"><Tx>Expected records</Tx></h4>
+        <h4 className="text-xs font-medium text-muted"><Tx>Expected documents and test records</Tx></h4>
       </div>
       <ul className="mt-2 space-y-1.5">
         {records.map((record) => (
@@ -79,7 +79,7 @@ export function ExpectedRecordsSection({
             vaultDocuments={vaultDocuments}
           />
         ))}
-        {records.length === 0 && <li className="text-xs text-muted"><Tx>No expected records listed for this activity.</Tx></li>}
+        {records.length === 0 && <li className="text-xs text-muted"><Tx>No documents are listed for this activity yet.</Tx></li>}
       </ul>
       {canAdd && <AddExpectedRecordForm itpItemId={itpItemId} />}
     </div>
@@ -179,7 +179,7 @@ function ExpectedRecordRow({
             isReceived ? "bg-success/10 text-success" : "bg-muted/15 text-muted"
           }`}
         >
-          {isReceived ? "Received" : "Pending"}
+          {isReceived ? "Document attached" : "Waiting for document"}
         </span>
       </div>
       {isReceived ? (
@@ -193,7 +193,7 @@ function ExpectedRecordRow({
           <div className="mt-1">
             {!open ? (
               <Button type="button" onClick={() => setOpen(true)} variant="link">
-                <Tx>Mark received →</Tx>
+                <Tx>Attach the document →</Tx>
               </Button>
             ) : (
               <MarkReceivedForm
@@ -311,14 +311,14 @@ function MarkReceivedForm({
             onClick={() => setSource("vault")}
             className={`rounded px-2 py-1 font-medium ${source === "vault" ? "bg-burgundy text-white" : "border border-border bg-surface text-ink"}`}
           >
-            <Tx>Attach from vault</Tx>
+            <Tx>From the Document Vault</Tx>
           </button>
           <button
             type="button"
             onClick={() => setSource("upload")}
             className={`rounded px-2 py-1 font-medium ${source === "upload" ? "bg-burgundy text-white" : "border border-border bg-surface text-ink"}`}
           >
-            <Tx>Upload new file</Tx>
+            <Tx>Upload a new file</Tx>
           </button>
         </div>
       )}
@@ -350,7 +350,7 @@ function MarkReceivedForm({
       {error && <p role="alert" className="text-danger">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={uploading}>
-          {uploading ? "Saving…" : "Mark received"}
+          {uploading ? "Saving…" : "Attach and mark received"}
         </Button>
         <Button type="button" onClick={onClose} variant="link-muted" size="sm">
           <Tx>Cancel</Tx>
@@ -376,7 +376,7 @@ function AddExpectedRecordForm({ itpItemId }: { itpItemId: string }) {
         onClick={() => setOpen(true)}
         variant="link" size="sm" className="mt-2"
       >
-        <Tx>+ Add expected record</Tx>
+        <Tx>+ List an expected document</Tx>
       </Button>
     );
   }

@@ -5,6 +5,8 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 
 export interface ActivityChecklist {
+  /** The generated checklist's template id (links to its inspection page), null while it is only a draft. */
+  templateId?: string | null;
   /** The generated checklist's number, or null while it is only the draft that generation starts from. */
   number: string | null;
   lines: { text: string; mandatory: boolean }[];
