@@ -6,7 +6,7 @@ import { requireSession } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { fetchAll } from "@/lib/supabase/fetch-all";
 import { VAULT_FOLDERS_TABLE, VAULT_DOCUMENTS_TABLE } from "@/lib/vault/types";
-import { buildManifestCsv, sanitizeZipSegment, type ManifestRow } from "@/lib/vault/zip-helpers";
+import { buildManifestCsv, buildZipEntryDir, sanitizeZipSegment, type ManifestRow } from "@/lib/vault/zip-helpers";
 import { sharedRateLimitResponse } from "@/lib/api/rate-limit";
 
 export const runtime = "nodejs";
@@ -129,6 +129,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const returnedIds = new Set(documents.map((d) => d.id));
   const preSkippedCount = selectedIds ? selectedIds.filter((id) => !returnedIds.has(id)).length : 0;
 
+  // Deterministic filing path of auto-filed records (migration 20261018S6B00002). Best-effort: when the column
+  // does not exist yet (or the read fails) every document simply stays directly under its category folder.
+  const filingPathById = new Map<string, string>();
+  try {
+    for (let i = 0; i < documents.length; i += 200) {
+      const ids = documents.slice(i, i + 200).map((d) => d.id);
+      const { data: paths, error: pathsError } = await supabase
+        .from(VAULT_DOCUMENTS_TABLE)
+        .select("id, filing_path")
+        .in("id", ids)
+        .returns<{ id: string; filing_path: string | null }[]>();
+      if (pathsError) break;
+      for (const row of paths ?? []) if (row.filing_path) filingPathById.set(row.id, row.filing_path);
+    }
+  } catch {
+    // Layout only; never blocks the download.
+  }
+
   const folderNameById = new Map((folders ?? []).map((f) => [f.id, f.name] as const));
 
   const archive = new ZipArchive({ zlib: { level: 6 } });
@@ -188,7 +206,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           skipped.push(`${doc.title} (${reason})`);
           continue;
         }
-        const folderName = sanitizeZipSegment(folderNameById.get(doc.folder_id) ?? "General Reference");
+        const folderName = buildZipEntryDir(folderNameById.get(doc.folder_id) ?? "General Reference", filingPathById.get(doc.id));
         const extMatch = /\.([a-z0-9]+)$/i.exec(path);
         const ext = extMatch ? `.${extMatch[1]}` : "";
         const statusTag = doc.status === "approved" ? "" : doc.status === "superseded" ? " (SUPERSEDED)" : " (UNAPPROVED)";

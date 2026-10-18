@@ -1,3 +1,4 @@
+import { resolveInspectionFilingContext } from "./vaultFilingContext";
 import { getSharedBrowser } from "../browserPool";
 import { withBidi } from "./bidi";
 import { supabase } from "../supabase";
@@ -223,9 +224,11 @@ export async function renderIrnPdf(payload: RenderIrnPdfPayload): Promise<{ resu
 
   // Filed in the vault like every other generated record; a changed IRN becomes the next revision. If filing
   // fails the uploaded object is removed again so a retry does not orphan it.
+  const filing = await resolveInspectionFilingContext(supabase, record);
   await uploadAndFile(supabase, storagePath, pdfBuffer, {
     projectId: record.project_id,
     folderKey: "certificates",
+    filingPath: filing.filingPath,
     title: `Inspection Release Note ${irn.irn_number} — ${record.activity}`,
     documentReference: irn.irn_number,
     revision,

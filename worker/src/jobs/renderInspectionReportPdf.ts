@@ -15,6 +15,8 @@ import { getOrgBranding } from "./orgBranding";
 import { buildGeneratedPath, resolveNextRevision, assertInspectionFileable } from "./vaultAutoFile";
 import { canFileApproved, findFiledByHash, hashTag, sourceHash, uploadAndFile } from "./generatedDocument";
 import { setHtmlContentAndSettle } from "./renderHtml";
+import { buildAttemptFileBase, buildInspectionReportTitle, isPassingResult } from "./vaultFiling";
+import { resolveInspectionFilingContext, supersedeFailedAttemptReports } from "./vaultFilingContext";
 
 const GENERATED_DOCUMENTS_BUCKET = "generated-documents";
 const EVIDENCE_BUCKET = "inspection-evidence";
@@ -218,6 +220,9 @@ export async function renderInspectionReportPdf(
 
   // Only a completed inspection (overall result recorded) is a final report.
   assertInspectionFileable(record.overall_result);
+  // Attempt letter (A = first inspection of this activity) and the deterministic project / discipline / ITP /
+  // activity filing path. document_reference stays the record number, so vault numbering is unchanged.
+  const filing = await resolveInspectionFilingContext(supabase, record);
   // The printed REV is the vault revision this render will be filed as.
   const revision = await resolveNextRevision(supabase, record.project_id, "checklists_forms", record.record_number);
 
@@ -353,7 +358,7 @@ export async function renderInspectionReportPdf(
     await page.close();
   }
 
-  const storagePath = buildGeneratedPath(`inspections/${record.id}`, record.record_number, revision, Date.now(), tag);
+  const storagePath = buildGeneratedPath(`inspections/${record.id}`, buildAttemptFileBase(record.record_number, filing.attempt), revision, Date.now(), tag);
   // Only staff / approvers cause an APPROVED copy; anyone else's render is filed for review.
   const approved = await canFileApproved(supabase, payload.requested_by, record.project_id);
 
@@ -363,14 +368,30 @@ export async function renderInspectionReportPdf(
   await uploadAndFile(supabase, storagePath, pdfBuffer, {
     projectId: record.project_id,
     folderKey: "checklists_forms",
-    title: `Inspection Report ${record.record_number} — ${record.activity}`,
+    title: buildInspectionReportTitle({
+      recordNumber: record.record_number,
+      attempt: filing.attempt,
+      result: record.overall_result,
+      activity: record.activity,
+    }),
     documentReference: record.record_number,
     revision,
     storagePath,
     fileSize: pdfBuffer.length,
     generatedBy: payload.requested_by,
     status: approved ? "approved" : "for_review",
+    filingPath: filing.filingPath,
   });
+
+  // A passing attempt closes the activity: earlier FAILED attempts stay filed but read as superseded.
+  if (approved && isPassingResult(record.overall_result)) {
+    await supersedeFailedAttemptReports(supabase, {
+      projectId: record.project_id,
+      passingRecordId: record.id,
+      passingStoragePath: storagePath,
+      attempts: filing.attempts,
+    });
+  }
 
   return { resultStoragePath: storagePath };
 }
