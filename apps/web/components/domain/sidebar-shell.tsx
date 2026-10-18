@@ -231,6 +231,7 @@ export function SidebarShell({
               rp("lg:max-desk:justify-center lg:max-desk:px-0")
             }
           >
+            {/* The universal "sidebar" symbol: a panel with a divider. The side the divider sits on flips when collapsed. */}
             <svg
               aria-hidden="true"
               viewBox="0 0 20 20"
@@ -239,11 +240,13 @@ export function SidebarShell({
               strokeWidth="1.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className={"h-4 w-4 shrink-0 transition-transform motion-reduce:transition-none rtl:-scale-x-100 " + rp("lg:max-desk:rotate-180")}
+              className="h-[18px] w-[18px] shrink-0 rtl:-scale-x-100"
             >
-              <path d="M12.5 4.5L7 10l5.5 5.5" />
+              <rect x="3" y="4" width="14" height="12" rx="2" />
+              <path d="M8 4v12" />
+              {rail && <path d="M5.5 8.5l1 1.5-1 1.5" strokeWidth="1.2" />}
             </svg>
-            <span className={rp("lg:max-desk:hidden")}><Tx>Collapse</Tx></span>
+            <span className={rp("lg:max-desk:hidden")}>{rail ? <Tx>Expand</Tx> : <Tx>Collapse</Tx>}</span>
           </button>
         </div>
 

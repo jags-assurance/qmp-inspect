@@ -202,30 +202,81 @@ function NavGroup({ item, collapsed, railActive, depth = 0 }: { item: NavItem; c
 }
 
 /** `collapsed` = rail preference (CSS applies it on laptops only); `railActive` = the rail is showing right now (tooltips). */
+/**
+ * A foldable section heading (Plan, Quality, ...): the heading is a button with a chevron, so people can see it
+ * folds. Starts open, remembers the choice, never hides the page you are on, and shows how many links it holds
+ * while folded. In the icon rail headings are hidden and every link stays visible.
+ */
+function NavSection({ label, items, collapsed, railActive }: { label: string; items: NavItem[]; collapsed: boolean; railActive: boolean }) {
+  const pathname = usePathname();
+  const hasActive = items.some((i) => hasActiveDescendant(pathname, i));
+  const storageKey = `jags.nav.section.${label}`;
+  const saved = useSyncExternalStore(
+    subscribeNavState,
+    () => readNavState(storageKey),
+    () => null
+  );
+  const open = hasActive || saved !== "0";
+  const badge = items.reduce((n, i) => n + (typeof i.badge === "number" ? i.badge : 0), 0);
+  return (
+    <div>
+      {collapsed && <div role="separator" className="mx-3 my-2 hidden border-t border-white/15 first:hidden lg:max-desk:block" />}
+      <button
+        type="button"
+        onClick={() => writeNavState(storageKey, open ? "0" : "1")}
+        aria-expanded={open}
+        className={"mt-3 flex min-h-9 w-full items-center gap-1.5 rounded-md px-3 text-xs font-semibold uppercase tracking-wider text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold [@media(pointer:coarse)]:min-h-11 " + (collapsed ? "lg:max-desk:hidden" : "")}
+      >
+        <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={"h-3 w-3 shrink-0 transition-transform motion-reduce:transition-none " + (open ? "" : "-rotate-90 rtl:rotate-90")}>
+          <path d="M5 7.5l5 5 5-5" />
+        </svg>
+        <span className="flex-1 truncate text-start">{label}</span>
+        {!open && (
+          <span className="rounded-full bg-white/20 px-1.5 text-[11px] font-medium normal-case leading-5 tracking-normal text-white">
+            {items.length}{badge > 0 ? ` · ${badge}` : ""}
+          </span>
+        )}
+      </button>
+      <div className={"mt-0.5 space-y-0.5 " + (open ? "" : "hidden ") + (collapsed ? "lg:max-desk:block" : "")}>
+        {items.map((item) =>
+          item.children ? (
+            <NavGroup key={item.label + item.href} item={item} collapsed={collapsed} railActive={railActive} />
+          ) : (
+            <NavLink key={item.label + item.href} item={item} collapsed={collapsed} railActive={railActive} />
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** `collapsed` = rail preference (CSS applies it on laptops only); `railActive` = the rail is showing right now (tooltips). */
 export function SidebarNav({ items, collapsed, railActive = false }: { items: NavItem[]; collapsed: boolean; railActive?: boolean }) {
   const tl = useTranslate();
+  // Consecutive items sharing a group become one foldable section; ungrouped items stand alone.
+  const segments: { group: string | null; label: string; items: NavItem[] }[] = [];
+  for (const item of items) {
+    const last = segments[segments.length - 1];
+    if (item.group && last && last.group === item.group) last.items.push(item);
+    else segments.push({ group: item.group ?? null, label: item.displayGroup ?? item.group ?? "", items: [item] });
+  }
   return (
     <nav aria-label={tl("Main")} className="flex-1 space-y-0.5 px-3 py-3">
-      {items.map((item, i) => {
-        const showHeading = item.group && item.group !== items[i - 1]?.group;
-        return (
-          <div key={item.label + item.href}>
-            {showHeading && (
-              <>
-                {collapsed && <div role="separator" className="mx-3 my-2 hidden border-t border-white/15 first:hidden lg:max-desk:block" />}
-                <p className={"px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wider text-white/70 " + (collapsed ? "lg:max-desk:hidden" : "")}>
-                  {item.displayGroup ?? item.group}
-                </p>
-              </>
-            )}
-            {item.children ? (
-              <NavGroup item={item} collapsed={collapsed} railActive={railActive} />
-            ) : (
-              <NavLink item={item} collapsed={collapsed} railActive={railActive} />
-            )}
-          </div>
-        );
-      })}
+      {segments.map((seg, i) =>
+        seg.group ? (
+          <NavSection key={seg.group + i} label={seg.label} items={seg.items} collapsed={collapsed} railActive={railActive} />
+        ) : (
+          seg.items.map((item) => (
+            <div key={item.label + item.href}>
+              {item.children ? (
+                <NavGroup item={item} collapsed={collapsed} railActive={railActive} />
+              ) : (
+                <NavLink item={item} collapsed={collapsed} railActive={railActive} />
+              )}
+            </div>
+          ))
+        )
+      )}
     </nav>
   );
 }

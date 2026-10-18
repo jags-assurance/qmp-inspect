@@ -11,8 +11,6 @@ import { ScanSearchInput } from "./scan-search-input";
 import { SaveOfflineButton } from "./save-offline-button";
 import { loadArchivedTemplateIds } from "@/lib/checklists/archived-templates";
 import { filterByArchive, parseArchiveFilter } from "@/lib/checklists/template-ui-logic";
-import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
-import { AssignedToMe } from "@/components/domain/assigned-to-me";
 import { filterAssignedToMe, parseAssignedFilter } from "@/lib/checklists/assignment-logic";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
@@ -66,8 +64,7 @@ export default async function StartWorkPage({
 
   const supabase = await createSupabaseServerClient();
   // Independent of everything below, so it starts now (it reuses the cached archived-id read).
-  const assignedQueuePromise = loadAssignedToMe(supabase, session.userId);
-  const archivedIds = await loadArchivedTemplateIds(supabase);
+    const archivedIds = await loadArchivedTemplateIds(supabase);
   const templateSelect = (withAssignee: boolean) =>
     `id, checklist_number, itp_item_id, itp_items(id, item_number, activity, planned_date, ${withAssignee ? "assigned_to_user_id, " : ""}itp_sections(itps(id, itp_number, status, projects(id, name, organization_id, enforce_hold_blocks_start))))`;
   const [firstTemplates, { data: records }] = await Promise.all([
@@ -171,7 +168,6 @@ export default async function StartWorkPage({
   const dueSoonCount = withFlags.filter((a) => a.dueSoon).length;
   const heldCount = withFlags.filter((a) => a.awaitingHold && a.status !== "completed").length;
   const assignedMine = filterAssignedToMe(withFlags, session.userId).filter((a) => a.status !== "completed");
-  const assignedQueue = await assignedQueuePromise;
   const visible = (assignedFilter === "me" ? assignedMine : withFlags)
     .filter((a) => !dueFilter || (dueFilter === "overdue" ? a.overdue : dueFilter === "soon" ? a.dueSoon : a.awaitingHold && a.status !== "completed"))
     .filter((a) => !statusFilter || a.status === statusFilter)
@@ -197,6 +193,12 @@ export default async function StartWorkPage({
       <PageHeader
         title={<T>Start work</T>}
         subtitle={<T>Pick up work that is ready, or start something new.</T>}
+        primaryAction={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Link href="/inspect/itps/new" className={buttonVariants()}><T>+ New ITP project</T></Link>
+            <Link href="/inspect/standalone/new" className={buttonVariants({ variant: "outline" })}><T>+ Standalone assignment</T></Link>
+          </div>
+        }
         guide={
           <PageGuide
             title={tl("Start work — how this works")}
@@ -210,28 +212,9 @@ export default async function StartWorkPage({
         }
       />
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label={tl("Start something new")}>
-        <Link href="/inspect/itps/new" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-burgundy bg-burgundy/5 px-4 py-2.5 hover:bg-burgundy/10">
-          <span>
-            <span className="block text-sm font-semibold text-ink"><T>+ New ITP project</T></span>
-            <span className="block text-xs text-muted"><T>Full workflow: ITP, checklists, sign-off</T></span>
-          </span>
-          <span aria-hidden="true" className="text-burgundy">→</span>
-        </Link>
-        <Link href="/inspect/standalone/new" className="flex min-h-14 items-center justify-between gap-3 rounded-lg border border-gold bg-gold/10 px-4 py-2.5 hover:bg-gold/20">
-          <span>
-            <span className="block text-sm font-semibold text-ink"><T>+ Standalone assignment</T></span>
-            <span className="block text-xs text-muted"><T>One-off FAT, vendor visit or verification</T></span>
-          </span>
-          <span aria-hidden="true" className="text-burgundy">→</span>
-        </Link>
-      </div>
-
-      <AssignedToMe items={assignedQueue} />
-
       <section className="mt-8 space-y-3" aria-labelledby="activities-heading">
         <div>
-          <h2 id="activities-heading" className="text-lg font-semibold text-ink"><T>Activities ready for site work</T></h2>
+          <h2 id="activities-heading" className="text-lg font-semibold text-ink"><T>Activities ready for site work</T> <span className="text-sm font-normal text-muted">({visible.length})</span></h2>
           <p className="mt-1 text-sm text-muted">
             <T>Activities on approved ITPs. Open Holds show when you open one.</T>
           </p>
@@ -256,7 +239,7 @@ export default async function StartWorkPage({
             {assignedFilter === "me" && <span aria-hidden="true">✓</span>}
             <T>Assigned to me</T> ({assignedMine.length})
           </Link>
-          {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger", "!"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]", "★"], ["held", "Awaiting hold release", heldCount, "bg-surface-sunken text-ink", "•"]] as const).map(([k, label, n, cls, glyph]) => (
+          {([["overdue", "Overdue", overdueCount, "bg-danger/10 text-danger", "!"], ["soon", "Due soon", dueSoonCount, "bg-gold/30 text-[color:var(--color-burgundy-dark)]", "★"], ["held", "Awaiting hold release", heldCount, "bg-surface-sunken text-ink", "•"]] as const).filter(([k, , n]) => n > 0 || dueFilter === k).map(([k, label, n, cls, glyph]) => (
             <Link key={k} href={hrefFor({ due: dueFilter === k ? "" : k })} aria-current={dueFilter === k ? "true" : undefined}
               className={cn(chipCls, cls, dueFilter === k && "ring-2 ring-burgundy")}>
               <span aria-hidden="true">{dueFilter === k ? "✓" : glyph}</span>
@@ -309,35 +292,34 @@ export default async function StartWorkPage({
         ) : (
           <>
             <SaveOfflineButton urls={visible.filter((a) => a.status !== "completed").map((a) => `/inspect/checklists/${a.templateId}`)} />
-            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
-              {visible.map((a) => (
-                <li key={a.templateId}>
-                  <Card className="flex h-full flex-col gap-3 !p-4">
-                    <div className="min-w-0">
-                      <p className="text-base font-medium leading-snug text-ink" title={`${a.itemNumber}. ${a.activity}`}>
-                        <span className="line-clamp-2">{a.itemNumber}. {a.activity}</span>
-                      </p>
-                      <p className="mt-1 truncate text-xs text-muted" title={`${a.projectName} · ${a.itpNumber} · ${a.checklistNumber}`}>
-                        {a.projectName} · {a.itpNumber} · {a.checklistNumber}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
+            <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
+              {[...visible]
+                .sort((x, y) => (x.status === y.status ? 0 : x.status === "in_progress" ? -1 : y.status === "in_progress" ? 1 : x.status === "completed" ? 1 : y.status === "completed" ? -1 : 0))
+                .map((a) => (
+                <li key={a.templateId} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium leading-snug text-ink" title={`${a.itemNumber}. ${a.activity}`}>
+                      <span className="line-clamp-2">{a.itemNumber}. {a.activity}</span>
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-muted" title={`${a.projectName} · ${a.itpNumber} · ${a.checklistNumber}`}>
+                      {a.projectName} · {a.itpNumber}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <Badge tone={a.status === "completed" ? "success" : a.status === "in_progress" ? "gold" : "neutral"}>{STATUS_LABEL[a.status]}</Badge>
                       {a.overdue && <Badge tone="danger"><T>Overdue</T></Badge>}
-                      {a.dueSoon && <Badge tone="gold"><T>Due soon</T></Badge>}
+                      {a.dueSoon && !a.overdue && <Badge tone="gold"><T>Due soon</T></Badge>}
                       {a.awaitingHold && a.status !== "completed" && <Badge tone="warning"><T>Awaiting hold release</T></Badge>}
                       {a.assignedToUserId === session.userId && <Badge tone="info"><T>Assigned to you</T></Badge>}
-                      {a.assignedToUserId && a.assignedToUserId !== session.userId && <Badge tone="neutral"><T>Assigned to a team member</T></Badge>}
                       {a.plannedDate && <span className="text-xs text-muted"><T>Due</T> {a.plannedDate}</span>}
                     </div>
-                    <Link
-                      href={`/inspect/checklists/${a.templateId}`}
-                      className={buttonVariants({ variant: a.status === "completed" ? "outline" : "primary", size: "lg", className: "mt-auto w-full" })}
-                    >
-                      {a.status === "completed" ? <T>View</T> : a.status === "in_progress" ? <T>Continue</T> : <T>Start</T>}
-                      <span className="sr-only"> {a.itemNumber}. {a.activity}</span>
-                    </Link>
-                  </Card>
+                  </div>
+                  <Link
+                    href={`/inspect/checklists/${a.templateId}`}
+                    className={buttonVariants({ variant: a.status === "completed" ? "outline" : "primary", className: "w-full shrink-0 sm:w-28" })}
+                  >
+                    {a.status === "completed" ? <T>View</T> : a.status === "in_progress" ? <T>Continue</T> : <T>Start</T>}
+                    <span className="sr-only"> {a.itemNumber}. {a.activity}</span>
+                  </Link>
                 </li>
               ))}
             </ul>

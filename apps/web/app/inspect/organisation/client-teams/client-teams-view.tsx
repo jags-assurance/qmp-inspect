@@ -55,7 +55,8 @@ export async function ClientTeamsView({ searchParams, embedded }: {
   let orgPicker: { organizations: { id: string; name: string }[]; selectedOrgId: string | null } | null = null;
   let selectedOrg: OrganizationOption | null = null;
 
-  if (admin) {
+  // Any JAGS login browses organisations (RLS limits which ones); only an Admin can change anything below.
+  if (session.isJagsStaff) {
     const { org: orgIdParam } = searchParams;
     const { data: organizations } = await supabase
       .from("organizations")
@@ -96,7 +97,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
     );
   }
 
-  if (!admin && !(await isModuleLicensed(supabase, organizationId, "client_teams"))) {
+  if (!session.isJagsStaff && !(await isModuleLicensed(supabase, organizationId, "client_teams"))) {
     return (
       <div className={embedded ? undefined : "max-w-4xl"}>
         <Heading className={embedded ? "text-lg font-semibold text-text-strong" : "text-2xl font-semibold tracking-tight text-text-strong sm:text-[1.75rem]"}><T>Client Teams</T></Heading>
@@ -213,7 +214,7 @@ export async function ClientTeamsView({ searchParams, embedded }: {
         <T>This organisation&apos;s own groupings of its people — who&apos;s on which team, who leads it, and which of this organisation&apos;s own projects that team is responsible for. Separate from JAGS&apos;s internal Teams: a client team only ever contains this organisation&apos;s own people and can only be assigned to this organisation&apos;s own projects. A team lead can manage their own team&apos;s membership and project assignments; a JAGS Admin can manage every organisation&apos;s teams.</T>
       </p>
 
-      {admin && orgPicker && <OrgPickerForm organizations={orgPicker.organizations} selectedOrgId={orgPicker.selectedOrgId} />}
+      {session.isJagsStaff && orgPicker && <OrgPickerForm organizations={orgPicker.organizations} selectedOrgId={orgPicker.selectedOrgId} />}
 
       {canCreateTeam && <CreateClientTeamForm organizationId={organizationId} />}
 
