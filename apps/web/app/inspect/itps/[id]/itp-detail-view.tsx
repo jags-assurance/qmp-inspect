@@ -889,7 +889,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
             <div className="flex flex-wrap items-center gap-1.5">{badgesNode}</div>
           </div>
           <p className="mt-1 text-base text-ink">{itp.title}</p>
-          <p className="mt-1 text-sm text-muted">{contextLine}</p>
+          <p className="mt-1 line-clamp-2 text-sm text-muted">{contextLine}</p>
         </div>
       ) : (
         <PageHeader
@@ -946,13 +946,15 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
                 >
                   <div className="h-full rounded-full bg-success" style={{ width: `${activityPct}%` }} />
                 </div>
-                <p className="mt-1.5 text-xs text-muted">
+                {/* In the narrow side pane only the headline numbers stay: the long explanation, checklist count and
+                    approval-status stepper live on the full page. */}
+                {!embedded && <p className="mt-1.5 text-xs text-muted">
                   <span className="tabular-nums">{signoffComplete}</span> <T>of</T> <span className="tabular-nums">{signoffTotal}</span>{" "}
                   <T>party sign-offs complete</T> ({signoffPct}%) · <T>an activity counts only when every party on it has signed</T>
-                </p>
+                </p>}
                 <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
                   <span><T>Outstanding sign-offs:</T> <span className="tabular-nums font-medium text-ink">{signoffTotal - signoffComplete}</span></span>
-                  <span><T>Activities with a checklist:</T> <span className="tabular-nums font-medium text-ink">{checklistPreview.filter((i) => i.hasChecklist).length}</span></span>
+                  {!embedded && <span><T>Activities with a checklist:</T> <span className="tabular-nums font-medium text-ink">{checklistPreview.filter((i) => i.hasChecklist).length}</span></span>}
                   {outstanding.evidenceMissing > 0 && (
                     <span><T>Activities missing evidence:</T> <span className="tabular-nums font-medium text-warning">{outstanding.evidenceMissing}</span></span>
                   )}
@@ -962,7 +964,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
               <p className="text-sm text-muted"><T>No sign-offs are required yet.</T></p>
             )}
           </div>
-          <ol className="flex flex-wrap items-center gap-2" aria-label={tl("Approval status")}>
+          <ol className={`${embedded ? "hidden" : "flex"} flex-wrap items-center gap-2`} aria-label={tl("Approval status")}>
             {STATUS_STEPS.map((step, i) => {
               const current = statusStepIndex(itp.status);
               const done = i <= current;

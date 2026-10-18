@@ -580,9 +580,28 @@ export function ExternalPartyDashboard({
       />
       {clearancesWidget}
 
-      {(widgetOrder).map((key) => (
-        <Fragment key={key}>{widgets[key]}</Fragment>
-      ))}
+      {/* The queue widgets list the same items as "Today" above, so they stay folded as the full lists. */}
+      {(() => {
+        const queueKeys: ExternalWidget[] = ["acceptance", "review", "signoffs", "ncrs"];
+        const queueCount = itpsAwaitingAcceptance.length + workAwaitingReview.length + pendingSignoffs.length + ncrsAssignedToMe.length + punchAssignedToMe.length;
+        return (
+          <>
+            {widgetOrder.filter((k) => k === "orgHealth").map((key) => (
+              <Fragment key={key}>{widgets[key]}</Fragment>
+            ))}
+            {queueCount > 0 && (
+              <Disclosure variant="card" className="mt-6" summary={<><Tx>See the full lists</Tx> ({queueCount})</>}>
+                {widgetOrder.filter((k) => queueKeys.includes(k)).map((key) => (
+                  <Fragment key={key}>{widgets[key]}</Fragment>
+                ))}
+              </Disclosure>
+            )}
+            {widgetOrder.filter((k) => k !== "orgHealth" && !queueKeys.includes(k)).map((key) => (
+              <Fragment key={key}>{widgets[key]}</Fragment>
+            ))}
+          </>
+        );
+      })()}
 
       <ItpReviewPanel itpId={reviewItpId} onClose={panel.close} />
     </div>
