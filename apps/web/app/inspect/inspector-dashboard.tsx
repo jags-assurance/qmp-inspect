@@ -2,6 +2,7 @@ import { Tx } from "@/components/domain/tx";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { StatTile, StatGrid } from "@/components/ui/stat-tile";
+import { Disclosure } from "@/components/ui/disclosure";
 import { PageHeader } from "@/components/ui/page-header";
 import { Section } from "@/components/ui/section";
 import { Badge } from "@/components/ui/badge";
@@ -115,6 +116,8 @@ export function InspectorDashboard({
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
+  const continueItem = pendingActions.find((a) => a.status === "in_progress") ?? pendingActions[0] ?? null;
+
   return (
     <div>
       <PageHeader
@@ -140,9 +143,15 @@ export function InspectorDashboard({
           // Both field actions stay visible on a phone. Quick observation owns a side panel and a toast, so it must
           // never sit inside the header's "..." menu (that menu unmounts its content as soon as it closes).
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-            <Link href="/inspect/start-work" className={buttonVariants()}>
-              <T>Start work</T>
-            </Link>
+            {continueItem ? (
+              <Link href={`/inspect/checklists/${continueItem.templateId}`} className={buttonVariants()}>
+                {continueItem.status === "in_progress" ? <T>Continue inspection</T> : <T>Start next inspection</T>}
+              </Link>
+            ) : (
+              <Link href="/inspect/start-work" className={buttonVariants()}>
+                <T>Start work</T>
+              </Link>
+            )}
             <QuickRaiseObservation />
           </div>
         }
@@ -290,11 +299,13 @@ export function InspectorDashboard({
           />
         </StatGrid>
 
-        <Section
+        {/* The same checklists are already in "Today" above, so the full table (with its All / Today / Overdue
+            tabs) stays folded until someone wants the complete list. */}
+        <Disclosure
           id="pending-actions"
+          variant="card"
           className="scroll-mt-24"
-          title={<Tx>My pending actions</Tx>}
-          description={<T>Checklists not started or in progress.</T>}
+          summary={<><T>All my checklists</T> ({pendingActions.length})</>}
         >
           <PendingActionsTable all={pendingActions} today={pendingToday} overdue={pendingOverdue} />
 
@@ -330,7 +341,7 @@ export function InspectorDashboard({
               </ul>
             </div>
           )}
-        </Section>
+        </Disclosure>
       </div>
     </div>
   );

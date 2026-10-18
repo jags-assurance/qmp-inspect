@@ -49,11 +49,10 @@ export async function loadNextSteps(
 
   // Rows where it is the viewer's turn: notified, on one of their parties. Staff: the JAGS party's own cells.
   let yours: ProgressRow[] = [];
-  let yourTotal = 0;
   if (opts.partyIds.length > 0) {
-    const { data, count, error } = await supabase
+    const { data, error } = await supabase
       .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select(select, { count: "exact" })
+      .select(select)
       .in("project_party_id", opts.partyIds)
       .eq("status", "notified")
       .order("notified_at", { ascending: true, nullsFirst: false })
@@ -61,35 +60,30 @@ export async function loadNextSteps(
       .returns<ProgressRow[]>();
     if (error) throw new Error(`Could not load your next steps: ${error.message}`);
     yours = data ?? [];
-    yourTotal = count ?? yours.length;
   }
 
   // Staff also need to know where nobody has been asked yet (the Notify step is theirs).
   let toNotify: ProgressRow[] = [];
-  let toNotifyTotal = 0;
   if (opts.staff && yours.length < limit) {
-    const { data, count, error } = await supabase
+    const { data, error } = await supabase
       .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select(select, { count: "exact" })
+      .select(select)
       .eq("status", "pending")
-      .limit(limit - yours.length)
+      .limit(60)
       .returns<ProgressRow[]>();
     if (error) throw new Error(`Could not load the sign-offs to notify: ${error.message}`);
     toNotify = data ?? [];
-    toNotifyTotal = count ?? toNotify.length;
-  } else if (opts.staff) {
-    const { count } = await supabase
-      .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
-      .select("id", { count: "exact", head: true })
-      .eq("status", "pending");
-    toNotifyTotal = count ?? 0;
   }
 
-  const picked: { row: ProgressRow; kind: NextStepKind }[] = [
+  // One entry per activity: an activity with three pending parties is one next step, not three.
+  const seen = new Set<string>();
+  const allPicked: { row: ProgressRow; kind: NextStepKind }[] = [
     ...yours.map((row) => ({ row, kind: "sign_off" as const })),
     ...toNotify.map((row) => ({ row, kind: "notify" as const })),
-  ];
-  if (picked.length === 0) return { items: [], total: yourTotal + toNotifyTotal };
+  ].filter(({ row }) => (seen.has(row.itp_item_id) ? false : (seen.add(row.itp_item_id), true)));
+  const picked = allPicked.slice(0, limit);
+  const distinctTotal = allPicked.length;
+  if (picked.length === 0) return { items: [], total: 0 };
 
   // One batched read for the other parties on those activities, and for the level order of their organisations.
   const itemIds = [...new Set(picked.map((p) => p.row.itp_item_id))];
@@ -139,5 +133,5 @@ export async function loadNextSteps(
       position: flowPosition(stages),
     };
   });
-  return { items, total: yourTotal + toNotifyTotal };
+  return { items, total: distinctTotal };
 }
