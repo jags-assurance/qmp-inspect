@@ -14,10 +14,10 @@ import type { NavItem } from "./app-shell";
  */
 const GROUPS: { label: string; items: { label: string; href: string; always?: boolean }[] }[] = [
   {
-    label: "Issues",
+    label: "Observations",
     items: [
       { label: "NCRs", href: "/inspect/ncrs" },
-      { label: "Issues", href: "/inspect/observations" },
+      { label: "Observations", href: "/inspect/observations" },
       { label: "Vendor scorecard", href: "/inspect/ncrs/scorecard", always: true },
     ],
   },

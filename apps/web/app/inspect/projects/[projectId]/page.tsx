@@ -99,7 +99,7 @@ export default async function ProjectWorkspacePage({
     { key: "overview", label: "Overview", short: "Overview" },
     { key: "punch-list", label: "Punch list", short: "Punch", count: openPunch },
     { key: "ncrs", label: "NCRs", count: openNcrs },
-    { key: "observations", label: "Issues", short: "Issues", count: openObservations },
+    { key: "observations", label: "Observations", short: "Obs.", count: openObservations },
     { key: "itps", label: "ITPs" },
     { key: "registers", label: "Registers" },
     { key: "activity", label: "Activity" },

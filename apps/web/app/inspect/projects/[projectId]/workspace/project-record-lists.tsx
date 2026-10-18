@@ -61,7 +61,7 @@ export async function NcrsTabView({ projectId, observations = false }: { project
       title={observations ? "Observations" : "NCRs"}
       hint={observations ? "Lighter findings, gradeable up to an NCR." : "Minor and major non-conformances on this project."}
       fullHref={`/inspect/${observations ? "observations" : "ncrs"}?project=${projectId}`}
-      fullLabel={observations ? "Open the Issue Register" : "Open the NCR Register"}
+      fullLabel={observations ? "Open the Observation Register" : "Open the NCR Register"}
       empty={rows.length === 0}
     >
       {rows.map((r) => (
