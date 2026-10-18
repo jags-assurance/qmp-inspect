@@ -343,7 +343,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
                 </>
               ) : null,
             },
-            { label: <T>Inspector</T>, value: record.users?.full_name ?? "—" },
+            { label: <T>Field Engineer</T>, value: record.users?.full_name ?? "—" },
             { label: <T>Client</T>, value: record.client_name, hidden: !record.client_name },
             { label: <T>Applicable standard</T>, value: record.applicable_standard, hidden: !record.applicable_standard },
             {
@@ -513,12 +513,12 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       </Section>
 
       {record.inspector_signature && (
-        <Section title={<T>Inspector signature</T>} className="mt-5">
+        <Section title={<T>Field Engineer signature</T>} className="mt-5">
           {/* Captured as a canvas data URL — see components/domain/signature-pad.tsx. */}
           <div className="mt-2 inline-block rounded-md border border-border bg-off-white px-4 pb-2 pt-3">
-            <img src={record.inspector_signature} alt="Inspector signature" className="h-28 w-auto" />
+            <img src={record.inspector_signature} alt="Field Engineer signature" className="h-28 w-auto" />
             <div className="mt-1 w-64 border-t border-ink/30 pt-1 text-xs text-muted">
-              {record.signed_by_name ?? record.users?.full_name ?? "Inspector"} ·{" "}
+              {record.signed_by_name ?? record.users?.full_name ?? "Field Engineer"} ·{" "}
               {record.signed_at ? formatDateTime(record.signed_at) : record.inspection_date}
             </div>
           </div>

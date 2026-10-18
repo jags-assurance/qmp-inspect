@@ -93,15 +93,15 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
           title={tl("Staff access — how this works")}
           points={[
             "Admin-only — deciding who can see which client's data is an account-administration concern, same boundary as project creation and numbering settings.",
-            "Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client's data at all — with none, the account can sign in but sees nothing.",
-            "Global reaches every organisation (the default for a new staff account); Organisation or Project narrows an Inspector to only the clients they actually work with.",
+            "Every JAGS staff account (Admin or Field Engineer) needs at least one access grant to see any client's data at all — with none, the account can sign in but sees nothing.",
+            "Global reaches every organisation (the default for a new staff account); Organisation or Project narrows a Field Engineer to only the clients they actually work with.",
             "This is enforced by Row-Level Security in the database, not just this screen — and a per-organisation seat_limit (set on Plans & Seats) can block a new grant for that org.",
           ]}
         />
       </div>
       <p className="mt-1 text-sm text-muted"><T>Who on JAGS staff can see which client data.</T></p>
       <MoreDetails className="mt-1">
-        <p><T>Every JAGS staff account (Admin or Inspector) needs at least one access grant to see any client&apos;s data —</T> <strong><T>Global</T></strong> <T>reaches every organisation (the default for a new staff account), while</T> <strong><T>Organisation</T></strong> <T>or</T> <strong><T>Project</T></strong> <T>narrows an Inspector to only the clients they actually work with. This is a permission boundary enforced by the database itself (Row-Level Security), not just this screen.</T></p>
+        <p><T>Every JAGS staff account (Admin or Field Engineer) needs at least one access grant to see any client&apos;s data —</T> <strong><T>Global</T></strong> <T>reaches every organisation (the default for a new staff account), while</T> <strong><T>Organisation</T></strong> <T>or</T> <strong><T>Project</T></strong> <T>narrows a Field Engineer to only the clients they actually work with. This is a permission boundary enforced by the database itself (Row-Level Security), not just this screen.</T></p>
       </MoreDetails>
       <MoreDetails label="How the access screens fit together" className="mt-2">
       <p>
@@ -112,7 +112,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
       <StatGrid max={4} className="mt-6">
         <StatTile label="Staff accounts" value={(staff ?? []).length} />
         <StatTile label="Admins" value={adminCount} />
-        <StatTile label="Inspectors" value={(staff ?? []).length - adminCount} />
+        <StatTile label="Field Engineers" value={(staff ?? []).length - adminCount} />
         <StatTile
           label="No access grants"
           value={staffWithoutAccess}
@@ -138,7 +138,7 @@ export async function StaffAccessView({ embedded }: { embedded?: boolean }) {
               <div>
                 <p className="text-sm font-medium text-ink">{s.full_name}</p>
                 <p className="text-xs text-muted">
-                  {s.email} · {s.staff_role === "inspector" ? "JAGS Inspector" : "JAGS Admin"}
+                  {s.email} · {s.staff_role === "inspector" ? "JAGS Field Engineer" : "JAGS Admin"}
                   {s.is_active === false && <> · <span className="font-medium text-danger"><T>Deactivated</T></span></>}
                 </p>
               </div>

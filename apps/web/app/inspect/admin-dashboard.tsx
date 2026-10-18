@@ -80,9 +80,9 @@ const ENGAGEMENT_MODE_LABEL: Record<string, string> = {
 // Inspector and External-party dashboards.
 const ADMIN_GUIDE: string[] = [
   "You oversee the whole client portfolio, not individual field work — see \"Your organisations\" below for every org your access reaches, with their active projects and open NCRs.",
-  "Inspectors can propose new or updated Master Library ITP templates, but only you can approve them — see \"Master Library proposals awaiting review\" below.",
+  "Field Engineers can propose new or updated Master Library ITP templates, but only you can approve them — see \"Master Library proposals awaiting review\" below.",
   "Use \"New project\" to onboard a client's next project once their organisation and users are set up.",
-  "You have full access across every project and organisation you can see — use it to unblock issues Inspectors or external parties can't resolve themselves.",
+  "You have full access across every project and organisation you can see — use it to unblock issues Field Engineers or external parties can't resolve themselves.",
 ];
 
 /**
@@ -156,8 +156,8 @@ export function AdminDashboard({
           <PageGuide
             title={tl("JAGS Admin Overview — how this works")}
             points={[
-              "This view only renders for JAGS Admin — Inspectors and every external party each get their own dashboard instead, scoped to their own work.",
-              "\"Pending proposals\" are submissions to the Tier-1 ITP template library — an Inspector can propose a new template or an update, but only an Admin can approve one.",
+              "This view only renders for JAGS Admin — Field Engineers and every external party each get their own dashboard instead, scoped to their own work.",
+              "\"Pending proposals\" are submissions to the Tier-1 ITP template library — a Field Engineer can propose a new template or an update, but only an Admin can approve one.",
               "The portfolio table's active-project and open-NCR counts are computed per organisation from the same RLS-scoped rows every other page reads, not a separate summary table.",
               ...ADMIN_GUIDE,
             ]}

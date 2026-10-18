@@ -644,7 +644,7 @@ async function InspectionRecordLineage({ supabase, record }: { supabase: Supabas
         />
         <IdentityRow label="Overall result" value={record.overall_result} />
         <IdentityRow label="Inspection date" value={new Date(record.inspection_date).toLocaleDateString("en-GB")} />
-        <IdentityRow label="Inspector" value={record.inspector?.full_name} />
+        <IdentityRow label="Field Engineer" value={record.inspector?.full_name} />
         <IdentityRow label="Client name (frozen at inspection)" value={record.client_name} />
         <IdentityRow label="Applicable standard (frozen at inspection)" value={record.applicable_standard} />
         <IdentityRow

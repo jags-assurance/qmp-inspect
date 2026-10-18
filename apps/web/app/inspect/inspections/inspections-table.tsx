@@ -60,7 +60,7 @@ const columns: DataTableColumn<InspectionListRow>[] = [
   },
   { key: "location", header: "Location", render: (r) => formatLocationForDisplay(r.location) },
   { key: "date", header: "Date", render: (r) => r.inspection_date },
-  { key: "inspector", header: "Inspector", render: (r) => r.inspector_name ?? "—" },
+  { key: "inspector", header: "Field Engineer", render: (r) => r.inspector_name ?? "—" },
   { key: "result", header: "Result", render: (r) => <ResultChip result={r.overall_result} /> },
   {
     key: "irn",

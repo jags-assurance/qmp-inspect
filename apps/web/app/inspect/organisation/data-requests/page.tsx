@@ -101,7 +101,7 @@ export async function DataRequestsView({ searchParams, embedded }: { searchParam
             <li key={u.id} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold text-ink">{u.full_name}</p>
-                {u.is_jags_staff && <Badge tone="info">{tl(u.staff_role === "inspector" ? "Inspector" : "Admin")}</Badge>}
+                {u.is_jags_staff && <Badge tone="info">{tl(u.staff_role === "inspector" ? "Field Engineer" : "Admin")}</Badge>}
                 {u.is_active === false && <Badge tone="neutral">{tl("Deactivated")}</Badge>}
                 {anonymised && <Badge tone="neutral">{tl("Anonymised")}</Badge>}
               </div>

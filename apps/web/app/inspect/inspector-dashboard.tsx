@@ -121,7 +121,7 @@ export function InspectorDashboard({
   return (
     <div>
       <PageHeader
-        title={<Tx>Inspector Dashboard</Tx>}
+        title={<Tx>Field Engineer Dashboard</Tx>}
         subtitle={
           <>
             <span suppressHydrationWarning>{greeting}, {firstName}</span> · {today}
@@ -129,7 +129,7 @@ export function InspectorDashboard({
         }
         guide={
           <PageGuide
-            title="Inspector Dashboard — how this works"
+            title="Field Engineer Dashboard — how this works"
             points={[
               "\"Pending actions\" is a real worklist of checklists not yet started or still a draft — sorted by real urgency (a Hold-gated activity outranks a Witness one, which outranks a plain Review/Surveillance one), not just recency.",
               "A checklist with no response two days after it was generated counts as overdue — there's no separate due-date field, so age since generation is the closest real signal.",

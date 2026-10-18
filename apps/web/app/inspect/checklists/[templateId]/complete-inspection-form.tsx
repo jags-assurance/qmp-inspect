@@ -103,7 +103,7 @@ export function CompleteInspectionForm({
       {noEvidenceReason && <input type="hidden" name="no_evidence_reason" value={noEvidenceReason} />}
 
       <h2 className="text-base font-medium text-ink">
-        <Tx>Inspector sign-off</Tx> <span className="text-danger">*</span>
+        <Tx>Field Engineer sign-off</Tx> <span className="text-danger">*</span>
       </h2>
 
       <label htmlFor="signed_by_name" className="mt-3 block text-sm font-medium text-ink">

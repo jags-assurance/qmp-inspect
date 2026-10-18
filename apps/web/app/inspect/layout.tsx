@@ -269,7 +269,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
   const userRole = session.isJagsStaff
     ? isAdminStaff(session)
       ? "JAGS Admin"
-      : "JAGS Inspector"
+      : "JAGS Field Engineer"
     : (grant?.role ?? "Member");
 
   const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);

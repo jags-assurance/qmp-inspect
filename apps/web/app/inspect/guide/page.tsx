@@ -93,7 +93,7 @@ const ROLE_CONTENT: Record<
     tagline: "You run the operation — commercially and technically.",
     points: [
       "Create projects, manage staff access, configure numbering/branding, approve Master ITP Library proposals.",
-      "Everything an Inspector can do, plus the admin-only screens under Client Organisations, Numbering, Staff Access.",
+      "Everything a Field Engineer can do, plus the admin-only screens under Client Organisations, Numbering, Staff Access.",
       "Can sign off ANY party's cell on the intervention grid — staff can always countersign on a party's behalf.",
     ],
     quickLinks: [
@@ -103,7 +103,7 @@ const ROLE_CONTENT: Record<
     ],
   },
   jags_inspector: {
-    heading: "JAGS Inspector",
+    heading: "JAGS Field Engineer",
     tagline: "You're the field officer running the actual QA/QC process.",
     points: [
       "Build/edit ITPs, generate and run checklists, raise NCRs, issue IRNs.",
