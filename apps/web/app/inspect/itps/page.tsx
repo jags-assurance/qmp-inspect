@@ -340,6 +340,8 @@ export default async function ItpsPage({
 
       <SplitLayout
         storageKey="itps"
+        defaultListWidth={340}
+        defaultExpanded
         showDetail={!!itp}
         detailActions={
           itp ? (

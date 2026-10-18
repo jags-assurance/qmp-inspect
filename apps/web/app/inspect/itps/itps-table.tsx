@@ -77,14 +77,12 @@ function buildColumns(hrefFor: (id: string) => string, selectedId: string | null
             aria-current={cur(row.id)}
             className={`-mx-2 -my-1.5 block min-w-0 rounded-md border-s-2 px-2 py-2 hover:bg-surface-subtle focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-burgundy ${row.id === selectedId ? "border-burgundy bg-off-white" : "border-transparent"}`}
           >
-            <span className="flex items-start justify-between gap-2">
-              <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                <span className={`doc-id text-sm text-burgundy ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
-                <span className="text-xs text-muted"><Tx>Rev</Tx> {row.revision}</span>
-              </span>
-              <span className="shrink-0 whitespace-nowrap">
-                <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
-              </span>
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <span className={`doc-id text-sm text-burgundy [overflow-wrap:anywhere] ${row.id === selectedId ? "font-semibold" : ""}`}>{row.itp_number}</span>
+              <span className="text-xs text-muted"><Tx>Rev</Tx> {row.revision}</span>
+            </span>
+            <span className="mt-1 block whitespace-nowrap">
+              <Badge tone={ITP_STATUS_TONE[row.status] ?? "neutral"} showIcon>{ITP_STATUS_LABEL[row.status] ?? row.status}</Badge>
             </span>
             <span className="mt-1 line-clamp-2 block break-words text-sm text-ink" title={row.title}>{row.title}</span>
             <span className="mt-1.5 block"><ProgressCell progress={row.progress} /></span>

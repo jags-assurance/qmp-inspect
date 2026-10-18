@@ -21,6 +21,7 @@ export function SplitLayout({
   storageKey,
   defaultListWidth,
   detailActions,
+  defaultExpanded = false,
 }: {
   list: ReactNode;
   detail: ReactNode;
@@ -31,6 +32,8 @@ export function SplitLayout({
   defaultListWidth?: number;
   /** Optional controls shown in the detail toolbar next to the Expand button (e.g. "Open full page"). */
   detailActions?: ReactNode;
+  /** Start with the detail using the full width (the list is one click away via "Show list"). For lists that are short, where a permanent list column is mostly empty space. */
+  defaultExpanded?: boolean;
 }) {
   const tl = useTranslate();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,7 +41,7 @@ export function SplitLayout({
   // null = not user-sized yet: the CSS clamp() default applies so the list scales with the viewport.
   const [stored, setWidth] = useState<number | null>(defaultListWidth ?? null);
   const widthNow = () => stored ?? listRef.current?.getBoundingClientRect().width ?? 420;
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [dragging, setDragging] = useState(false);
 
   // Restore the saved width after mount (read in an effect so server and first client render agree).
@@ -103,12 +106,18 @@ export function SplitLayout({
       className={cn("mt-4", showDetail ? "lg:flex lg:items-start" : "")}
       style={{ ["--split-list" as string]: stored === null ? "clamp(380px, 38%, 560px)" : `${stored}px` }}
     >
-      {/* List: hidden on phones/tablets while a detail is open; on lg it is the left column (or hidden when the detail is expanded). */}
+      {/* List: hidden on phones/tablets while a detail is open; on lg it is the left column, sticky (or hidden when the detail is expanded). */}
       <div
         ref={listRef}
         className={cn(
           "min-w-0",
-          showDetail ? (expanded ? "hidden" : "hidden lg:block lg:w-[var(--split-list)] lg:shrink-0") : "w-full"
+          showDetail
+            ? expanded
+              ? "hidden"
+              : // The list stays in view while a long detail scrolls (own scroll if it is taller than the screen), so the
+                // left column never turns into an empty gap beside the detail.
+                "hidden lg:block lg:w-[var(--split-list)] lg:shrink-0 lg:sticky lg:top-[calc(var(--header-h,4rem)+0.75rem)] lg:max-h-[calc(100dvh-var(--header-h,4rem)-1.5rem)] lg:overflow-y-auto lg:overscroll-contain"
+            : "w-full"
         )}
       >
         {list}
