@@ -3,7 +3,7 @@ import { isPublicPath } from "../public-paths";
 
 describe("signed-out allow list", () => {
   it("keeps the existing public routes", () => {
-    for (const p of ["/login", "/login/mfa", "/forgot-password", "/reset-password", "/auth/confirm", "/verify/irn/abc", "/api/health", "/api/vault/email-inbound", "/sw.js", "/manifest.webmanifest", "/offline.html"]) {
+    for (const p of ["/login", "/login/mfa", "/forgot-password", "/reset-password", "/auth/confirm", "/verify/irn/abc", "/api/health", "/api/vault/email-inbound", "/api/cron/signoff-automation", "/sw.js", "/manifest.webmanifest", "/offline.html"]) {
       expect(isPublicPath(p), p).toBe(true);
     }
   });

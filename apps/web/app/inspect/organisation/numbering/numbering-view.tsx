@@ -11,6 +11,8 @@ import {
 import { EngagementModeForm } from "./engagement-mode-form";
 import { EngagementScopeForm } from "./engagement-scope-form";
 import { ItpSequencingModeForm } from "./itp-sequencing-mode-form";
+import { SignoffAutomationForm } from "./signoff-automation-form";
+import { parseAutomationFlags } from "@/lib/signoff/automation-logic";
 import { NumberingConfigRow as NumberingConfigRowForm } from "./numbering-config-row";
 import { OrgPickerForm } from "./org-picker-form";
 import { ItpApprovalWorkflowForm, type StaffOption } from "./itp-approval-workflow-form";
@@ -86,6 +88,18 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
       .returns<NumberingConfigRow[]>();
 
     configsByDocType = new Map((configs ?? []).map((c) => [c.doc_type, c]));
+  }
+
+  // Phase 2 sign-off automation switches. Read on their own so the page still loads before the
+  // database update adding the columns has been applied (then both read as off and the form is disabled).
+  let signoffAutomation = { autoNotify: false, autoProceed: false, available: false };
+  if (selectedOrg && isStaffAdmin) {
+    const { data: flagRow, error: flagError } = await supabase
+      .from("organizations")
+      .select("auto_notify_signoffs, auto_proceed_after_notice")
+      .eq("id", selectedOrg.id)
+      .maybeSingle();
+    if (!flagError) signoffAutomation = { ...parseAutomationFlags(flagRow as never), available: true };
   }
 
   // R79 configurable ITP approval workflow: staff pool to pick a required reviewer/approver from —
@@ -183,6 +197,22 @@ export async function NumberingSettingsView({ searchParams, embedded }: {
                   <ItpSequencingModeForm
                     organizationId={selectedOrg.id}
                     itpSequencingMode={selectedOrg.itp_sequencing_mode}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+                <h2 className="text-sm font-semibold text-ink"><T>Sign-off automation</T></h2>
+                <MoreDetails className="mt-1">
+                  <p><T>Both options are off by default. They only save routine clicks: a Hold or a Review is never skipped, and nobody&apos;s sign-off is ever recorded for them.</T></p>
+                </MoreDetails>
+                <div className="mt-4">
+                  <SignoffAutomationForm
+                    key={`${selectedOrg.id}-${signoffAutomation.autoNotify}-${signoffAutomation.autoProceed}`}
+                    organizationId={selectedOrg.id}
+                    autoNotify={signoffAutomation.autoNotify}
+                    autoProceed={signoffAutomation.autoProceed}
+                    available={signoffAutomation.available}
                   />
                 </div>
               </div>

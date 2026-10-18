@@ -16,6 +16,7 @@ import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { snapshotInitialIssue } from "@/lib/itps/revisions";
 import { createNotification } from "@/lib/notifications/helpers";
 import { recordAuditEvent } from "@/lib/audit/log";
+import { runSignoffAutomationForItp } from "@/lib/signoff/automation";
 import {
   getProjectReviewChain,
   ITP_REVIEW_CHAIN_MEMBERS_TABLE,
@@ -264,6 +265,9 @@ async function finalizeApprovedReviewChain(
   } catch {
     // Best-effort.
   }
+
+  // Phase 2 automation (organisation opt-in, default off): sign-off just opened. Never throws.
+  await runSignoffAutomationForItp(itpId);
 
   return true;
 }

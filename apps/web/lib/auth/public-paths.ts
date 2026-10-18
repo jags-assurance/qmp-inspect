@@ -13,6 +13,8 @@ export const PUBLIC_PATH_PREFIXES = [
   "/api/health",
   // Inbound-email webhook: authenticated by its own shared secret, not a user session.
   "/api/vault/email-inbound",
+  // Scheduled sign-off automation: Vercel Cron has no user session; the route checks CRON_SECRET itself.
+  "/api/cron/signoff-automation",
   // PWA / offline-support assets: the browser fetches the service worker script (and installs the
   // manifest + offline fallback) without being able to follow a login redirect — "The script
   // resource is behind a redirect, which is disallowed" — so redirecting these to /login silently

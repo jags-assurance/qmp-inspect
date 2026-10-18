@@ -10,6 +10,7 @@ import { createNotification } from "@/lib/notifications/helpers";
 import { mergeItpTranslation } from "@/lib/itps/translations";
 import { generateChecklistsForItp } from "@/lib/checklists/actions";
 import { hasPermission } from "@/lib/rbac/permissions";
+import { runSignoffAutomationForItp } from "@/lib/signoff/automation";
 import { recordAuditEvent } from "@/lib/audit/log";
 import { checklistReviewError, recordChecklistReviewTick } from "@/lib/itps/checklist-review";
 import { INTERVENTION_LEVEL_TYPES_TABLE } from "@/lib/intervention-levels/types";
@@ -1451,6 +1452,10 @@ export async function advanceItpStatusAction(
             }
           }
         }
+
+        // Phase 2 automation (organisation opt-in, default off): sign-off just opened, so notify the
+        // parties of the first eligible levels. Never throws.
+        await runSignoffAutomationForItp(itpId);
       }
     } catch (err) {
       console.error("[itps] post-approval side effects failed", itpId, err);
@@ -1780,6 +1785,9 @@ export async function acceptItpAction(_prev: AcceptItpState, formData: FormData)
     // Best-effort — see doc comment above.
   }
 
+  // Phase 2 automation (opt-in): catches any sign-off rows still waiting once the client has accepted.
+  await runSignoffAutomationForItp(itpId);
+
   revalidatePath(`/inspect/itps/${itpId}`);
   // The dashboard's "awaiting your acceptance" list shows this ITP too.
   revalidatePath("/inspect");
@@ -1832,6 +1840,9 @@ export async function acceptItpOnBehalfAction(_prev: AcceptItpState, formData: F
   } catch {
     // The manual "Generate checklists" button still works.
   }
+
+  // Phase 2 automation (opt-in), as in acceptItpAction.
+  await runSignoffAutomationForItp(itpId);
 
   revalidatePath(`/inspect/itps/${itpId}`);
   revalidatePath("/inspect");
