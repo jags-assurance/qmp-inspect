@@ -15,6 +15,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { computeItemReviewFlags, REVIEW_FLAG_LABELS } from "@/lib/itps/draft-validation";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 
 const EXTRACTION_LABEL: Record<string, string> = {
@@ -33,6 +34,7 @@ const genInitialState: GenerateItpDraftState = {
   interventionLevels: [],
   aiLogId: null,
   suggestedItpNumber: null,
+  draftNotices: [],
 };
 
 type CountMode = "auto" | "concise" | "standard" | "detailed" | "custom";
@@ -99,6 +101,8 @@ export function NewItpFromAiForm({
   const [genState, genFormAction, genPending] = useActionState(generateItpDraftAction, genInitialState);
   const [draft, setDraft] = useState<ItpDraftResult | null>(null);
   const [projectParties, setProjectParties] = useState<GenerateItpDraftState["projectParties"]>([]);
+  const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
+  const [draftNotices, setDraftNotices] = useState<string[]>([]);
   const [interventionLevels, setInterventionLevels] = useState<GenerateItpDraftState["interventionLevels"]>([]);
   const [aiLogId, setAiLogId] = useState<string | null>(null);
   const [projectId, setProjectId] = useState("");
@@ -137,6 +141,7 @@ export function NewItpFromAiForm({
       setProjectParties(genState.projectParties);
       setInterventionLevels(genState.interventionLevels);
       setAiLogId(genState.aiLogId);
+      setDraftNotices(genState.draftNotices);
       setFeedback("");
       // Auto-fill from the AI's suggestions, but never clobber something the user already typed —
       // a "regenerate with feedback" cycle keeps whatever the reviewer already customized.
@@ -301,6 +306,12 @@ export function NewItpFromAiForm({
 
   const project = projects.find((p) => p.id === projectId);
   const totalActivities = draft.sections.reduce((sum, s) => sum + s.items.length, 0);
+  const needsReviewCount = draft.sections.reduce(
+    (sum, s) => sum + s.items.filter((it) => computeItemReviewFlags(it).length > 0).length,
+    0
+  );
+
+  const itemFlags = (it: ItpDraftResult["sections"][number]["items"][number]) => computeItemReviewFlags(it);
 
   function updateSectionTitle(sectionIdx: number, title: string) {
     setDraft((d) => {
@@ -384,6 +395,26 @@ export function NewItpFromAiForm({
         <p className="mt-1 text-xs text-muted">
           <Tx>Edit anything below directly, use</Tx> <strong><Tx>+ Add activity</Tx></strong> <Tx>to top up a section, or describe a change and regenerate the whole draft instead of editing by hand.</Tx>
         </p>
+        {draftNotices.length > 0 && (
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted">
+            {draftNotices.map((n) => (
+              <li key={n}><Tx>{n}</Tx></li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+          {needsReviewCount > 0 ? (
+            <Badge tone="warning">{needsReviewCount} <Tx>of</Tx> {totalActivities} <Tx>activities need review</Tx></Badge>
+          ) : (
+            <Badge tone="success"><Tx>No activities flagged — every activity has criteria and a spec reference</Tx></Badge>
+          )}
+          {needsReviewCount > 0 && (
+            <label className="flex items-center gap-1.5 text-ink">
+              <input type="checkbox" checked={onlyNeedsReview} onChange={(e) => setOnlyNeedsReview(e.target.checked)} />
+              <Tx>Show only activities that need review</Tx>
+            </label>
+          )}
+        </div>
         <form action={genFormAction} className="mt-3 space-y-2">
           <input type="hidden" name="project_id" value={projectId} />
           {selectedDocIds.map((id) => (
@@ -486,10 +517,20 @@ export function NewItpFromAiForm({
                   </p>
                 )}
                 {section.items.map((item, itemIdx) => (
-                  <div key={itemIdx} className="rounded-md border border-border bg-surface p-3">
+                  <div
+                    key={itemIdx}
+                    className={`rounded-md border bg-surface p-3 ${itemFlags(item).length > 0 ? "border-warning" : "border-border"} ${onlyNeedsReview && itemFlags(item).length === 0 ? "hidden" : ""}`}
+                  >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="doc-id rounded bg-surface-subtle px-2 py-1 text-xs font-medium text-ink">
-                        <Tx>Item</Tx> {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="doc-id rounded bg-surface-subtle px-2 py-1 text-xs font-medium text-ink">
+                          <Tx>Item</Tx> {item.itemNumber || `${sectionIdx + 1}.${itemIdx + 1}`}
+                        </span>
+                        {itemFlags(item).length > 0 && (
+                          <span title={itemFlags(item).map((f) => REVIEW_FLAG_LABELS[f]).join("; ")}>
+                            <Badge tone="warning"><Tx>Needs review</Tx>: {itemFlags(item).map((f) => REVIEW_FLAG_LABELS[f]).join("; ")}</Badge>
+                          </span>
+                        )}
                       </span>
                       <Button
                         type="button"
