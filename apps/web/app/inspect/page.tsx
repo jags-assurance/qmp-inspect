@@ -952,8 +952,8 @@ export default async function InspectDashboardPage() {
     return (
       <InspectorDashboard
         nextSteps={await (async () => {
-          const steps = await loadNextSteps(supabase, { partyIds: [], staff: true, limit: 3 });
-          return <NextStepsCard items={steps.items} total={steps.total} roleKey="staff" isStaff />;
+          const steps = await loadNextSteps(supabase, { partyIds: [], staff: true });
+          return <NextStepsCard items={steps.items} total={steps.total} notify={steps.notify} roleKey="staff" isStaff />;
         })()}
         assignedToMe={await assignedToMePromise!}
         clearancesWidget={
@@ -990,8 +990,8 @@ export default async function InspectDashboardPage() {
   return (
     <AdminDashboard
         nextSteps={await (async () => {
-          const steps = await loadNextSteps(supabase, { partyIds: [], staff: true, limit: 3 });
-          return <NextStepsCard items={steps.items} total={steps.total} roleKey="staff" isStaff />;
+          const steps = await loadNextSteps(supabase, { partyIds: [], staff: true });
+          return <NextStepsCard items={steps.items} total={steps.total} notify={steps.notify} roleKey="staff" isStaff />;
         })()}
         clearancesWidget={
           <Suspense fallback={null}>

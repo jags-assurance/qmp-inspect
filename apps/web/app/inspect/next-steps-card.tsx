@@ -4,7 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { T } from "@/components/domain/t";
 import { cn } from "@/lib/cn";
-import type { NextStepItem } from "@/lib/dashboard/next-steps";
+import type { NextStepItem, NextStepNotifyGroup } from "@/lib/dashboard/next-steps";
 import type { StageState } from "@/lib/itps/flow";
 
 /** What the process means for each kind of login, in a few plain sentences (shown folded, on every dashboard). */
@@ -58,23 +58,42 @@ function Dot({ state, you }: { state: StageState; you: boolean }) {
  * of sign-offs (green tick = done, green ring = happening now, grey = later) and one green button to open it. Kept
  * short on purpose (a handful of items), with the explanation folded away for people who want it.
  */
-export function NextStepsCard({ items, total, roleKey, isStaff }: { items: NextStepItem[]; total: number; roleKey: string | null; isStaff: boolean }) {
+export function NextStepsCard({ items, total, notify = null, roleKey, isStaff }: { items: NextStepItem[]; total: number; notify?: NextStepNotifyGroup | null; roleKey: string | null; isStaff: boolean }) {
   const how = HOW_IT_WORKS[isStaff ? "staff" : (roleKey ?? "")] ?? HOW_IT_WORKS.subcontractor;
   const more = total - items.length;
   return (
     <section aria-label="Your next steps" className="mb-6 mt-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-ink"><T>Your next steps</T></h2>
-        {items.length > 0 && <p className="text-xs text-muted"><T>Do these first.</T></p>}
+        {(items.length > 0 || notify) && <p className="text-xs text-muted"><T>Do these first.</T></p>}
       </div>
 
-      {items.length === 0 ? (
+      {items.length === 0 && !notify ? (
         <p className="mt-3 flex items-center gap-2 text-sm text-ink">
           <span aria-hidden="true" className="flex h-6 w-6 items-center justify-center rounded-full bg-success text-xs font-bold text-white">✓</span>
           <T>You are all caught up. Nothing needs you right now.</T>
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-border">
+          {notify && (
+            <li className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-ink">
+                  {notify.count}{notify.approximate ? "+" : ""} <T>activities are waiting for you to ask the parties to sign.</T>
+                </p>
+                <p className="mt-1 text-xs text-muted">
+                  <T>Nobody has been asked yet. Open the ITP and press Notify on each one.</T>
+                </p>
+              </div>
+              <Link
+                href={notify.href}
+                prefetch={false}
+                className={cn(buttonVariants({ variant: "primary" }), "w-full shrink-0 border-success bg-success hover:bg-success/90 sm:w-auto")}
+              >
+                <Tx>{notify.itpCount === 1 ? "Open the ITP and notify" : "Choose an ITP to notify"}</Tx> →
+              </Link>
+            </li>
+          )}
           {items.map((item) => (
             <li key={item.id} className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">

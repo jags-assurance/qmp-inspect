@@ -11,6 +11,16 @@ import { buildActivityFlow, flowPosition, type FlowLevel, type StageState } from
 
 export type NextStepKind = "sign_off" | "notify";
 
+export interface NextStepNotifyGroup {
+  /** Activities where no party has been asked yet. */
+  count: number;
+  /** True when the read hit its row cap, so the real number may be higher. */
+  approximate: boolean;
+  /** The one ITP when they all belong to it, otherwise the ITP register. */
+  href: string;
+  itpCount: number;
+}
+
 export interface NextStepItem {
   /** activity_signoff_progress id */
   id: string;
@@ -42,7 +52,7 @@ interface ProgressRow {
 export async function loadNextSteps(
   supabase: SupabaseClient,
   opts: { partyIds: string[]; staff: boolean; limit?: number }
-): Promise<{ items: NextStepItem[]; total: number }> {
+): Promise<{ items: NextStepItem[]; total: number; notify: NextStepNotifyGroup | null }> {
   const limit = opts.limit ?? 5;
   const select =
     "id, itp_item_id, intervention, status, project_party_id, itp_items(id, activity, itp_sections(itps(id, itp_number, projects(name, organization_id))))";
@@ -81,9 +91,23 @@ export async function loadNextSteps(
     ...yours.map((row) => ({ row, kind: "sign_off" as const })),
     ...toNotify.map((row) => ({ row, kind: "notify" as const })),
   ].filter(({ row }) => (seen.has(row.itp_item_id) ? false : (seen.add(row.itp_item_id), true)));
-  const picked = allPicked.slice(0, limit);
-  const distinctTotal = allPicked.length;
-  if (picked.length === 0) return { items: [], total: 0 };
+  // Activities nobody has been asked about yet are one group, not a row each: the action is the same (open the ITP
+  // and press Notify), so listing them one by one only buries the activities where somebody is waiting.
+  const notifyRows = allPicked.filter((p) => p.kind === "notify").map((p) => p.row);
+  const notifyItpIds = [...new Set(notifyRows.map((r) => r.itp_items?.itp_sections?.itps?.id).filter((x): x is string => !!x))];
+  const notify: NextStepNotifyGroup | null =
+    notifyRows.length === 0
+      ? null
+      : {
+          count: notifyRows.length,
+          approximate: toNotify.length >= 60,
+          href: notifyItpIds.length === 1 ? `/inspect/itps/${notifyItpIds[0]}` : "/inspect/itps",
+          itpCount: notifyItpIds.length,
+        };
+  const signOffPicked = allPicked.filter((p) => p.kind === "sign_off");
+  const picked = signOffPicked.slice(0, limit);
+  const distinctTotal = signOffPicked.length;
+  if (picked.length === 0) return { items: [], total: 0, notify };
 
   // One batched read for the other parties on those activities, and for the level order of their organisations.
   const itemIds = [...new Set(picked.map((p) => p.row.itp_item_id))];
@@ -133,5 +157,5 @@ export async function loadNextSteps(
       position: flowPosition(stages),
     };
   });
-  return { items, total: distinctTotal };
+  return { items, total: distinctTotal, notify };
 }
