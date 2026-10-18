@@ -51,6 +51,8 @@ export interface ChecklistItemRow {
 export type OverallResult = "pass" | "fail" | "partial";
 
 export interface InspectionRecordRow {
+  /** Attempt number for the activity: 0 = Attempt A, 1 = Attempt B (see lib/checklists/attempts.ts). */
+  revision?: number | null;
   id: string;
   project_id: string;
   itp_item_id: string;

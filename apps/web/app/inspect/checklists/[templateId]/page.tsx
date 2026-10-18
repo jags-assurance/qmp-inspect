@@ -38,6 +38,7 @@ import { countTemplateRecords, countTemplateResponses } from "@/lib/checklists/t
 import { loadDuplicateTargets } from "@/lib/checklists/duplicate-targets";
 import { itemEditBlockReason, templateDeleteBlockReason } from "@/lib/checklists/template-ui-logic";
 import { StartInspectionForm } from "./start-inspection-form";
+import { attemptLabel, reinspectionState } from "@/lib/checklists/attempts";
 import { ConfirmAiChecklist } from "./confirm-ai-checklist";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { projectPeople } from "@/lib/ncrs/recipients";
@@ -202,11 +203,11 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
       .returns<Pick<InspectionRecordRow, "id" | "location" | "inspection_date" | "created_at">[]>(),
     supabase
       .from(INSPECTION_RECORDS_TABLE)
-      .select("id, record_number, overall_result, inspection_date")
+      .select("id, record_number, overall_result, inspection_date, revision")
       .eq("checklist_template_id", templateId)
       .not("overall_result", "is", null)
       .order("created_at", { ascending: false })
-      .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date">[]>(),
+      .returns<Pick<InspectionRecordRow, "id" | "record_number" | "overall_result" | "inspection_date" | "revision">[]>(),
     loadNumericSpecsForTemplate(supabase, templateId),
     // Version / archive state. Read separately from the main template query so the page still works
     // before the versioning migration (20261106000100) is applied (error -> unversioned, active).
@@ -645,6 +646,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
     ).values(),
   ];
 
+  const reinspection = reinspectionState((pastRecords ?? []).map((r) => ({ revision: r.revision ?? 0, result: r.overall_result })));
   const RESULT_TONE: Record<string, "success" | "danger" | "warning"> = { pass: "success", fail: "danger", partial: "warning" };
 
   return (
@@ -738,6 +740,12 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
 
       {!draft && canExecute && !archived && itpApproved && !holdOpen && !aiDraft && (
         <div className="mt-6">
+          {reinspection.isReinspection && (
+            <p className="mb-3 rounded-md border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-ink" role="status">
+              <span className="font-medium"><T>Attempt</T> {reinspection.failedLabel} <T>failed.</T></span>{" "}
+              <T>Fix the issue, then run it again as</T> <span className="font-medium"><T>Attempt</T> {reinspection.nextLabel}</span>. <T>The failed attempt stays on file.</T>
+            </p>
+          )}
           {noticeWarning && (
             <p className="mb-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">
               {noticeWarning}
@@ -910,6 +918,7 @@ export default async function ChecklistFillPage({ params }: { params: Promise<{ 
           <ul className="mt-2 space-y-1">
             {(pastRecords ?? []).map((r) => (
               <li key={r.id} className="flex items-center gap-2 text-sm">
+                <span className="w-24 shrink-0 font-medium text-ink"><T>Attempt</T> {attemptLabel(r.revision ?? 0)}</span>
                 <Link href={`/inspect/inspections/${r.id}`} className="doc-id text-burgundy hover:underline">
                   {r.record_number}
                 </Link>

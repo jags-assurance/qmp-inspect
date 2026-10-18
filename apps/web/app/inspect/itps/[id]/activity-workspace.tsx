@@ -73,7 +73,7 @@ const INSPECTION_LABEL: Record<ChecklistInspectionState, string> = {
   not_started: "Inspection not started",
   in_progress: "Inspection in progress",
   pass: "Inspection complete: pass",
-  fail: "Inspection complete: fail",
+  fail: "Latest inspection failed. Run it again after the fix",
   partial: "Inspection complete: partial",
 };
 
@@ -82,7 +82,7 @@ const INSPECTION_ACTION: Record<ChecklistInspectionState, string> = {
   not_started: "Open the checklist to start the inspection",
   in_progress: "Continue the inspection",
   pass: "View the inspection",
-  fail: "View the inspection",
+  fail: "Open the checklist to re-inspect",
   partial: "View the inspection",
 };
 
@@ -362,7 +362,7 @@ export function ActivityWorkspace({
                     {row.checklistTemplateId ? (
                       <Link
                         href={`/inspect/checklists/${row.checklistTemplateId}`}
-                        className={cn(buttonVariants({ variant: row.inspectionState === "not_started" || row.inspectionState === "in_progress" ? "primary" : "outline" }), "mt-2 w-full sm:w-auto")}
+                        className={cn(buttonVariants({ variant: row.inspectionState === "not_started" || row.inspectionState === "in_progress" || row.inspectionState === "fail" ? "primary" : "outline" }), "mt-2 w-full sm:w-auto")}
                       >
                         <Tx>{INSPECTION_ACTION[row.inspectionState]}</Tx> →
                       </Link>
