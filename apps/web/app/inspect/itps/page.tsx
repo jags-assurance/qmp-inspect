@@ -20,6 +20,8 @@ import { getActiveMasterDisciplines } from "@/lib/master-disciplines/cache";
 import { PageGuide } from "@/components/domain/page-guide";
 import { SortForm } from "./sort-form";
 import { ExportLink } from "@/components/domain/export-link";
+import { computeActivityProgress, type ActivityProgress } from "@/lib/itps/progress";
+import { ACTIVITY_SIGNOFF_PROGRESS_TABLE } from "@/lib/signoff/db-types";
 import { getTranslator } from "@/lib/i18n/server";
 import { withActiveProject } from "@/lib/projects/active-project";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
@@ -34,7 +36,7 @@ export default async function ItpsPage({
   const { discipline: disciplineId, project: projectId, phase: phaseParam, q, page: pageParam, itp, pane: paneParam, status: statusParam, sort: sortParam } = withActiveProject(await searchParams, await getActiveProjectId());
   const STATUSES = ["draft", "under_review", "approved", "client_accepted", "superseded", "withdrawn"] as const;
   const statusFilter = STATUSES.find((x) => x === statusParam) ?? null;
-  const sort = ["number", "title", "status"].includes(sortParam ?? "") ? (sortParam as string) : "";
+  const sort = ["number", "title", "status", "completion"].includes(sortParam ?? "") ? (sortParam as string) : "";
   // R23: optional phase filter — only a recognised phase value is honoured, anything else is
   // treated as "no filter" rather than silently matching zero rows.
   const phase = phaseParam && (ITP_PHASES as readonly string[]).includes(phaseParam) ? normalizeItpPhase(phaseParam) : null;
@@ -83,7 +85,7 @@ export default async function ItpsPage({
   // `disciplines` (for the filter dropdown) and `taggedItems` (for the id filter) don't depend on
   // each other's results — only the later ITP queries depend on taggedItems — so they're fetched
   // together instead of waterfalled.
-  const [disciplines, { data: taggedItems }] = await Promise.all([
+  const [disciplines, { data: taggedItems, error: taggedError }] = await Promise.all([
     getActiveMasterDisciplines(),
     disciplineId
       ? supabase
@@ -91,8 +93,10 @@ export default async function ItpsPage({
           .select("section_id, itp_sections(itp_id)")
           .eq("discipline_id", disciplineId)
           .returns<{ section_id: string; itp_sections: { itp_id: string } | null }[]>()
-      : Promise.resolve({ data: null as { section_id: string; itp_sections: { itp_id: string } | null }[] | null }),
+      : Promise.resolve({ data: null as { section_id: string; itp_sections: { itp_id: string } | null }[] | null, error: null }),
   ]);
+  // A failed read must surface (error boundary), never render as an empty register.
+  if (taggedError) throw new Error(`Failed to load discipline filter: ${taggedError.message}`);
 
   let itpIdFilter: string[] | null = null;
   if (disciplineId) {
@@ -127,51 +131,86 @@ export default async function ItpsPage({
     tableQuery = tableQuery.eq("phase", phase);
   }
   if (q) {
-    const sq = q.replace(/[,()%*]/g, " ").trim();
-    countQuery = countQuery.or(`itp_number.ilike.%${sq}%,title.ilike.%${sq}%`);
-    tableQuery = tableQuery.or(`itp_number.ilike.%${sq}%,title.ilike.%${sq}%`);
+    // Search ITP number, title and the project's name / number. The project match is resolved to
+    // project ids first (PostgREST cannot OR across an embedded table), then OR-ed in by project_id.
+    const sq = q.replace(/[,()%*\\]/g, " ").trim();
+    if (sq) {
+      const { data: projectMatches, error: projectSearchError } = await supabase
+        .from("projects")
+        .select("id")
+        .or(`name.ilike.%${sq}%,project_number.ilike.%${sq}%`)
+        .limit(200)
+        .returns<{ id: string }[]>();
+      if (projectSearchError) throw new Error(`Failed to search projects: ${projectSearchError.message}`);
+      const projectIds = (projectMatches ?? []).map((p) => p.id);
+      const orClause = [`itp_number.ilike.%${sq}%`, `title.ilike.%${sq}%`, ...(projectIds.length ? [`project_id.in.(${projectIds.join(",")})`] : [])].join(",");
+      countQuery = countQuery.or(orClause);
+      tableQuery = tableQuery.or(orClause);
+    }
   }
 
   const offset = (page - 1) * ITP_TABLE_PAGE_SIZE;
+  const byCompletion = sort === "completion";
+  // Completion is derived (not a column), so sorting by it ranks every matching ITP (capped) and
+  // slices the page afterwards; every other sort is a plain server-side ORDER + RANGE.
+  const COMPLETION_SORT_CAP = 1000;
   const orderCol = sort === "number" ? "itp_number" : sort === "title" ? "title" : sort === "status" ? "status" : "created_at";
-  const [{ count: totalCount }, { data: itpRows }, statusCounts] = await Promise.all([
+  const orderedQuery = byCompletion
+    ? tableQuery.order("created_at", { ascending: false }).limit(COMPLETION_SORT_CAP)
+    : tableQuery.order(orderCol, { ascending: sort !== "" }).range(offset, offset + ITP_TABLE_PAGE_SIZE - 1);
+  const [{ count: totalCount, error: countError }, { data: itpRows, error: rowsError }, statusCounts] = await Promise.all([
     countQuery,
-    tableQuery
-      .order(orderCol, { ascending: sort !== "" })
-      .range(offset, offset + ITP_TABLE_PAGE_SIZE - 1)
-      .returns<ItpRow[]>(),
+    orderedQuery.returns<ItpRow[]>(),
     Promise.all(
       STATUSES.map(async (st) => {
         let c = supabase.from("itps").select("id", { count: "exact", head: true }).eq("status", st);
         if (itpIdFilter) c = itpIdFilter.length === 0 ? c.eq("id", "00000000-0000-0000-0000-000000000000") : c.in("id", itpIdFilter);
         if (projectId) c = c.eq("project_id", projectId);
         if (phase) c = c.eq("phase", phase);
-        const { count } = await c;
+        const { count, error } = await c;
+        if (error) throw new Error(`Failed to count ${st} ITPs: ${error.message}`);
         return [st, count ?? 0] as const;
       })
     ),
   ]);
+  if (countError) throw new Error(`Failed to count ITPs: ${countError.message}`);
+  if (rowsError) throw new Error(`Failed to load ITPs: ${rowsError.message}`);
 
-  // % activities signed: one batched query over the sign-off rows of this page's ITPs.
-  const pageIds = (itpRows ?? []).map((r) => r.id);
-  const progress = new Map<string, { signed: number; total: number }>();
-  if (pageIds.length > 0) {
-    const { data: so } = await supabase
-      .from("activity_signoff_progress")
-      .select("status, itp_items!inner(itp_sections!inner(itp_id))")
-      .in("itp_items.itp_sections.itp_id", pageIds)
-      .limit(10000)
-      .returns<{ status: string; itp_items: { itp_sections: { itp_id: string } } | null }[]>();
-    for (const row of so ?? []) {
-      const id = row.itp_items?.itp_sections?.itp_id;
-      if (!id) continue;
-      const cur = progress.get(id) ?? { signed: 0, total: 0 };
-      cur.total += 1;
-      if (row.status === "signed_off" || row.status === "proceeded_no_response") cur.signed += 1;
-      progress.set(id, cur);
+  // Activity sign-off progress: ONE batched read of the sign-off rows for all ITPs in play (paged
+  // only to stay under the API row cap), grouped per ITP and reduced by the shared helper that
+  // mirrors the ITP detail page's rule (an activity is done only when every party row is signed off).
+  const candidateIds = (itpRows ?? []).map((r) => r.id);
+  const rowsByItp = new Map<string, { itp_item_id: string; status: string }[]>();
+  if (candidateIds.length > 0) {
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data: so, error: soError } = await supabase
+        .from(ACTIVITY_SIGNOFF_PROGRESS_TABLE)
+        .select("itp_item_id, status, itp_items!inner(itp_sections!inner(itp_id))")
+        .in("itp_items.itp_sections.itp_id", candidateIds)
+        .order("id")
+        .range(from, from + PAGE - 1)
+        .returns<{ itp_item_id: string; status: string; itp_items: { itp_sections: { itp_id: string } } | null }[]>();
+      if (soError) throw new Error(`Failed to load sign-off progress: ${soError.message}`);
+      for (const row of so ?? []) {
+        const id = row.itp_items?.itp_sections?.itp_id;
+        if (!id) continue;
+        const list = rowsByItp.get(id) ?? [];
+        list.push({ itp_item_id: row.itp_item_id, status: row.status });
+        rowsByItp.set(id, list);
+      }
+      if ((so ?? []).length < PAGE) break;
     }
   }
-  const itps = (itpRows ?? []).map((r) => ({ ...r, signed: progress.get(r.id)?.signed ?? 0, signTotal: progress.get(r.id)?.total ?? 0 }));
+  const withProgress = (itpRows ?? []).map((r) => {
+    const progress: ActivityProgress = computeActivityProgress(rowsByItp.get(r.id) ?? []);
+    return { ...r, progress };
+  });
+  const itps = byCompletion
+    ? withProgress
+        .sort((a, b) => b.progress.percent - a.progress.percent || b.progress.complete - a.progress.complete || a.itp_number.localeCompare(b.itp_number))
+        .slice(offset, offset + ITP_TABLE_PAGE_SIZE)
+    : withProgress;
 
   // R91 — export the register (current filters, every matching row, not just this page) to Excel
   // (a real .xlsx workbook, see app/api/itps/export/route.ts) and PDF (a print view). Built from

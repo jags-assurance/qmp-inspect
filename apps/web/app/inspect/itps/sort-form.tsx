@@ -7,6 +7,7 @@ const OPTIONS: { value: string; label: string }[] = [
   { value: "number", label: "ITP number" },
   { value: "title", label: "Title A-Z" },
   { value: "status", label: "Status" },
+  { value: "completion", label: "Completion (highest first)" },
 ];
 
 // GET form that keeps every other register filter as hidden inputs and resets paging.
@@ -29,7 +30,7 @@ export function SortForm({ current, params }: { current: string; params: Record<
       >
         {OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}
+            <Tx>{o.label}</Tx>
           </option>
         ))}
       </select>

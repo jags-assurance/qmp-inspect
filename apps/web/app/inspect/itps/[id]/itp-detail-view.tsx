@@ -10,6 +10,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { Badge } from "@/components/ui/badge";
 import { ActivitySignoffGrid } from "./activity-signoff-grid";
+import { ActivityWorkspace, type WorkspaceRow } from "./activity-workspace";
+import { WorkspaceControls } from "./workspace-controls";
+import { OutstandingActionsPanel } from "./outstanding-actions";
+import { computeActivityProgress } from "@/lib/itps/progress";
+import { summariseActivity, summariseOutstanding, summariseSection, type OutstandingItem } from "@/lib/itps/workspace";
 import { InterventionLegend } from "@/components/domain/intervention-legend";
 import { AcceptItpForm } from "./accept-itp-form";
 import { ReviewChainStatus } from "./review-chain-status";
@@ -140,7 +145,7 @@ const EVIDENCE_LABEL: Record<number, string> = {
   3: "Measurement record",
 };
 
-async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: boolean }) {
+async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: string; embedded?: boolean; view?: "list" | "matrix" }) {
   const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -770,7 +775,39 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
     />
   );
   const aiEnabled = await aiEnabledPromise;
+
+  // What needs attention across the whole ITP, from the same sign-off rows and evidence the sections show.
+  const outstandingItems: OutstandingItem[] = (sections ?? [])
+    .flatMap((sec) => [...(sec.itp_items ?? [])].sort((a, b) => a.sort_order - b.sort_order))
+    .map((item) => {
+      const expected = expectedRecordsByItem.get(item.id) ?? [];
+      const evidenceCount =
+        item.evidence_type === 2
+          ? (evidenceDocumentsByItem.get(item.id) ?? []).length
+          : item.evidence_type === 3
+            ? (measurementsByItem.get(item.id) ?? []).length
+            : null;
+      return {
+        itemId: item.id,
+        itemNumber: item.item_number,
+        activity: item.activity,
+        summary: summariseActivity(
+          (parties ?? []).map((party) => ({
+            intervention: interventionMap.get(`${item.id}:${party.id}`) ?? null,
+            status: signoffMap.get(`${item.id}:${party.id}`)?.status ?? null,
+            isBlocking: blockingCodes.has(interventionMap.get(`${item.id}:${party.id}`) ?? ""),
+            canSignOff: canSignOffFor(party.user_id, party.is_active),
+          }))
+        ),
+        evidenceMissing: evidenceCount !== null && evidenceCount === 0,
+        recordsOutstanding: expected.filter((r) => !r.received_at).length,
+      };
+    });
+  const outstanding = summariseOutstanding(outstandingItems);
   const signoffPct = signoffTotal > 0 ? Math.round((signoffComplete / signoffTotal) * 100) : 0;
+  // The bar at the top is ACTIVITY completion (every party signed), not the share of party sign-offs: it used to
+  // draw the party-level percentage under an "activities fully signed off" label.
+  const activityPct = computeActivityProgress(ownSignoffs).percent;
   const showNextStep =
     canSubmitForReview ||
     (canApproveItp && itp.status === "under_review" && !hasActiveReviewChain) ||
@@ -872,20 +909,28 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                   <p className="text-sm font-medium text-ink">
                     {activityComplete} <T>of</T> {activityTotal} <T>activities fully signed off</T>
                   </p>
-                  <span className="text-sm font-semibold tabular-nums text-text-strong">{signoffPct}%</span>
+                  <span className="text-sm font-semibold tabular-nums text-text-strong">{activityPct}%</span>
                 </div>
                 <div
                   role="progressbar"
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  aria-valuenow={signoffPct}
-                  aria-label={tl("Party sign-offs complete")}
+                  aria-valuenow={activityPct}
+                  aria-label={tl("Activities fully signed off")}
                   className="mt-2 h-2 overflow-hidden rounded-full bg-surface-sunken"
                 >
-                  <div className="h-full rounded-full bg-success" style={{ width: `${signoffPct}%` }} />
+                  <div className="h-full rounded-full bg-success" style={{ width: `${activityPct}%` }} />
                 </div>
                 <p className="mt-1.5 text-xs text-muted">
-                  {signoffComplete} <T>of</T> {signoffTotal} <T>party sign-offs, one per party on each activity</T>
+                  <span className="tabular-nums">{signoffComplete}</span> <T>of</T> <span className="tabular-nums">{signoffTotal}</span>{" "}
+                  <T>party sign-offs complete</T> ({signoffPct}%) · <T>an activity counts only when every party on it has signed</T>
+                </p>
+                <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
+                  <span><T>Outstanding sign-offs:</T> <span className="tabular-nums font-medium text-ink">{signoffTotal - signoffComplete}</span></span>
+                  <span><T>Activities with a checklist:</T> <span className="tabular-nums font-medium text-ink">{checklistPreview.filter((i) => i.hasChecklist).length}</span></span>
+                  {outstanding.evidenceMissing > 0 && (
+                    <span><T>Activities missing evidence:</T> <span className="tabular-nums font-medium text-warning">{outstanding.evidenceMissing}</span></span>
+                  )}
                 </p>
               </>
             ) : (
@@ -1054,7 +1099,7 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
       </Disclosure>
 
-      {(sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
+      {view === "matrix" && (sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
         <p className="mt-6 hidden text-sm text-muted md:block">
           <T>Each row is one activity. Each party column shows what that party must do on it (H Hold, W Witness, R Review, S Surveillance) and whether they have signed off. An empty cell means that party has no part in the activity.</T>
         </p>
@@ -1097,32 +1142,174 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
         />
       </Disclosure>
 
-      <div className="mt-8 space-y-8">
-        {(sections ?? []).map((section, sectionIndex) => (
-          <div key={section.id} id={`section-${section.section_number}`} className="scroll-mt-[calc(var(--header-h)+5rem)] [overflow:clip] rounded-lg border border-border bg-surface shadow-xs">
-            <div className="border-b border-border bg-surface-subtle px-4 py-3">
-              {canEditContent ? (
-                <SectionControls
-                  itpId={itp.id}
-                  sectionId={section.id}
-                  sectionNumber={section.section_number}
-                  title={section.title}
-                  isIssued={isIssued}
-                  isFirst={sectionIndex === 0}
-                  isLast={sectionIndex === (sections ?? []).length - 1}
-                  isOnlySection={(sections ?? []).length <= 1}
-                />
-              ) : (
-                <h2 className="font-medium text-ink">
+      <OutstandingActionsPanel outstanding={outstanding} />
+
+      {(sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
+        <div className="no-print mt-4 flex flex-wrap items-center justify-between gap-2">
+          <WorkspaceControls rootId="itp-workspace" />
+          <nav aria-label={tl("Activity view")} className="flex items-center gap-1 text-xs">
+            <Link
+              href={`/inspect/itps/${id}`}
+              aria-current={view === "list" ? "true" : undefined}
+              className={cn("inline-flex min-h-8 items-center rounded-md border px-3 font-medium [@media(pointer:coarse)]:min-h-11", view === "list" ? "border-brand bg-brand-soft text-brand" : "border-control-border bg-surface text-ink hover:bg-surface-subtle")}
+            >
+              <T>Activity list</T>
+            </Link>
+            <Link
+              href={`/inspect/itps/${id}?view=matrix`}
+              aria-current={view === "matrix" ? "true" : undefined}
+              className={cn("hidden min-h-8 items-center rounded-md border px-3 font-medium md:inline-flex", view === "matrix" ? "border-brand bg-brand-soft text-brand" : "border-control-border bg-surface text-ink hover:bg-surface-subtle")}
+            >
+              <T>Party matrix</T>
+            </Link>
+          </nav>
+        </div>
+      )}
+
+      <div id="itp-workspace" className="mt-4 space-y-4">
+        {(sections ?? []).map((section, sectionIndex) => {
+          const sortedItems = [...(section.itp_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
+          const gridRows = sortedItems.map((item) => ({
+            itemId: item.id,
+            itemNumber: item.item_number,
+            activity: item.activity,
+            acceptanceCriteria: item.acceptance_criteria,
+            referenceSpec: item.reference_spec,
+            method: item.method,
+            frequency: item.frequency,
+            evidenceLabel: EVIDENCE_LABEL[item.evidence_type],
+            evidenceType: item.evidence_type,
+            checklist: checklistByItem.get(item.id) ?? null,
+            disciplineId: item.discipline_id,
+            disciplineCode: item.discipline_id ? disciplineByid.get(item.discipline_id) ?? null : null,
+            // R25: per-activity override, checked before the level-keyed noticeHours map.
+            noticeHoursOverride: item.notice_hours_override,
+            plannedDate: item.planned_date,
+            requiredRegisters: requiredRegistersByItem.get(item.id) ?? [],
+            partyCells: (parties ?? []).map((party) => {
+              const intervention = interventionMap.get(`${item.id}:${party.id}`) ?? null;
+              const signoff = signoffMap.get(`${item.id}:${party.id}`) ?? null;
+              return {
+                party,
+                intervention,
+                signoff: signoff ? { ...signoff, ...(signoffNotes.get(signoff.id) ?? {}) } : null,
+                canSignOff: canSignOffFor(party.user_id, party.is_active),
+              };
+            }),
+          }));
+          const sectionSummary = summariseSection(
+            gridRows.map((r) =>
+              summariseActivity(
+                r.partyCells.map((c) => ({
+                  intervention: c.intervention,
+                  status: c.signoff?.status ?? null,
+                  isBlocking: !!c.intervention && blockingCodes.has(c.intervention),
+                  canSignOff: c.canSignOff,
+                }))
+              )
+            )
+          );
+          const workspaceRows: WorkspaceRow[] = gridRows.map((row, i) => {
+            const item = sortedItems[i];
+            const expected = expectedRecordsByItem.get(item.id) ?? [];
+            const measurements = measurementsByItem.get(item.id) ?? [];
+            const evidenceDocs = evidenceDocumentsByItem.get(item.id) ?? [];
+            return {
+              ...row,
+              evidenceCount: item.evidence_type === 2 ? evidenceDocs.length : item.evidence_type === 3 ? measurements.length : null,
+              recordsExpected: expected.length,
+              recordsReceived: expected.filter((r) => r.received_at).length,
+              evidenceNode: (
+                <>
+                  <ActivityEvidenceToggle label={`Expected records${expected.length > 0 ? ` (${expected.length})` : ""}`}>
+                    <ExpectedRecordsSection
+                      itpItemId={item.id}
+                      records={expected}
+                      canAdd={session.isJagsStaff}
+                      canMarkReceivedByProvider={canMarkReceivedByProvider}
+                      projectId={itp.projects?.id ?? ""}
+                      vaultDocuments={vaultDocuments}
+                    />
+                  </ActivityEvidenceToggle>
+                  {item.evidence_type === 3 && (
+                    <ActivityEvidenceToggle label={`Measurements${measurements.length > 0 ? ` (${measurements.length})` : ""}`}>
+                      <ItpItemMeasurementsSection itpItemId={item.id} measurements={measurements} canRecord={canExecuteItemEvidence(item.id)} />
+                    </ActivityEvidenceToggle>
+                  )}
+                  {item.evidence_type === 2 && (
+                    <ActivityEvidenceToggle label={`Evidence documents${evidenceDocs.length > 0 ? ` (${evidenceDocs.length})` : ""}`}>
+                      <ItpItemEvidenceDocumentsSection
+                        itpItemId={item.id}
+                        documents={evidenceDocs}
+                        vaultDocuments={vaultDocuments}
+                        projectId={itp.projects?.id ?? ""}
+                        vaultFolders={vaultFolders}
+                        canLink={canExecuteItemEvidence(item.id)}
+                      />
+                    </ActivityEvidenceToggle>
+                  )}
+                </>
+              ),
+            };
+          });
+          return (
+            <details
+              key={section.id}
+              id={`section-${section.section_number}`}
+              data-section
+              open
+              className="group/section scroll-mt-[calc(var(--header-h)+5rem)] [overflow:clip] rounded-lg border border-border bg-surface shadow-xs"
+            >
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-surface-subtle px-3 py-2.5 sm:px-4 [&::-webkit-details-marker]:hidden [@media(pointer:coarse)]:min-h-11">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-4 w-4 shrink-0 text-muted transition-transform group-open/section:rotate-90 motion-reduce:transition-none rtl:-scale-x-100 rtl:group-open/section:rotate-[-90deg]"
+                >
+                  <path d="M7 4.5l5.5 5.5-5.5 5.5" />
+                </svg>
+                <h2 className="min-w-0 flex-1 basis-48 text-sm font-semibold text-ink">
                   {section.section_number}. {section.title}
                 </h2>
+                <span className="text-xs text-muted">
+                  {sectionSummary.activities} <T>{sectionSummary.activities === 1 ? "activity" : "activities"}</T>
+                  {sectionSummary.withSignoffs > 0 && (
+                    <>
+                      {" · "}
+                      {sectionSummary.fullySignedOff} <T>of</T> {sectionSummary.withSignoffs} <T>fully signed off</T>
+                      {sectionSummary.outstandingPoints > 0 && (
+                        <>
+                          {" · "}
+                          <span className="font-medium text-ink">
+                            {sectionSummary.outstandingPoints} <T>sign-offs outstanding</T>
+                          </span>
+                        </>
+                      )}
+                    </>
+                  )}
+                </span>
+              </summary>
+              {canEditContent && (
+                <div className="border-b border-border px-3 py-2.5 sm:px-4">
+                  <SectionControls
+                    itpId={itp.id}
+                    sectionId={section.id}
+                    sectionNumber={section.section_number}
+                    title={section.title}
+                    isIssued={isIssued}
+                    isFirst={sectionIndex === 0}
+                    isLast={sectionIndex === (sections ?? []).length - 1}
+                    isOnlySection={(sections ?? []).length <= 1}
+                  />
+                </div>
               )}
-            </div>
-            {/* R26-29: per-party H/W/R/S sign-off grid — rows = this section's activities, columns =
-                every project_party on the ITP, one real <table> instead of the previous per-activity
-                chain-of-chips card layout (see ActivitySignoffGrid). Deliberately wide/scrollable
-                (overflow-x-auto lives inside the grid component), matching how real client ITP
-                reference documents lay this out. */}
+              {view === "matrix" ? (
+                <>
             {(() => {
               const sortedItems = [...(section.itp_items ?? [])].sort((a, b) => a.sort_order - b.sort_order);
               const gridRows = sortedItems.map((item) => ({
@@ -1239,21 +1426,38 @@ async function ItpDetailBody({ id, embedded = false }: { id: string; embedded?: 
                 </>
               );
             })()}
-            {canEditContent && (
-              <AddItemForm
-                itpId={itp.id}
-                sectionId={section.id}
-                suggestedItemNumber={`${section.section_number}.${(section.itp_items ?? []).length + 1}`}
-                disciplines={disciplines ?? []}
-                isIssued={isIssued}
-                drawingDocuments={drawingDocuments}
-                parties={(parties ?? []).filter((p) => p.is_active).map((p) => ({ id: p.id, name: p.name }))}
-                levels={levels.map((l) => ({ code: l.code, label: l.label }))}
-              />
-            )}
-            {canEditContent && <BulkAddItemsForm itpId={itp.id} sectionId={section.id} isIssued={isIssued} />}
-          </div>
-        ))}
+                </>
+              ) : (
+                <ActivityWorkspace
+                  itpId={itp.id}
+                  projectId={itp.projects?.id ?? ""}
+                  rows={workspaceRows}
+                  parties={(parties ?? []).map((p) => ({ id: p.id, name: p.name }))}
+                  canEditContent={canEditContent}
+                  isJagsStaff={session.isJagsStaff}
+                  noticeHours={noticeHours}
+                  levels={levels}
+                  blockingCodes={blockingCodes}
+                  disciplines={disciplines ?? []}
+                  isIssued={isIssued}
+                />
+              )}
+              {canEditContent && (
+                <AddItemForm
+                  itpId={itp.id}
+                  sectionId={section.id}
+                  suggestedItemNumber={`${section.section_number}.${(section.itp_items ?? []).length + 1}`}
+                  disciplines={disciplines ?? []}
+                  isIssued={isIssued}
+                  drawingDocuments={drawingDocuments}
+                  parties={(parties ?? []).filter((p) => p.is_active).map((p) => ({ id: p.id, name: p.name }))}
+                  levels={levels.map((l) => ({ code: l.code, label: l.label }))}
+                />
+              )}
+              {canEditContent && <BulkAddItemsForm itpId={itp.id} sectionId={section.id} isIssued={isIssued} />}
+            </details>
+          );
+        })}
       </div>
 
       {canEditContent && <AddSectionForm itpId={itp.id} isIssued={isIssued} />}
@@ -1291,15 +1495,18 @@ export async function ItpDetailView({
   embedded = false,
   pane = "details",
   baseQuery = "",
+  view = "list",
 }: {
   id: string;
   embedded?: boolean;
   pane?: ItpPane;
+  /** Full page only: "matrix" shows the party-by-activity matrix instead of the default activity list. */
+  view?: "list" | "matrix";
   /** Embedded only: the register's current query string (filters, `itp`), without `pane`. */
   baseQuery?: string;
 }) {
   const tl = await getTranslator();
-  if (!embedded) return <ItpDetailBody id={id} />;
+  if (!embedded) return <ItpDetailBody id={id} view={view} />;
   const active: ItpPane = PANES.some((p) => p.key === pane) ? pane : "details";
   const hrefFor = (key: ItpPane) => {
     const sp = new URLSearchParams(baseQuery);
