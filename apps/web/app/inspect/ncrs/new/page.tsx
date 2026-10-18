@@ -122,10 +122,10 @@ export default async function NewNcrPage({
       <PageHeader
         backHref="/inspect/ncrs"
         backLabel="Back to NCR Register"
-        title={<T>Raise NCR / Observation</T>}
+        title={<T>Report an issue or raise an NCR</T>}
         guide={
           <PageGuide
-          title={tl("Raise NCR / Observation — how this works")}
+          title={tl("Report an issue or raise an NCR — how this works")}
           points={[
             "One form, one engine, for both — picking severity \"Observation\" instead of minor/major NCR is what routes it to the Observation Register instead of the NCR Register.",
             "Anyone with access to the project can raise one; the assignee and responsible-party pickers only offer real people with access to this project (access grants plus linked project parties), not free text.",

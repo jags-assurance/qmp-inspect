@@ -65,7 +65,7 @@ export default async function NcrDetailPage({ params, searchParams }: { params: 
       )}
       <PageHeader
         backHref={ncr.severity === "observation" ? "/inspect/observations" : "/inspect/ncrs"}
-        backLabel={ncr.severity === "observation" ? "Back to Observations" : "Back to NCR Register"}
+        backLabel={ncr.severity === "observation" ? "Back to Issues" : "Back to NCR Register"}
         title={<span className="doc-id">{ncr.ncr_number}</span>}
         guide={
           <>

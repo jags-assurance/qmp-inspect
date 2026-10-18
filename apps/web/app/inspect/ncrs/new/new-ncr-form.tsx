@@ -422,7 +422,7 @@ export function NewNcrForm({
 
       <StickyActionBar>
         <Button type="submit" disabled={pending}>
-          {pending ? "Raising…" : severity === "observation" ? "Raise Observation" : "Raise NCR"}
+          {pending ? "Raising…" : severity === "observation" ? "Report issue" : "Raise NCR"}
         </Button>
       </StickyActionBar>
     </form>

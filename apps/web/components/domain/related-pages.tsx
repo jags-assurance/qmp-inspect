@@ -17,7 +17,7 @@ const GROUPS: { label: string; items: { label: string; href: string; always?: bo
     label: "Issues",
     items: [
       { label: "NCRs", href: "/inspect/ncrs" },
-      { label: "Observations", href: "/inspect/observations" },
+      { label: "Issues", href: "/inspect/observations" },
       { label: "Vendor scorecard", href: "/inspect/ncrs/scorecard", always: true },
     ],
   },

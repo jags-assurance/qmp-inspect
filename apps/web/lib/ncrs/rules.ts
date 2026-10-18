@@ -112,7 +112,7 @@ export function severityLabel(severity: string): string {
     case "minor_ncr":
       return "Minor NCR";
     case "observation":
-      return "Observation";
+      return "Issue";
     default:
       return severity.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
   }

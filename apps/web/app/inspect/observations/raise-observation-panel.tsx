@@ -61,12 +61,12 @@ export function RaiseObservationPanel() {
   return (
     <>
       <Button onClick={() => panel.open()} className="min-h-11">
-        <Tx>+ Raise Observation</Tx>
+        <Tx>+ Report an issue</Tx>
       </Button>
       <SidePanel
         open={isOpen}
         onClose={panel.close}
-        title={tl("Raise Observation")}
+        title={tl("Report an issue")}
       >
         {loadError ? (
           <p className="mt-6 text-sm text-danger"><Tx>Couldn&rsquo;t load the project and people lists. Close and try again.</Tx></p>

@@ -123,7 +123,7 @@ export default async function ObservationsPage({
     <div className="space-y-5">
       <PageHeader
         className="mb-0"
-        title={<T>Observation Register</T>}
+        title={<T>Issue Register</T>}
         guide={
           <PageGuide
             title={tl("Observation Register — how this works")}

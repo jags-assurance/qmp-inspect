@@ -128,7 +128,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
         { label: "Data Book (choose a project)", href: "/inspect/reports-documents" },
         { label: "Reports (choose a project)", href: "/inspect/reports-documents" },
         { label: "NCR register", href: "/inspect/ncrs" },
-        { label: "Observations register", href: "/inspect/observations" },
+        { label: "Issues register", href: "/inspect/observations" },
         { label: "Inspections list", href: "/inspect/inspections" },
       ],
     },
@@ -163,17 +163,17 @@ export default async function InspectLayout({ children }: { children: React.Reac
     ...(isLicensed("ncrs") && isLicensed("observations")
       ? [
           {
-            label: "NCRs & Observations",
+            label: "Issues & NCRs",
             href: "/inspect/ncrs",
             group: "Quality",
             activePrefixes: ["/inspect/observations"],
-            palette: [{ label: "Observations register", href: "/inspect/observations" }],
+            palette: [{ label: "Issues register", href: "/inspect/observations" }],
           },
         ]
       : [
           ...(isLicensed("ncrs") ? [{ label: "NCRs", href: "/inspect/ncrs", group: "Quality" }] : []),
           ...(isLicensed("observations")
-            ? [{ label: "Observations", href: "/inspect/observations", group: "Quality" }]
+            ? [{ label: "Issues", href: "/inspect/observations", group: "Quality" }]
             : []),
         ]),
     // Per-project pages (Reports, Data Book, Activity, KPIs) are reached through this index.

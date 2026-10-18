@@ -117,12 +117,12 @@ export function QuickRaiseObservation() {
   return (
     <>
       <Button variant="outline" onClick={openPanel} className="min-h-11">
-        <Tx>Quick observation</Tx>
+        <Tx>Report an issue</Tx>
       </Button>
       <SidePanel
         open={open}
         onClose={() => setOpen(false)}
-        title={tl("Quick observation")}
+        title={tl("Report an issue")}
         description="Three fields. Works offline — it's sent automatically once you have signal."
       >
         <form onSubmit={onSubmit} className="mt-5 space-y-4">
@@ -183,7 +183,7 @@ export function QuickRaiseObservation() {
             />
           </div>
           <p className="text-xs text-muted">
-            <Tx>Severity is set to Observation. Add the assignee and responsible party afterwards from the NCR itself.</Tx>
+            <Tx>This is recorded as an Issue, not an NCR. Add the assignee and responsible party afterwards from the NCR itself.</Tx>
           </p>
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           <Button type="submit" disabled={saving} className="min-h-11 w-full">
