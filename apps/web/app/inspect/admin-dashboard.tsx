@@ -108,7 +108,10 @@ export function AdminDashboard({
   overdueHoldsTile,
   overdueHoldsCard,
   clearancesWidget = null,
+  nextSteps = null,
 }: {
+  /** "Your next steps" card (process flow + green button). */
+  nextSteps?: ReactNode;
   /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
   clearancesWidget?: ReactNode;
   firstName: string;
@@ -166,6 +169,7 @@ export function AdminDashboard({
           </Link>
         }
       />
+      {nextSteps}
 
       {/* Ordered by urgency — what needs action today first, reference counts (projects, ITPs) last. */}
       <StatGrid max={6}>

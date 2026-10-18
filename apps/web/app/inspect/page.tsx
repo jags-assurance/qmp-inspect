@@ -24,6 +24,8 @@ import { loadAssignedToMe } from "@/lib/checklists/assigned-queries";
 import { Suspense } from "react";
 import { ExpiringClearancesCard } from "@/components/domain/expiring-clearances-card";
 import { AdminDashboard } from "./admin-dashboard";
+import { NextStepsCard } from "./next-steps-card";
+import { loadNextSteps } from "@/lib/dashboard/next-steps";
 import { OverdueHoldsCard, OverdueHoldsTile } from "./admin-overdue-holds";
 import { WatchlistSkeleton } from "@/components/ui/watchlist";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -874,6 +876,11 @@ export default async function InspectDashboardPage() {
 
     return (
       <ExternalPartyDashboard
+        nextSteps={await (async () => {
+          const steps = await loadNextSteps(supabase, { partyIds: (ownParties ?? []).map((p) => p.id), staff: false });
+          const key = isClientRole ? "client" : isMainContractorRole ? "main_contractor" : (ownParties?.[0]?.party_type ?? "subcontractor");
+          return <NextStepsCard items={steps.items} total={steps.total} roleKey={key} isStaff={false} />;
+        })()}
         clearancesWidget={
           <Suspense fallback={null}>
             <ExpiringClearancesCard />
@@ -944,6 +951,10 @@ export default async function InspectDashboardPage() {
   if (isInspector) {
     return (
       <InspectorDashboard
+        nextSteps={await (async () => {
+          const steps = await loadNextSteps(supabase, { partyIds: [], staff: true });
+          return <NextStepsCard items={steps.items} total={steps.total} roleKey="staff" isStaff />;
+        })()}
         assignedToMe={await assignedToMePromise!}
         clearancesWidget={
           <Suspense fallback={null}>
@@ -978,6 +989,10 @@ export default async function InspectDashboardPage() {
   // dedicated dashboard component above.
   return (
     <AdminDashboard
+        nextSteps={await (async () => {
+          const steps = await loadNextSteps(supabase, { partyIds: [], staff: true });
+          return <NextStepsCard items={steps.items} total={steps.total} roleKey="staff" isStaff />;
+        })()}
         clearancesWidget={
           <Suspense fallback={null}>
             <ExpiringClearancesCard />

@@ -154,7 +154,10 @@ export function ExternalPartyDashboard({
   punchAssignedToMe = [],
   totals,
   clearancesWidget = null,
+  nextSteps = null,
 }: {
+  /** "Your next steps" card (process flow + green button). */
+  nextSteps?: ReactNode;
   /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
   clearancesWidget?: ReactNode;
   punchAssignedToMe?: AssignedPunchRow[];
@@ -563,6 +566,7 @@ export function ExternalPartyDashboard({
         />
         }
       />
+      {nextSteps}
 
       <TodayQueue
         emptyText="You are all caught up. Check Reports & documents below, or open Inspections to follow progress."

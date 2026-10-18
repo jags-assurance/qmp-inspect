@@ -89,7 +89,10 @@ export function InspectorDashboard({
   ncrsAssignedToMe = [],
   assignedToMe = [],
   clearancesWidget = null,
+  nextSteps = null,
 }: {
+  /** "Your next steps" card (process flow + green button). */
+  nextSteps?: ReactNode;
   /** Activities assigned to this inspector personally (itp_items.assigned_to_user_id). */
   assignedToMe?: AssignedActivity[];
   /** Streamed server widget: calibrations / certificates that are lapsed or lapsing. */
@@ -144,6 +147,7 @@ export function InspectorDashboard({
           </div>
         }
       />
+      {nextSteps}
 
       {/* Order: what needs my attention first, KPIs next, then the full lists. */}
       <div className="space-y-5">

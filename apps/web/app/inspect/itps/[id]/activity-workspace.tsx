@@ -10,6 +10,7 @@ import { nextNeed, partyState, summariseActivity, type ActivityStatus, type Chec
 import { buttonVariants } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
 import { ActivityPanelItem } from "./activity-panel-item";
+import { buildActivityFlow, type FlowLevel } from "@/lib/itps/flow";
 import { cn } from "@/lib/cn";
 import { ItemControls } from "./item-controls";
 import { ActivityChecklistToggle } from "./activity-checklist-toggle";
@@ -105,6 +106,8 @@ export function ActivityWorkspace({
   blockingCodes,
   disciplines,
   isIssued,
+  flowLevels,
+  strictMode,
 }: {
   itpId: string;
   projectId: string;
@@ -117,6 +120,9 @@ export function ActivityWorkspace({
   blockingCodes: Set<string>;
   disciplines: { id: string; code: string; name: string }[];
   isIssued: boolean;
+  /** The organisation's levels with their order and blocking flag, and its sequencing mode: used to order the steps. */
+  flowLevels: FlowLevel[];
+  strictMode: boolean;
 }) {
   if (rows.length === 0) {
     return <p className="px-4 py-6 text-center text-sm text-muted"><T>No activities in this section yet.</T></p>;
@@ -144,6 +150,64 @@ export function ActivityWorkspace({
           .map((c) => c.party.name);
         const need = nextNeed(summary, waitingOn);
         const statusText = summary.required > 0 ? `${badge.label}: ${summary.done} of ${summary.required} signed` : badge.label;
+
+        const stages = buildActivityFlow(
+          row.partyCells.map((c) => ({ partyId: c.party.id, partyName: c.party.name, intervention: c.intervention, status: c.signoff?.status ?? null, isYou: c.canSignOff })),
+          flowLevels,
+          strictMode
+        );
+        const uninvolved = row.partyCells.filter((c) => !c.intervention);
+        const renderPartyRow = ({ party, intervention, signoff, canSignOff }: (typeof row.partyCells)[number]) => {
+          const state = partyState({ intervention, status: signoff?.status ?? null });
+          return (
+<li key={party.id} className="space-y-2 px-3 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{party.name}</p>
+                <p className="text-xs text-muted">
+                  {intervention ? levelLabel(intervention) : <Tx>No part in this activity</Tx>}
+                </p>
+              </div>
+              <InterventionSelect
+                itpId={itpId}
+                itpItemId={row.itemId}
+                projectPartyId={party.id}
+                value={intervention}
+                editable={canEditContent}
+                levels={levels}
+                isIssued={isIssued}
+              />
+            </div>
+            {intervention && signoff ? (
+              <SignoffCell
+                layout="compact"
+                progressId={signoff.id}
+                isBlocking={blockingCodes.has(intervention)}
+                status={signoff.status}
+                notifiedAt={signoff.notified_at}
+                noticeHours={row.noticeHoursOverride ?? noticeHours[intervention] ?? null}
+                canSignOff={canSignOff}
+                isJagsStaff={isJagsStaff}
+                rejectionReason={signoff.rejectionReason ?? null}
+                signoffComment={signoff.signoffComment ?? null}
+                noticeWarning={
+                  signoff.status === "pending" && row.plannedDate && (intervention === "H" || intervention === "W" || blockingCodes.has(intervention))
+                    ? (() => {
+                        const n = evaluateNotice(row.plannedDate, row.noticeHoursOverride ?? noticeHours[intervention] ?? 24, levelLabel(intervention));
+                        return n.status === "short_notice" || n.status === "overdue" ? { status: n.status, message: n.message } : null;
+                      })()
+                    : null
+                }
+              />
+            ) : (
+              <p className="text-xs text-muted">
+                <span aria-hidden="true">{PARTY_STATE_ICON[state]} </span>
+                <Tx>{PARTY_STATE_LABEL[state]}</Tx>
+              </p>
+            )}
+          </li>
+          );
+        };
 
         const rowNode = (
           <>
@@ -235,64 +299,55 @@ export function ActivityWorkspace({
                   })()}
                 </section>
 
-                {/* 3. Who signs off */}
+                {/* 3. Who signs off, in the order they act */}
                 <section aria-label="Party sign-offs">
-                  <h3 className="text-sm font-semibold text-ink"><Tx>Who signs off</Tx></h3>
-                  <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-surface">
-                    {row.partyCells
-                      .filter((c) => c.intervention || canEditContent)
-                      .map(({ party, intervention, signoff, canSignOff }) => {
-                        const state = partyState({ intervention, status: signoff?.status ?? null });
-                        return (
-                          <li key={party.id} className="space-y-2 px-3 py-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-ink [overflow-wrap:anywhere]">{party.name}</p>
-                                <p className="text-xs text-muted">
-                                  {intervention ? levelLabel(intervention) : <Tx>No part in this activity</Tx>}
-                                </p>
-                              </div>
-                              <InterventionSelect
-                                itpId={itpId}
-                                itpItemId={row.itemId}
-                                projectPartyId={party.id}
-                                value={intervention}
-                                editable={canEditContent}
-                                levels={levels}
-                                isIssued={isIssued}
-                              />
-                            </div>
-                            {intervention && signoff ? (
-                              <SignoffCell
-                                layout="compact"
-                                progressId={signoff.id}
-                                isBlocking={blockingCodes.has(intervention)}
-                                status={signoff.status}
-                                notifiedAt={signoff.notified_at}
-                                noticeHours={row.noticeHoursOverride ?? noticeHours[intervention] ?? null}
-                                canSignOff={canSignOff}
-                                isJagsStaff={isJagsStaff}
-                                rejectionReason={signoff.rejectionReason ?? null}
-                                signoffComment={signoff.signoffComment ?? null}
-                                noticeWarning={
-                                  signoff.status === "pending" && row.plannedDate && (intervention === "H" || intervention === "W" || blockingCodes.has(intervention))
-                                    ? (() => {
-                                        const n = evaluateNotice(row.plannedDate, row.noticeHoursOverride ?? noticeHours[intervention] ?? 24, levelLabel(intervention));
-                                        return n.status === "short_notice" || n.status === "overdue" ? { status: n.status, message: n.message } : null;
-                                      })()
-                                    : null
-                                }
-                              />
-                            ) : (
-                              <p className="text-xs text-muted">
-                                <span aria-hidden="true">{PARTY_STATE_ICON[state]} </span>
-                                <Tx>{PARTY_STATE_LABEL[state]}</Tx>
-                              </p>
-                            )}
-                          </li>
-                        );
-                      })}
-                  </ul>
+                  <h3 className="text-sm font-semibold text-ink"><Tx>The steps, in order</Tx></h3>
+                  <ol className="mt-3">
+                    {stages.map((stage, i) => (
+                      <li key={stage.code} className="relative ps-10 pb-5 last:pb-0">
+                        {i < stages.length - 1 && <span aria-hidden="true" className={cn("absolute start-3.5 top-7 bottom-0 w-px", stage.state === "done" ? "bg-success" : "bg-border")} />}
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "absolute start-0 top-0 flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-semibold",
+                            stage.state === "done"
+                              ? "border-success bg-success text-white"
+                              : stage.state === "current"
+                                ? "border-success bg-success/15 text-success"
+                                : "border-control-border bg-surface text-muted"
+                          )}
+                        >
+                          {stage.state === "done" ? "✓" : stage.state === "waiting" ? "⏳" : i + 1}
+                        </span>
+                        <div className="flex flex-wrap items-baseline gap-x-2">
+                          <p className="text-sm font-semibold text-ink">
+                            <Tx>Step</Tx> {i + 1}: {stage.label}
+                          </p>
+                          <span className={cn("text-xs font-medium", stage.state === "done" ? "text-success" : stage.state === "current" ? "text-success" : "text-muted")}>
+                            <Tx>{stage.state === "done" ? "Done" : stage.state === "current" ? "Happening now" : stage.state === "waiting" ? "Waiting for an earlier step" : "Not started"}</Tx>
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted"><Tx>{stage.plainRole}</Tx></p>
+                        {stage.state === "waiting" && stage.steps.find((st) => st.waitingFor) && (
+                          <p className="mt-0.5 text-xs text-ink"><Tx>This step opens once</Tx> {stage.steps.find((st) => st.waitingFor)?.waitingFor} <Tx>is signed off.</Tx></p>
+                        )}
+                        <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-surface">
+                          {stage.steps.map((step) => {
+                            const cell = row.partyCells.find((c) => c.party.id === step.partyId);
+                            return cell ? renderPartyRow(cell) : null;
+                          })}
+                        </ul>
+                      </li>
+                    ))}
+                  </ol>
+                  {stages.length === 0 && (
+                    <p className="mt-1 text-sm text-muted"><Tx>No one has been asked to sign off this activity.</Tx></p>
+                  )}
+                  {canEditContent && uninvolved.length > 0 && (
+                    <Disclosure variant="pill" summary={<Tx>Add another party to this activity</Tx>} className="mt-3">
+                      <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-surface">{uninvolved.map((c) => renderPartyRow(c))}</ul>
+                    </Disclosure>
+                  )}
                 </section>
 
                 {/* 4. The checklist and its inspection */}

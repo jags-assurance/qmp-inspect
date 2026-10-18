@@ -229,6 +229,9 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
       )
     : Promise.resolve({ data: [] as { id: string; itp_number: string }[], error: null });
   const aiEnabledPromise = isAiEnabledForOrg(supabase, itp.projects?.organization_id);
+  const sequencingPromise = Promise.resolve(
+    supabase.from("organizations").select("itp_sequencing_mode").eq("id", itp.projects?.organization_id ?? "").maybeSingle<{ itp_sequencing_mode: string }>()
+  );
 
   // D9: a superseded/withdrawn ITP shows why, when, and a link to the replacement.
   const replacementItp =
@@ -786,6 +789,8 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
     />
   );
   const aiEnabled = await aiEnabledPromise;
+  // Missing column / read problem: fall back to the default (flexible) ordering rather than failing the page.
+  const strictMode = (await sequencingPromise).data?.itp_sequencing_mode === "strict";
   const inspectionRes = inspectionRecordsPromise ? await inspectionRecordsPromise : null;
   // A failed read must not show "inspection not started" for work that has been done.
   if (inspectionRes?.error) throw new Error(`Could not load the inspection records: ${inspectionRes.error.message}`);
@@ -1462,6 +1467,8 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
                   blockingCodes={blockingCodes}
                   disciplines={disciplines ?? []}
                   isIssued={isIssued}
+                  flowLevels={levels.map((l) => ({ code: l.code, label: l.label, sort_order: l.sort_order, is_blocking: l.is_blocking }))}
+                  strictMode={strictMode}
                 />
               )}
               {canEditContent && (
