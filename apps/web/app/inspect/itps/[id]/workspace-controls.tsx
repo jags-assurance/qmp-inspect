@@ -9,7 +9,9 @@ function openFromHash() {
   if (!hash.startsWith("#activity-")) return;
   const el = document.getElementById(decodeURIComponent(hash.slice(1)));
   if (!el) return;
-  // Open the activity and every collapsed section around it, then bring it into view.
+  // Open the activity (the target is its list item) and every collapsed section around it, then bring it into view.
+  const own = el.querySelector<HTMLDetailsElement>("details[data-activity]");
+  if (own) own.open = true;
   let node: HTMLElement | null = el;
   while (node) {
     if (node instanceof HTMLDetailsElement) node.open = true;
