@@ -19,6 +19,10 @@ const VIEWS: { name: string; covers: string }[] = [
   { name: "vw_powerbi_first_time_pass_rate", covers: "First-time pass rate, per project" },
   { name: "vw_powerbi_ncr_trends", covers: "Monthly NCR volume and close-out time, by severity/status, per project" },
   { name: "vw_powerbi_punch_list_and_fat", covers: "Open/closed punch-list item counts and standalone FAT pass/conditional/fail counts, per project" },
+  { name: "vw_powerbi_inspection_attempts", covers: "Every inspection attempt (A, B, C...) with the activity, inspector and date, whether it was a re-inspection, and how many days a failed attempt took to pass" },
+  { name: "vw_powerbi_signoff_turnaround", covers: "Every Hold/Witness/Review/Surveillance sign-off with who was notified, when, and how many hours they took to respond (signed off vs proceeded without response kept separate)" },
+  { name: "vw_powerbi_databook_completeness", covers: "How ready each project's Data Book is: ready vs required per category, overall percentage, open punch items" },
+  { name: "vw_powerbi_activity_fact", covers: "One flat row per ITP activity (project, ITP, section, discipline, parties, sign-offs, latest inspection result, attempts, evidence) so one report can slice everything by activity" },
 ];
 
 interface OrganizationOption {
@@ -119,7 +123,7 @@ export async function ReportingView({ searchParams, embedded }: {
         </p>
 
         <div className="mt-6 rounded-lg border border-border bg-surface p-5">
-          <h3 className="font-medium text-ink"><T>The six reporting views</T></h3>
+          <h3 className="font-medium text-ink"><T>The ten reporting views</T></h3>
           <p className="mt-1 text-sm text-muted">
             <T>Every view carries</T> <code className="doc-id text-xs"><T>organization_id</T></code> <T>and</T>{" "}
             <code className="doc-id text-xs"><T>project_id</T></code> <T>columns, so Power BI can slice by client and project once connected.</T>
@@ -149,7 +153,7 @@ export async function ReportingView({ searchParams, embedded }: {
               <T>Credentials:</T> <strong><T>Database</T></strong> <T>authentication, user</T>{" "}
               <code className="doc-id text-xs"><T>powerbi_reader</T></code><T>, password from wherever your team keeps it — never the placeholder committed in the migration file.</T>
             </li>
-            <li><T>In the Navigator, select only the six views above — that is all this role can see.</T></li>
+            <li><T>In the Navigator, select only the ten views above — that is all this role can see.</T></li>
           </ol>
         </div>
 
@@ -177,7 +181,7 @@ export async function ReportingView({ searchParams, embedded }: {
             <strong><T>Database</T></strong> → <strong><T>Roles</T></strong><T>, before handing this connection to anyone — including your own team.</T>
           </p>
           <p className="mt-2 text-sm text-ink">
-            <T>This role can only ever read the six views above — no other table, no writes. Isolation for who sees which client&apos;s data comes entirely from who is allowed to hold the</T>{" "}
+            <T>This role can only ever read the ten views above — no other table, no writes. Isolation for who sees which client&apos;s data comes entirely from who is allowed to hold the</T>{" "}
             <code className="doc-id text-xs"><T>powerbi_reader</T></code> <T>credential, not from row-level security (a plain database login has no Supabase Auth session for RLS to key off).</T>
           </p>
         </div>

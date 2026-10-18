@@ -29,7 +29,7 @@ A dedicated Postgres **login** role (Power BI's direct-Postgres connector needs 
 not go through Supabase Auth or PostgREST). It has:
 
 - `USAGE` on the `public` schema (required just to see the views)
-- `SELECT` on the five `vw_powerbi_*` views above — nothing else
+- `SELECT` on the `vw_powerbi_*` views above (see `docs/POWERBI_VIEWS.md` for the full list and columns) — nothing else
 
 It has no access to any other table, view, or function. It cannot write anything.
 
@@ -60,7 +60,7 @@ dashboard:
 4. When prompted for credentials, choose **Database** authentication and enter:
    - **User name**: `powerbi_reader`
    - **Password**: the real password you set above (never the placeholder from the migration file)
-5. In the Navigator, select only the five `vw_powerbi_*` views listed above (that is all this role
+5. In the Navigator, select only the `vw_powerbi_*` views listed above (that is all this role
    can see) and load/build your report.
 
 ## Sharing it on the web (Power BI Service)
