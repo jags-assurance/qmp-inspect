@@ -62,7 +62,7 @@ export function NextStepsCard({ items, total, roleKey, isStaff }: { items: NextS
   const how = HOW_IT_WORKS[isStaff ? "staff" : (roleKey ?? "")] ?? HOW_IT_WORKS.subcontractor;
   const more = total - items.length;
   return (
-    <section aria-label="Your next steps" className="mt-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <section aria-label="Your next steps" className="mb-6 mt-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-ink"><T>Your next steps</T></h2>
         {items.length > 0 && <p className="text-xs text-muted"><T>Do these first.</T></p>}

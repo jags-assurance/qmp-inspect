@@ -245,7 +245,8 @@ export function AdminDashboard({
       <div className="mt-6 grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {overdueHoldsCard}
 
-        <Watchlist
+        {/* The "Open NCRs" tile above already says 0, so an empty card is dropped rather than shown. */}
+        {openNcrItems.length > 0 && <Watchlist
           anchorId="open-ncrs"
           title={tl("Open NCRs")}
           description="Minor and major, across every project you have access to."
@@ -271,7 +272,7 @@ export function AdminDashboard({
               <span className="mt-1 block text-xs font-medium text-burgundy"><Tx>Open NCR →</Tx></span>
             </Link>
           )}
-        />
+        />}
 
         <Watchlist
           title={tl("Recent activity")}
