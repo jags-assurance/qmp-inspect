@@ -925,7 +925,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
 
       <ItpStalePdfToast isStale={isPdfStale} changedAt={latestChangeAt} />
 
-      <Card className="mb-4 space-y-4">
+      <Card className="mb-3 space-y-3 !p-3 sm:!p-4">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
           <div className="min-w-0 flex-1 basis-72">
             {signoffTotal > 0 ? (
@@ -986,7 +986,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
           </ol>
         </div>
         {(aiEnabled || session.isJagsStaff) && (
-          <Disclosure variant="pill" summary={<T>More actions (translate, withdraw or supersede)</T>} className="border-t border-border pt-3" bodyClassName="mt-3">
+          <Disclosure variant="pill" summary={<T>More actions (translate, withdraw or supersede)</T>} className="border-t border-border pt-2" bodyClassName="mt-3">
             <div className="flex flex-col gap-3">
               {aiEnabled && <TranslateContentPanel itpId={itp.id} revision={itp.revision} stored={parseItpTranslations(itp.translations)} />}
               {session.isJagsStaff && <ItpExitControls itpId={itp.id} status={itp.status} siblingItps={siblingItps ?? []} />}
@@ -996,9 +996,9 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
       </Card>
 
       {showNextStep && (
-        <section aria-label={tl("Next step")} className="mb-4 rounded-lg border border-brand/30 bg-brand-soft/50 p-4 shadow-xs sm:p-5">
+        <section aria-label={tl("Next step")} className="mb-3 rounded-lg border border-brand/30 bg-brand-soft/50 p-3 shadow-xs sm:p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-brand"><T>Next step</T></h2>
-          <div className="mt-3 flex flex-wrap items-start gap-2 [&_button]:max-sm:w-full [&_form]:max-sm:w-full">
+          <div className="mt-2 flex flex-wrap items-start gap-2 [&_button]:max-sm:w-full [&_form]:max-sm:w-full">
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
             {canApproveItp && itp.status === "under_review" && !hasActiveReviewChain && (
             <AdvanceStatusForm itpId={itp.id} fromStatus="under_review" requiresChecklistReview={requiresChecklistReview} />
@@ -1092,40 +1092,6 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
         </div>
       )}
 
-      {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
-          organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S
-          list, so a custom level an admin adds shows up here too. */}
-      <Disclosure variant="pill" summary={<T>Sign-off level legend</T>} className="mt-4">
-        <InterventionLegend levels={levels} />
-      </Disclosure>
-
-      {/* Rarely needed while working an ITP, so folded into one card: revision and review history,
-          recording an external approval, accepting on the client's behalf, offline (Excel) editing. */}
-      <Disclosure
-        variant="card"
-        summary={<T>History, external approval and offline editing</T>}
-        className="mt-4"
-        bodyClassName="space-y-4 border-t border-border p-4"
-      >
-        {canRecordExternalApproval && (
-          <ExternalApprovalForm
-            itpId={itp.id}
-            reference={itp.external_approval_reference}
-            recordedByName={externalApprovalRecordedByUser?.full_name ?? null}
-            recordedAt={itp.external_approval_recorded_at}
-          />
-        )}
-        {isAdminStaff(session) && itp.status === "approved" && <AcceptOnBehalfForm itpId={itp.id} />}
-
-        <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
-        <ReviewHistoryPanel itpId={itp.id} />
-
-        {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
-            validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on
-            this page) once the reviewer confirms the previewed diff. */}
-        {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
-      </Disclosure>
-
       {view === "matrix" && (sections ?? []).some((sec) => (sec.itp_items ?? []).length > 0) && (
         <p className="mt-6 hidden text-sm text-muted md:block">
           <T>Each row is one activity. Each party column shows what that party must do on it (H Hold, W Witness, R Review, S Surveillance) and whether they have signed off. An empty cell means that party has no part in the activity.</T>
@@ -1138,7 +1104,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
       {(sections ?? []).length > 1 && (
         <nav
           aria-label={tl("Jump to section")}
-          className="no-print sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 mt-8 flex items-center gap-2 overflow-x-auto rounded-lg border border-border bg-surface/95 px-3 py-2 shadow-xs backdrop-blur [scrollbar-width:thin] supports-[backdrop-filter]:bg-surface/80"
+          className="no-print sticky top-[calc(var(--header-h)+env(safe-area-inset-top))] z-10 mt-4 flex items-center gap-2 overflow-x-auto rounded-lg border border-border bg-surface/95 px-3 py-2 shadow-xs backdrop-blur [scrollbar-width:thin] supports-[backdrop-filter]:bg-surface/80"
         >
           <span className="shrink-0 text-xs font-medium text-muted"><T>Jump to:</T></span>
           {(sections ?? []).map((section) => (
@@ -1152,22 +1118,6 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
           ))}
         </nav>
       )}
-
-      {/* The checklist is part of the ITP, not a separate thing: whoever reviews/approves/accepts this
-          ITP can open it right here (real checklists once approved; before that, what each activity's
-          checklist will start from). Open by default while the ITP is waiting on a decision. */}
-      <Disclosure
-        variant="card"
-        summary={<T>Checklists that go with this ITP</T>}
-        defaultOpen={itp.status === "under_review" || itp.status === "approved"}
-        className="mt-6"
-        bodyClassName="border-t border-border p-4"
-      >
-        <ItpChecklistPreview
-          items={checklistPreview}
-          approved={itp.status === "approved" || itp.status === "client_accepted"}
-        />
-      </Disclosure>
 
       <OutstandingActionsPanel outstanding={outstanding} />
 
@@ -1492,6 +1442,59 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
       </div>
 
       {canEditContent && <AddSectionForm itpId={itp.id} isIssued={isIssued} />}
+
+      {/* Reference material and history are rarely needed while working an ITP, so they sit below the
+          sections and activities instead of pushing them down the page. */}
+      {/* R26-29: H/W/R/S (or custom) legend for the per-party grid below — driven by this
+          organisation's own intervention_level_types rows (`levels`), never a hardcoded H/W/R/S
+          list, so a custom level an admin adds shows up here too. */}
+      <Disclosure variant="pill" summary={<T>Sign-off level legend</T>} className="mt-4">
+        <InterventionLegend levels={levels} />
+      </Disclosure>
+
+      {/* Rarely needed while working an ITP, so folded into one card: revision and review history,
+          recording an external approval, accepting on the client's behalf, offline (Excel) editing. */}
+      <Disclosure
+        variant="card"
+        summary={<T>History, external approval and offline editing</T>}
+        className="mt-4"
+        bodyClassName="space-y-4 border-t border-border p-4"
+      >
+        {canRecordExternalApproval && (
+          <ExternalApprovalForm
+            itpId={itp.id}
+            reference={itp.external_approval_reference}
+            recordedByName={externalApprovalRecordedByUser?.full_name ?? null}
+            recordedAt={itp.external_approval_recorded_at}
+          />
+        )}
+        {isAdminStaff(session) && itp.status === "approved" && <AcceptOnBehalfForm itpId={itp.id} />}
+
+        <RevisionHistoryPanel revisions={revisions ?? []} currentRevision={itp.revision} awaitingApproval={itp.revision_needs_approval} />
+        <ReviewHistoryPanel itpId={itp.id} />
+
+        {/* R41: staff-only re-upload of an offline-edited copy of the export above — creates a new
+            validated revision (via bumpRevisionIfIssued, same as every other edit-after-issue path on
+            this page) once the reviewer confirms the previewed diff. */}
+        {session.isJagsStaff && <OfflineRevisionForm itpId={itp.id} />}
+      </Disclosure>
+
+      {/* The checklist is part of the ITP, not a separate thing: whoever reviews/approves/accepts this
+          ITP can open it right here (real checklists once approved; before that, what each activity's
+          checklist will start from). Open by default while the ITP is waiting on a decision. */}
+      <Disclosure
+        variant="card"
+        summary={<T>Checklists that go with this ITP</T>}
+        defaultOpen={itp.status === "under_review" || itp.status === "approved"}
+        className="mt-4"
+        bodyClassName="border-t border-border p-4"
+      >
+        <ItpChecklistPreview
+          items={checklistPreview}
+          approved={itp.status === "approved" || itp.status === "client_accepted"}
+        />
+      </Disclosure>
+
     </div>
   );
 }
