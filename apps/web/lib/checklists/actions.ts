@@ -1399,11 +1399,21 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
   if ((overallResult === "pass" || overallResult === "partial") && recordForHoldCheck) {
     try {
       const now = new Date().toISOString();
-      const note = `Superseded: inspection ${recordForHoldCheck.record_number} was re-completed as ${overallResult}`;
+      const note = `Superseded: a later attempt (${recordForHoldCheck.record_number}) was completed as ${overallResult}`;
+      // Attempt B/C of the same activity is a NEW record, so the failure item belongs to an EARLIER record.
+      // Close the open failure items of every earlier failed attempt of this activity as well as this record's own.
+      const { data: earlierFailed } = await supabase
+        .from(INSPECTION_RECORDS_TABLE)
+        .select("id")
+        .eq("itp_item_id", recordForHoldCheck.itp_item_id)
+        .eq("overall_result", "fail")
+        .neq("id", inspectionRecordId)
+        .returns<{ id: string }[]>();
+      const supersededRecordIds = [inspectionRecordId, ...(earlierFailed ?? []).map((r) => r.id)];
       const { error: supersedeError } = await supabase
         .from(PUNCH_LIST_ITEMS_TABLE)
         .update({ status: "closed", closing_evidence: note, verification_notes: note, withdrawn_at: now, withdrawn_by: signer?.id ?? null, withdrawn_reason: note, closed_by: signer?.id ?? null, closed_at: now })
-        .eq("source_inspection_record_id", inspectionRecordId)
+        .in("source_inspection_record_id", supersededRecordIds)
         .eq("source", "inspection_failure")
         .eq("status", "open");
       if (supersedeError && !isMissingSchemaError(supersedeError)) console.error("[punch] supersede failed", supersedeError.message);
