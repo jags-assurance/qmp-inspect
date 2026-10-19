@@ -925,7 +925,8 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
 
       <ItpStalePdfToast isStale={isPdfStale} changedAt={latestChangeAt} />
 
-      <Card className="mb-3 space-y-3 !p-3 sm:!p-4">
+      <div className="mb-3 grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+      <Card className="space-y-3 !p-3 sm:!p-4">
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
           <div className="min-w-0 flex-1 basis-72">
             {signoffTotal > 0 ? (
@@ -996,7 +997,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
       </Card>
 
       {showNextStep && (
-        <section aria-label={tl("Next step")} className="mb-3 rounded-lg border border-brand/30 bg-brand-soft/50 p-3 shadow-xs sm:p-4">
+        <section aria-label={tl("Next step")} className="rounded-lg border border-brand/30 bg-brand-soft/50 p-3 shadow-xs sm:p-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-brand"><T>Next step</T></h2>
           <div className="mt-2 flex flex-wrap items-start gap-2 [&_button]:max-sm:w-full [&_form]:max-sm:w-full">
           {canSubmitForReview && <AdvanceStatusForm itpId={itp.id} fromStatus="draft" />}
@@ -1026,6 +1027,7 @@ async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: stri
           </div>
         </section>
       )}
+      </div>
 
       {itp.revision_needs_approval && (itp.status === "approved" || itp.status === "client_accepted") && (
         <div className="mt-3 rounded-md border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-ink" role="status">

@@ -3,6 +3,7 @@ import { Tx } from "@/components/domain/tx";
 import { Badge, type Tone } from "@/components/ui/badge";
 import type { OutstandingActions } from "@/lib/itps/workspace";
 import { OpenActivityLink } from "./activity-panel-item";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const REASON_LABEL = {
   hold: "Hold open",
@@ -35,29 +36,34 @@ export function OutstandingActionsPanel({ outstanding }: { outstanding: Outstand
   const stats = all.filter((s) => s.value > 0);
   if (stats.length === 0) return null;
   return (
-    <section aria-label="Outstanding actions" className="mt-4 rounded-lg border border-border bg-surface p-3 shadow-xs sm:p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><T>Needs attention</T></h2>
-      <ul className="mt-2 flex flex-wrap gap-2">
-        {stats.map((s) => (
-          <li key={s.key}>
-            <Badge tone={s.tone}>
-              <span className="tabular-nums">{s.value}</span> <Tx>{s.label}</Tx>
-            </Badge>
-          </li>
-        ))}
-      </ul>
-      {outstanding.jumpTargets.length > 0 && (
-        <ul className="mt-3 divide-y divide-border text-sm">
-          {outstanding.jumpTargets.map((t) => (
-            <li key={t.itemId}>
-              <OpenActivityLink id={t.itemId} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-ink hover:text-brand [@media(pointer:coarse)]:min-h-11">
-                <span className="doc-id text-xs text-muted">{t.itemNumber}</span>
-                <span className="min-w-0 flex-1 truncate" title={t.activity}>{t.activity}</span>
-                <Badge tone={REASON_TONE[t.reason]}><Tx>{REASON_LABEL[t.reason]}</Tx></Badge>
-              </OpenActivityLink>
+    <section aria-label="Outstanding actions" className="mt-3 rounded-lg border border-border bg-surface px-3 py-2 shadow-xs sm:px-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted"><T>Needs attention</T></h2>
+        <ul className="flex flex-wrap gap-2">
+          {stats.map((s) => (
+            <li key={s.key}>
+              <Badge tone={s.tone}>
+                <span className="tabular-nums">{s.value}</span> <Tx>{s.label}</Tx>
+              </Badge>
             </li>
           ))}
         </ul>
+      </div>
+      {outstanding.jumpTargets.length > 0 && (
+        // Folded: the activities themselves are listed right below, so the list only appears when asked for.
+        <Disclosure variant="inline" summary={<T>Show which activities</T>} className="mt-1">
+          <ul className="mt-1 divide-y divide-border text-sm">
+            {outstanding.jumpTargets.map((t) => (
+              <li key={t.itemId}>
+                <OpenActivityLink id={t.itemId} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 text-ink hover:text-brand [@media(pointer:coarse)]:min-h-11">
+                  <span className="doc-id text-xs text-muted">{t.itemNumber}</span>
+                  <span className="min-w-0 flex-1 truncate" title={t.activity}>{t.activity}</span>
+                  <Badge tone={REASON_TONE[t.reason]}><Tx>{REASON_LABEL[t.reason]}</Tx></Badge>
+                </OpenActivityLink>
+              </li>
+            ))}
+          </ul>
+        </Disclosure>
       )}
     </section>
   );
