@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { BarcodeScanButton } from "@/components/ui/barcode-scan-button";
 import { useMemo, useState, type ReactNode } from "react";
-import { translateText } from "@/lib/i18n/dictionary";
+import { translateText as translateRaw } from "@/lib/i18n/dictionary";
+import { useTermOverrides } from "@/lib/terminology/terms-context";
+import { applyTerms } from "@/lib/terminology/terms";
 import { useLocale } from "@/lib/i18n/locale-context";
 import type { SupportedLocale } from "@/lib/i18n/direction";
 import { Button } from "@/components/ui/button";
@@ -106,6 +108,8 @@ export function DataTable<T>({
   scannable?: boolean;
 }) {
   const contextLocale = useLocale();
+  const termOverrides = useTermOverrides();
+  const translateText = (loc: SupportedLocale, text: string) => applyTerms(translateRaw(loc, text), termOverrides);
   const locale = localeProp ?? contextLocale;
   const [localQuery, setLocalQuery] = useState("");
   const isServerDriven = !!serverSearch;

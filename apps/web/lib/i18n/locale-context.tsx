@@ -3,6 +3,8 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { translateText } from "./dictionary";
 import type { SupportedLocale } from "./direction";
+import { useTermOverrides } from "@/lib/terminology/terms-context";
+import { applyTerms } from "@/lib/terminology/terms";
 
 const LocaleContext = createContext<SupportedLocale>("en");
 
@@ -18,5 +20,6 @@ export function useLocale(): SupportedLocale {
 /** Client-side `t`: English text in, display text out (English when there is no translation). */
 export function useTranslate(): (text: string) => string {
   const locale = useLocale();
-  return (text) => translateText(locale, text);
+  const terms = useTermOverrides();
+  return (text) => applyTerms(translateText(locale, text), terms);
 }
