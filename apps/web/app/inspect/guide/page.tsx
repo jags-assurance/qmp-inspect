@@ -300,7 +300,7 @@ export default async function AppGuidePage() {
           <div className="mt-5 rounded-lg border border-burgundy/30 bg-surface p-4">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold text-ink">Your role: {roleContent.heading}</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {roleContent.quickLinks.map((l) => (
                   <Link
                     key={l.href}
