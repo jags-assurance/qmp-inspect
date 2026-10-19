@@ -1,4 +1,6 @@
 import { getLocale } from "@/lib/i18n/server";
+import { loadTermOverrides } from "@/lib/terminology/load";
+import { applyTerms } from "@/lib/terminology/terms";
 import { translateText } from "@/lib/i18n/dictionary";
 
 /**
@@ -7,5 +9,5 @@ import { translateText } from "@/lib/i18n/dictionary";
  * Usage: <h1><T>Projects</T></h1>
  */
 export async function T({ children }: { children: string }) {
-  return <>{translateText(await getLocale(), children)}</>;
+  return <>{applyTerms(translateText(await getLocale(), children), await loadTermOverrides())}</>;
 }

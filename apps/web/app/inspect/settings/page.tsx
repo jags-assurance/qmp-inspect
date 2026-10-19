@@ -29,6 +29,7 @@ import { DataRequestsView } from "../organisation/data-requests/page";
 import { OrphanPhotosView } from "../organisation/orphan-photos/page";
 import { DocumentTraceabilityView } from "../organisation/traceability/page";
 import { UsageAndCostView } from "../organisation/usage/page";
+import { TerminologyView } from "../organisation/terminology/terminology-view";
 import { RootCausesView } from "../organisation/root-causes/root-causes-view";
 import { T } from "@/components/domain/t";
 import { PageHeader } from "@/components/ui/page-header";
@@ -45,6 +46,7 @@ const DESCRIPTIONS: Record<string, string> = {
   "module-licensing": "Switch features on or off per organisation.",
   numbering: "How ITP, NCR and IRN numbers are generated.",
   branding: "Logo and colours shown to your organisation.",
+  terminology: "Rename key terms such as Field Engineer and Observation.",
   automation: "Rules that act automatically, such as reminders.",
   insights: "Cross-project quality trends.",
   reporting: "Scheduled and on-demand report settings.",
@@ -77,6 +79,7 @@ const RENDERERS: Record<string, Render> = {
   "module-licensing": (sp) => <ModuleLicensingSettingsView searchParams={asView(sp)} embedded />,
   numbering: (sp) => <NumberingSettingsView searchParams={asView(sp)} embedded />,
   branding: (sp) => <BrandingSettingsView searchParams={asView(sp)} embedded />,
+  terminology: () => <TerminologyView embedded />,
   automation: (sp) => <AutomationRulesView searchParams={asView(sp)} embedded />,
   insights: () => <PortfolioInsightsView embedded />,
   reporting: (sp) => <ReportingView searchParams={asView(sp)} embedded />,
@@ -137,6 +140,7 @@ const ALL_AREAS: SettingsArea[] = [
     items: [
       { key: "numbering", label: "Numbering" },
       { key: "branding", label: "Brand Colors" },
+      { key: "terminology", label: "Terminology" },
       { key: "automation", label: "Automation Rules" },
       { key: "reporting", label: "Reporting" },
     ],

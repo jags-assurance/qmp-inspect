@@ -3,6 +3,10 @@ import { mfaEnabled } from "@/lib/auth/mfa";
 import { cookies } from "next/headers";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n/direction";
 import { localizeNavItems } from "@/lib/i18n/dictionary";
+import { loadTermOverrides } from "@/lib/terminology/load";
+import type { TermOverrides } from "@/lib/terminology/terms";
+import { applyTerms } from "@/lib/terminology/terms";
+import { TermsProvider } from "@/lib/terminology/terms-context";
 import { LocaleProvider } from "@/lib/i18n/locale-context";
 import { AppShell, type NavItem } from "@/components/domain/app-shell";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,6 +20,17 @@ import { ACTIVE_ORG_COOKIE, grantedOrgIds, resolveActiveOrgId } from "@/lib/orga
 import { loadNeedsTermsAcceptance } from "@/lib/terms/load";
 import { ACTIVE_PROJECT_COOKIE, resolveActiveProjectId } from "@/lib/projects/active-project";
 import { loadHeaderProjectOptions } from "@/lib/ui/header-projects";
+
+/** Applies the admin's terminology overrides to nav labels (adds displayLabel; the English label stays the icon key). */
+function applyTermsToNav(items: NavItem[], overrides: TermOverrides): NavItem[] {
+  if (Object.keys(overrides).length === 0) return items;
+  return items.map((item) => ({
+    ...item,
+    displayLabel: applyTerms(item.displayLabel ?? item.label, overrides),
+    ...(item.children ? { children: applyTermsToNav(item.children, overrides) } : {}),
+    ...(item.palette ? { palette: applyTermsToNav(item.palette, overrides) } : {}),
+  }));
+}
 
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
@@ -42,7 +57,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
   //    chrome (engagement mode/scope, branding colours, signed logo URL — D-07 cached, tagged and
   //    invalidated by the branding/numbering actions) and its module licences (D-07: ONE cached
   //    per-org map instead of one query per module).
-  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap, needsTerms, projectOptions] = await Promise.all([
+  const [teamLeadResult, clientTeamCountResult, orgChrome, licenseMap, needsTerms, projectOptions, termOverrides] = await Promise.all([
     session.isJagsStaff && !isAdminStaff(session) ? isLeadOfAnyTeam(supabase, session.userId) : Promise.resolve(false),
     ownOrgId && !session.isJagsStaff
       ? supabase.from("client_teams").select("id", { count: "exact", head: true }).eq("organization_id", ownOrgId)
@@ -54,6 +69,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
     // Header project selector: every project this login can see (RLS-scoped), capped at 400, deduped per
     // request (lib/ui/header-projects.ts); a portfolio beyond the cap still has each page's own filter.
     loadHeaderProjectOptions(session.userId),
+    loadTermOverrides(),
   ]);
   const showTeamsNav = session.isJagsStaff && (isAdminStaff(session) || teamLeadResult === true);
 
@@ -226,6 +242,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
               { label: "Reporting", href: "/inspect/settings?section=reporting" },
               { label: "System Health", href: "/inspect/settings?section=system-health" },
               { label: "Document Traceability", href: "/inspect/settings?section=traceability" },
+              { label: "Terminology", href: "/inspect/settings?section=terminology" },
               { label: "Intervention Levels", href: "/inspect/settings?section=intervention-levels" },
               { label: "Plans & Seats", href: "/inspect/settings?section=plans" },
               { label: "Document Retention", href: "/inspect/settings?section=retention" },
@@ -284,10 +301,10 @@ export default async function InspectLayout({ children }: { children: React.Reac
   );
   return (
     <AppShell
-      navItems={localizeNavItems(navItems, locale)}
+      navItems={applyTermsToNav(localizeNavItems(navItems, locale), termOverrides)}
       userId={session.userId}
       userName={session.fullName}
-      userRole={userRole}
+      userRole={applyTerms(userRole, termOverrides)}
       breadcrumb="QMP Inspect"
       orgBranding={orgBranding}
       showTermsBanner={needsTerms}
@@ -302,7 +319,9 @@ export default async function InspectLayout({ children }: { children: React.Reac
         ...(mfaEnabled() ? [{ label: "Account security", href: "/inspect/account/security" }] : []),
       ]}
     >
-      <LocaleProvider locale={locale}>{children}</LocaleProvider>
+      <TermsProvider overrides={termOverrides}>
+        <LocaleProvider locale={locale}>{children}</LocaleProvider>
+      </TermsProvider>
     </AppShell>
   );
 }
