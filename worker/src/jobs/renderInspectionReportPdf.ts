@@ -260,7 +260,7 @@ export async function renderInspectionReportPdf(
   ];
   const approvals: InspectionReportApproval[] = [
     {
-      label: "JAGS INSPECTOR",
+      label: "JAGS FIELD ENGINEER",
       org: "JAGS Assurance",
       name: record.signed_by_name || inspector?.full_name || null,
       signature: validSig(record.inspector_signature),

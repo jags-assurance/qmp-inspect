@@ -211,7 +211,7 @@ function renderApprovals(data: FatReportData): string {
   const parties = data.parties ?? [];
   const cards: string[] = [];
   const jags = take(/jags|inspector/i);
-  cards.push(approvalCard("JAGS INSPECTOR", "JAGS Assurance", jags));
+  cards.push(approvalCard("JAGS FIELD ENGINEER", "JAGS Assurance", jags));
   for (const box of BOXES) {
     const orgs = parties.filter((p) => p.partyType === box.type).map((p) => p.name);
     const sig = take(box.re);

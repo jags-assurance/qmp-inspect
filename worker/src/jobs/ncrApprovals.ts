@@ -79,7 +79,7 @@ export function buildNcrApprovalBoxes(
   const jagsHit =
     actions.find((a) => a.userId && jagsIds.has(a.userId) && !used.has(a)) ?? actions.find((a) => !used.has(a));
   const jagsBox: NcrApprovalBox = {
-    label: "JAGS inspector / raiser",
+    label: "JAGS field engineer / raiser",
     organisation: jagsOrganisationName,
     action: jagsHit ? jagsHit.action : null,
     name: jagsHit?.userName ?? null,

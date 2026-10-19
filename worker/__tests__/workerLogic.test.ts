@@ -64,7 +64,7 @@ describe("worker ncrApprovals", () => {
   });
   it("always has a JAGS box first; only parties present get boxes, in fixed order", () => {
     const boxes = buildNcrApprovalBoxes(parties, [], "JAGS Ltd");
-    expect(boxes.map((b) => b.label)).toEqual(["JAGS inspector / raiser", "Client representative", "Subcontractor"]);
+    expect(boxes.map((b) => b.label)).toEqual(["JAGS field engineer / raiser", "Client representative", "Subcontractor"]);
     expect(boxes[0].organisation).toBe("JAGS Ltd");
     expect(boxes[2].organisation).toBe("Sub A / Sub B");
     expect(boxes.every((b) => b.name === null && b.date === null)).toBe(true);

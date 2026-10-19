@@ -637,7 +637,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
           "Earlier failed inspection attempts",
           "Failed attempts stay on record and filed in the Document Vault; the register above presents the final passing attempt of each activity.",
           table(
-            ["ITP / point", "Attempt", "Record", "Date", "Inspector", "Result", "Superseded by"],
+            ["ITP / point", "Attempt", "Record", "Date", "Field Engineer", "Result", "Superseded by"],
             earlierAttempts.map((e) => [
               `${escapeHtml(e.itpNumber)} / ${escapeHtml(e.itemNumber)} ${escapeHtml(e.activity)}`,
               escapeHtml(e.attempt),
