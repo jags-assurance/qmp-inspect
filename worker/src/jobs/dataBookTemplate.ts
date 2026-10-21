@@ -58,6 +58,8 @@ export interface DataBookPdfActivity {
   attempt?: string | null;
   /** Number of earlier failed attempts of this activity (listed in the appendix). */
   earlierFailedCount?: number;
+  /** Link to the filed inspection report of the presented record in the Document Vault (needs sign-in). */
+  reportUrl?: string | null;
 }
 
 /** One earlier FAILED inspection attempt, listed in the Data Book appendix (the report stays filed in the vault). */
@@ -72,6 +74,8 @@ export interface DataBookPdfEarlierAttempt {
   result: string;
   /** Record number of the attempt that finally passed (null while still failing). */
   supersededByRecordNumber: string | null;
+  /** Link to this attempt's filed report in the Document Vault. */
+  reportUrl?: string | null;
 }
 
 export interface DataBookPdfItp {
@@ -267,6 +271,12 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** A record number, linked to its filed vault document when there is one (printed as plain text otherwise). */
+function recordRef(recordNumber: string, url: string | null | undefined): string {
+  const text = escapeHtml(recordNumber);
+  return url ? `<a class="reclink" href="${escapeHtml(url)}">${text}</a>` : text;
+}
+
 function cell(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === "" ? "&mdash;" : escapeHtml(String(value));
 }
@@ -286,6 +296,15 @@ function table(headers: string[], rows: string[][], widths?: string[], variant?:
   return `<table class="grid${variant === "sig" ? " sig" : ""}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+/** Section numbers for the book being rendered ("1", "2", ... and "A" for the appendix), set once per render
+ *  from the contents list so every heading, the index and cross-references use the same numbers. */
+let sectionNumbers: Record<string, string> = {};
+
+function numberedTitle(id: string, title: string): string {
+  const n = sectionNumbers[id];
+  return n ? `${n}. ${title}` : title;
+}
+
 function page(id: string, part: string, title: string, intro: string | null, body: string): string {
   // `.mk` is an invisible 1px marker: the renderer reads it back from a first-pass PDF to learn which
   // physical page each section starts on, so the contents page can print real page numbers.
@@ -293,7 +312,7 @@ function page(id: string, part: string, title: string, intro: string | null, bod
   <section class="page" id="${id}">
     <span class="mk">§${id}§</span>
     <div class="part">${escapeHtml(part)}</div>
-    <h1>${escapeHtml(title)}</h1>
+    <h1>${escapeHtml(numberedTitle(id, title))}</h1>
     ${intro ? `<p class="lead">${escapeHtml(intro)}</p>` : ""}
     ${body}
   </section>`;
@@ -393,6 +412,15 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     ["acceptance", "Final acceptance and handover record"],
     ...((data.earlierAttempts ?? []).length > 0 ? ([["attempts", "Appendix — Earlier failed inspection attempts"]] as Array<[string, string]>) : []),
   ];
+  // Number the sections in contents order (the cover is unnumbered; the appendix is lettered).
+  sectionNumbers = {};
+  {
+    let n = 0;
+    for (const [id] of toc) {
+      if (id === "cover") continue;
+      sectionNumbers[id] = id === "attempts" ? "A" : String(++n);
+    }
+  }
 
   // ── Part A ──────────────────────────────────────────────────────────────────────────────────
   const cover = `
@@ -480,7 +508,23 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Revision distribution and issue status",
     "Book revisions and individual record revisions are controlled independently. Issuing a new book must not rewrite the history of its source records.",
     `
-    ${table(["Revision", "Date", "Description", "Authorization"], [[bookRevLabel(data), issueDate, `${escapeHtml(issuePurpose(data))} issue`, data.status === "issued" ? "Issued" : "Unsigned draft"]], ["12%", "16%", "44%", "28%"])}
+    ${table(
+      ["Rev", "Date", "Description", "Written by", "Checked by", "Approved by", "Status"],
+      [
+        [
+          bookRevLabel(data),
+          issueDate,
+          `${escapeHtml(issuePurpose(data))} issue`,
+          `${cell(data.compiledBy)}<br /><small>${fmtDate(data.compiledAt)}</small>`,
+          `${cell(distinct(data.itps.map((i) => i.reviewedBy)))}<br /><small>${fmtDate(data.itps.map((i) => i.reviewedAt).filter(Boolean).sort().pop() ?? null)}</small>`,
+          `${cell(data.overrideBy ?? distinct(data.itps.map((i) => i.approvedBy)))}<br /><small>${data.status === "issued" ? fmtDate(data.compiledAt) : "—"}</small>`,
+          data.status === "issued" ? "Issued" : "Unsigned draft",
+        ],
+      ],
+      ["7%", "12%", "19%", "17%", "17%", "17%", "11%"],
+      "sig"
+    )}
+    <p class="small">Written = who compiled the book. Checked = who reviewed the ITPs behind it. Approved = who released the book (the ITP approver until it is issued). Each prior revision keeps its own row in the revision register of the filed copy.</p>
     <h3>Distribution register</h3>
     ${table(
       ["Recipient role", "Purpose", "Issue reference", "Receipt"],
@@ -510,7 +554,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     "Contents and navigation",
     "This index is the reading route for the book. The master record register separately controls individual deliverables.",
     `<ol class="toc">${toc
-      .map(([id, label]) => `<li><a href="#${id}"><span>${escapeHtml(label)}</span><i></i><b>${pageMap[id] ?? ""}</b></a></li>`)
+      .map(([id, label]) => `<li><a href="#${id}"><span>${sectionNumbers[id] ? `${escapeHtml(sectionNumbers[id])}. ` : ""}${escapeHtml(label)}</span><i></i><b>${pageMap[id] ?? ""}</b></a></li>`)
       .join("")}</ol>
     <p class="small">All page references use the physical page count, including the cover. They are regenerated on every export.</p>`
   );
@@ -578,7 +622,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   const formPageOf = (itpIndex: number) => pageMap[itpSectionIds[itpIndex]] ?? "";
   const registerRowsAll = allActivities.map(({ itp, a }, i) => [
     `R${String(i + 1).padStart(2, "0")}`,
-    a.recordNumber ? escapeHtml(a.recordNumber) : `${escapeHtml(itp.itpNumber)} / ${escapeHtml(a.itemNumber)}`,
+    a.recordNumber ? recordRef(a.recordNumber, a.reportUrl) : `${escapeHtml(itp.itpNumber)} / ${escapeHtml(a.itemNumber)}`,
     escapeHtml(a.activity),
     String(itp.revision),
     stateBadge(a.state),
@@ -607,7 +651,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
       const criteria = a.criteria ? `<div>Criteria: ${escapeHtml(a.criteria)}</div>` : "";
       const reference = a.reference ? `<div>Ref: ${escapeHtml(a.reference)}</div>` : "";
       const evidence = a.recordNumber
-        ? `<div><b>${escapeHtml(a.recordNumber)}</b>${a.attempt ? ` (Attempt ${escapeHtml(a.attempt)})` : ""} — ${escapeHtml(a.result ?? "no result")}</div>${a.earlierFailedCount ? `<div>${a.earlierFailedCount} earlier failed attempt${a.earlierFailedCount === 1 ? "" : "s"} — see Appendix</div>` : ""}<div>${fmtDate(a.inspectionDate)}${a.inspector ? ` · ${escapeHtml(a.inspector)}` : ""}</div><div>${a.irnNumber ? `IRN ${escapeHtml(a.irnNumber)}` : "IRN not issued"}</div>`
+        ? `<div><b>${recordRef(a.recordNumber, a.reportUrl)}</b>${a.attempt ? ` (Attempt ${escapeHtml(a.attempt)})` : ""} — ${escapeHtml(a.result ?? "no result")}</div>${a.earlierFailedCount ? `<div>${a.earlierFailedCount} earlier failed attempt${a.earlierFailedCount === 1 ? "" : "s"} — see Appendix</div>` : ""}<div>${fmtDate(a.inspectionDate)}${a.inspector ? ` · ${escapeHtml(a.inspector)}` : ""}</div><div>${a.irnNumber ? `IRN ${escapeHtml(a.irnNumber)}` : "IRN not issued"}</div>`
         : "<div>No inspection record</div>";
       return [`${escapeHtml(a.itemNumber)} ${escapeHtml(a.activity)}${reference}`, `${intervention}${criteria}`, `${evidence}<div>${stateBadge(a.state)}</div>`];
     });
@@ -641,7 +685,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
             earlierAttempts.map((e) => [
               `${escapeHtml(e.itpNumber)} / ${escapeHtml(e.itemNumber)} ${escapeHtml(e.activity)}`,
               escapeHtml(e.attempt),
-              escapeHtml(e.recordNumber),
+              recordRef(e.recordNumber, e.reportUrl),
               fmtDate(e.inspectionDate),
               cell(e.inspector),
               escapeHtml(e.result),
@@ -985,6 +1029,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   ol.toc a { color: var(--navy); text-decoration: none; display: flex; align-items: baseline; gap: 6px; }
   ol.toc a i { flex: 1; border-bottom: 1px dotted #9aa8b2; transform: translateY(-3px); }
   ol.toc a b { font-weight: normal; min-width: 18px; text-align: right; }
+  a.reclink { color: #6b1d2e; text-decoration: underline; }
   .mk { position: absolute; font-family: "Courier New", monospace; font-variant-ligatures: none; font-size: 1px; line-height: 1px; color: #fff; }
 </style>
 </head>

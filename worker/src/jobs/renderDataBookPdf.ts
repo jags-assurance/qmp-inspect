@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { removeGeneratedFile, sourceHash } from "./generatedDocument";
 import { sealFooterSpan } from "./integritySeal";
 import { PermanentJobError } from "./jobAbort";
+import { vaultDocumentUrl } from "./linkedDocuments";
 import { decideIssuedRender, describeReprintCheck, mayRecordCertifiedHash } from "./dataBookFreeze";
 import { assertBookWithinLimits, escapeHtml, stripGeneratedPrefix, fetchAllIn, fetchAllPages, fetchCountedRegisterRows, normaliseOverrideItems, registerAsOf } from "./dataBookHelpers";
 import { calibrationLabel, calibrationStatus, personnelStatus, qualificationLabel, welderStatus } from "./registerStatus";
@@ -707,6 +708,39 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
     attemptLetterFor((recordsByItem.get(rec.itp_item_id) ?? []) as (RecordWithMeta & { overall_result: "pass" | "fail" | "partial" | null })[], rec.id);
   const earlierAttempts: NonNullable<DataBookPdfData["earlierAttempts"]> = [];
 
+  // Link each record number to its filed inspection report in the Document Vault, so a reader of the book
+  // can open the evidence behind a line. Best-effort: a failed lookup leaves the numbers as plain text.
+  const reportUrlByRecordNumber = new Map<string, string>();
+  const approvedRef = new Set<string>();
+  try {
+    const appUrl = process.env.PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL;
+    const recordNumbers = [...new Set(records.map((r) => r.record_number))];
+    if (recordNumbers.length > 0 && appUrl) {
+      const { data: folders } = await supabase.from("vault_folders" as never).select("id").eq("project_id", projectId).returns<{ id: string }[]>();
+      const folderIds = (folders ?? []).map((f) => f.id);
+      if (folderIds.length > 0) {
+        const { data: docs } = await supabase
+          .from("vault_documents" as never)
+          .select("id, document_reference, status, created_at")
+          .in("folder_id", folderIds)
+          .in("document_reference", recordNumbers)
+          .order("created_at", { ascending: false })
+          .returns<{ id: string; document_reference: string; status: string; created_at: string }[]>();
+        for (const d of docs ?? []) {
+          // Newest approved document wins; otherwise the newest of any status (e.g. a failed attempt's superseded report).
+          const current = reportUrlByRecordNumber.get(d.document_reference);
+          if (!current || d.status === "approved" && !approvedRef.has(d.document_reference)) {
+            const url = vaultDocumentUrl(appUrl, projectId, d.id);
+            if (url) reportUrlByRecordNumber.set(d.document_reference, url);
+            if (d.status === "approved") approvedRef.add(d.document_reference);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[databook] could not link records to vault documents:", err instanceof Error ? err.message : err);
+  }
+
   const sectionOrder = new Map(sections.map((s) => [s.id, s.sort_order]));
   const sectionItp = new Map(sections.map((s) => [s.id, s.itp_id]));
 
@@ -739,6 +773,7 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
           inspector: name(e.inspector_id),
           result: e.overall_result ?? "no result",
           supersededByRecordNumber: rec && (rec.overall_result === "pass" || rec.overall_result === "partial") ? rec.record_number : null,
+          reportUrl: reportUrlByRecordNumber.get(e.record_number) ?? null,
         });
       }
     }
@@ -770,6 +805,7 @@ async function gatherDataBookContent(projectId: string, asOf: Date, extraUserIds
         state: rec ? recordState(rec.overall_result, irn) : "Missing",
         attempt: rec ? attemptOf(rec) : null,
         earlierFailedCount: earlierByItem.get(item.id)?.length ?? 0,
+        reportUrl: rec ? reportUrlByRecordNumber.get(rec.record_number) ?? null : null,
       };
     });
     return {

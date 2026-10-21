@@ -23,6 +23,7 @@ import {
 } from "./jobs/jobConcurrency";
 import { alertPermanentJobFailure, sweepUnnotifiedFailedJobs } from "./jobs/jobFailureAlert";
 import { runAutomationSweep } from "./automation";
+import { runSignoffAutomationSweep } from "./signoffSweepClient";
 import { dropBreadcrumb, scrubEvent } from "./observability/scrub";
 import { isRpcMissing, replicaId, sweepLeaseSeconds, type RpcError } from "./jobs/claim";
 import { sweepNotificationOutbox, sweepTransmittalOutbox } from "./emailOutbox";
@@ -285,6 +286,9 @@ async function runSweeps(): Promise<void> {
       (await tryAcquireLease("automation_sweep", sweepLeaseSeconds(AUTOMATION_SWEEP_EVERY_MS)))
     ) {
       await runAutomationSweep().catch((err) => reportError("[worker] Automation sweep failed:", err));
+      // Time-based sign-off automation (notice period ran out with no response): asks the web app to run its
+      // sweep. A no-op until CRON_SECRET and the app URL are set, and for organisations that left it switched off.
+      await runSignoffAutomationSweep().catch((err) => reportError("[worker] Sign-off automation sweep failed:", err));
     }
 
     if (due("retention", RETENTION_CHECK_EVERY_MS)) {

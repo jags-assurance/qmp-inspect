@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * Scheduled catch-up for the phase-2 sign-off automation (see lib/signoff/automation.ts), called by
- * Vercel Cron (apps/web/vercel.json). It is the only way the time-based part (a Witness/Surveillance
+ * Scheduled catch-up for the phase-2 sign-off automation (see lib/signoff/automation.ts), called every 15 minutes
+ * by the background worker (worker/src/signoffSweepClient.ts; needs CRON_SECRET on both the worker and this app,
+ * plus PUBLIC_APP_URL on the worker). Vercel Cron could call it too, but is not configured. It is the only way the time-based part (a Witness/Surveillance
  * notice period running out with no response) can happen without anyone clicking. Does nothing for an
  * organisation unless that organisation switched the automation on, and never touches a Hold or Review.
  *
