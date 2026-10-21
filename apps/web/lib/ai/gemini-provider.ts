@@ -95,7 +95,7 @@ export function getGeminiModel(feature: AiFeature): string {
 // audit-trail log tell two drafts of the same feature apart if the prompt was later revised, per the
 // client's "store prompt version" requirement. Not tied to package/app versioning.
 export const PROMPT_VERSIONS: Record<AiFeature, string> = {
-  itp_draft: "itp-draft-v3",
+  itp_draft: "itp-draft-v4",
   checklist_generation: "checklist-items-v1",
   ncr_description_draft: "ncr-description-v1",
   checklist_consistency_check: "consistency-check-v1",
@@ -417,6 +417,11 @@ export class GeminiProvider implements AiProvider {
       "  party on every activity — Holds are for the genuinely critical points (e.g. cover-up",
       "  inspections, energisation, load tests), reserved for maybe 10-20% of activities; most",
       "  activities should carry Witness/Review/Surveillance or nothing at all for a given party.",
+      "- FOLLOW THE SOURCE FOR INTERVENTIONS. When a clause names its own point (e.g. 'Hold point H1',",
+      "  'Witness point W2', 'witnessed by the Client'), use exactly that level for that activity and do",
+      "  NOT raise it: a clause that says Witness is W, never H. Never add a Hold that the source does",
+      "  not state or clearly imply (cover-up, energisation); an unstated one belongs at W, R or S.",
+      "  Give the Hold or Witness to the party the clause names (Client, TPI), not to every party.",
       "",
       "Also suggest a title and an applicable standard for the ITP as a whole, drawn from what the",
       "source documents actually cover — suggested_title should read like a real controlled-document",

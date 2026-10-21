@@ -18,11 +18,10 @@ export function GradeObservation({ ncrId }: { ncrId: string }) {
       <select
         name="severity"
         required
-        defaultValue="minor_ncr"
+        defaultValue="major_ncr"
         className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm"
       >
-        <option value="minor_ncr"><Tx>Minor NCR (due in 14 days)</Tx></option>
-        <option value="major_ncr"><Tx>Major NCR (due in 7 days)</Tx></option>
+        <option value="major_ncr"><Tx>NCR (serious problem, due in 7 days)</Tx></option>
       </select>
       <textarea aria-label={tl("Reason for grading up (required)")}
         name="reason"

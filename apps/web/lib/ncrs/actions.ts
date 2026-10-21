@@ -183,11 +183,15 @@ export async function createNcrAction(
   if (!NCR_SEVERITIES.includes(severity)) {
     return { error: "Invalid severity." };
   }
+  // An NCR is reserved for a serious problem. A small finding is recorded as an Observation (existing minor NCRs stay as they are).
+  if (severity === "minor_ncr") {
+    return { error: "Minor NCRs are no longer raised. Record it as an Observation, or raise an NCR if it is serious." };
+  }
   // Round-table finding: without a required due date, the "Overdue NCRs" dashboard metric is
   // structurally unreliable — an NCR with no due date can never be overdue. Enforced here, not
   // just via the form's `required` attribute, since this action is the actual authority boundary.
   // Default by severity when the form didn't send one (SLA: major 7d, minor 14d, observation 30d).
-  const defaultDays = severity === "major_ncr" ? 7 : severity === "minor_ncr" ? 14 : 30;
+  const defaultDays = severity === "major_ncr" ? 7 : 30;
   const effectiveDueDate = dueDate || new Date(Date.now() + defaultDays * 86400000).toISOString().slice(0, 10);
   if (description.length < 10) {
     return { error: "Describe the nonconformance (at least 10 characters).", fieldErrors: { description: "Enter at least 10 characters." } };
@@ -1597,7 +1601,7 @@ export async function gradeObservationToNcrAction(_prev: GradeNcrState, formData
   const severity = String(formData.get("severity") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   if (!ncrId) return { error: "Missing record." };
-  if (severity !== "minor_ncr" && severity !== "major_ncr") return { error: "Choose minor or major NCR." };
+  if (severity !== "major_ncr") return { error: "An observation is graded up to an NCR only when it is a serious problem." };
   if (reason.length < 5) return { error: "Give a reason for grading this observation up." };
 
   const session = await requireSession();

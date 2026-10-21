@@ -27,7 +27,7 @@ const raise = (over: Record<string, string> = {}) =>
     { error: null },
     formData({
       project_id: "proj-1",
-      severity: "minor_ncr",
+      severity: "major_ncr",
       description: "Weld seam 4 shows undercut beyond the limit",
       stay_on_page: "true",
       ...over,
@@ -50,6 +50,11 @@ describe("createNcrAction - request_id idempotency (ncrs unique project_id + req
     expect((await raise({ severity: "" })).error).toMatch(/required/);
     expect((await raise({ severity: "catastrophic" })).error).toMatch(/Invalid severity/);
     expect((await raise({ description: "too short" })).error).toMatch(/at least 10 characters/);
+    expect(mock.calls).toHaveLength(0);
+  });
+
+  it("no longer raises a minor NCR (an NCR is for a serious problem; a small finding is an Observation)", async () => {
+    expect((await raise({ severity: "minor_ncr" })).error).toMatch(/Minor NCRs are no longer raised/);
     expect(mock.calls).toHaveLength(0);
   });
 

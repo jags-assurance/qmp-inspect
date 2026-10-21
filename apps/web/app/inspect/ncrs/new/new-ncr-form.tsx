@@ -200,7 +200,8 @@ export function NewNcrForm({
         <fieldset>
           <legend className="block text-sm font-medium text-ink"><Tx>Severity</Tx></legend>
           <div className="mt-1 grid grid-cols-3 gap-2">
-            {NCR_SEVERITIES.filter((sv) => !lockSeverity || sv === severity).map((sv) => (
+            {/* Minor NCR is no longer raised: a small finding is an Observation, an NCR is for a serious problem. Existing minor NCRs still display. */}
+            {NCR_SEVERITIES.filter((sv) => (!lockSeverity || sv === severity) && sv !== "minor_ncr").map((sv) => (
               <label
                 key={sv}
                 className={cn(
