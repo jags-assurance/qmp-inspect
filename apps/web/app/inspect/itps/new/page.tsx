@@ -19,6 +19,12 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 
+/**
+ * The AI draft (Generate from vault documents) is a server action on this page and can legitimately run for
+ * up to AI_TIMEOUT_MS (120 s). Without this the host's default function limit cut it off (502).
+ */
+export const maxDuration = 300;
+
 export default async function NewItpPage({ searchParams }: { searchParams: Promise<{ tab?: string; template?: string }> }) {
   const tl = await getTranslator();
   const { tab: tabParam, template: templateParam } = await searchParams;
