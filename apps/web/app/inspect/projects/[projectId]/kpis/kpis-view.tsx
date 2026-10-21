@@ -119,10 +119,11 @@ function ProgressRing({ percent, size = 72 }: { percent: number | null; size?: n
 /** Horizontal bar chart of real per-ITP inspection-completion percentages (no fabricated trend data). */
 function ItpCompletionChart({ rows }: { rows: { label: string; percent: number; completed: number; planned: number }[] }) {
   const rowHeight = 26;
+  // The SVG scales with its box, so it is capped at its natural width (below): uncapped, text and bars balloon on a wide screen.
   const chartWidth = 520;
   const height = rows.length * rowHeight + 10;
   return (
-    <svg viewBox={`0 0 ${chartWidth} ${height}`} width="100%" style={{ maxWidth: "100%" }} role="img" aria-label="ITP inspection completion by ITP">
+    <svg viewBox={`0 0 ${chartWidth} ${height}`} width="100%" style={{ maxWidth: chartWidth }} role="img" aria-label="ITP inspection completion by ITP">
       {rows.map((row, i) => {
         const y = i * rowHeight;
         const barMaxWidth = chartWidth - 260;
@@ -185,14 +186,15 @@ function MonthlyTrendChart({ points }: { points: MonthlyTrendPoint[] }) {
   const barWidth = 22;
   const gap = 6;
   const chartHeight = 120;
-  const width = points.length * groupWidth;
+  // At least 280 wide, so a project with one or two months is not stretched to fill the box (text and bars would balloon).
+  const width = Math.max(points.length * groupWidth, 280);
   const max = Math.max(1, ...points.map((p) => Math.max(p.ncrCount, p.inspectionsCompletedCount)));
 
   return (
     <svg
       viewBox={`0 0 ${width} ${chartHeight + 40}`}
       width="100%"
-      style={{ maxWidth: Math.max(width, 320) }}
+      style={{ maxWidth: width }}
       role="img"
       aria-label="Monthly NCR volume and inspections completed"
     >
