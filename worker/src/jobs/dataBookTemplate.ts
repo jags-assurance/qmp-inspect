@@ -410,6 +410,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     ["readiness", "Readiness calculations and hard gates"],
     ["certification", "Final completeness certification"],
     ["acceptance", "Final acceptance and handover record"],
+    ["manifest", "Issue manifest and transmittal"],
     ...((data.earlierAttempts ?? []).length > 0 ? ([["attempts", "Appendix — Earlier failed inspection attempts"]] as Array<[string, string]>) : []),
   ];
   // Number the sections in contents order (the cover is unnumbered; the appendix is lettered).
@@ -940,6 +941,44 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
     <p>${data.isReady ? "All gating categories complete." : "Decision: NOT READY — no acceptance signature is valid or supplied."} Conditional acceptance is not final complete status.</p>`
   );
 
+  const manifestRows = allActivities.map(({ itp, a }, i) => [
+    `R${String(i + 1).padStart(2, "0")}`,
+    a.recordNumber ? recordRef(a.recordNumber, a.reportUrl) : `${escapeHtml(itp.itpNumber)} / ${escapeHtml(a.itemNumber)}`,
+    `${escapeHtml(itp.itpNumber)} Rev ${itp.revision}`,
+    a.attempt ? escapeHtml(a.attempt) : "&mdash;",
+    stateBadge(a.state),
+    a.state === "Accepted" || a.state === "Accepted with comments" ? "Yes" : "Listed, not accepted",
+    String(formPageOf(data.itps.indexOf(itp))),
+  ]);
+  const manifest = page(
+    "manifest",
+    "PART D  RELEASE CONTROLS",
+    "Issue manifest and transmittal",
+    "Freeze each issued version with a manifest and transmittal. Pagination belongs to this export; it does not change a record's own identity.",
+    `
+    <h3>Transmittal</h3>
+    ${table(
+      ["Transmittal field", "Entry"],
+      [
+        ["Issue reference", escapeHtml(data.bookNumber) + " " + bookRevLabel(data)],
+        ["Issue purpose", escapeHtml(issuePurpose(data))],
+        ["Issue date", issueDate],
+        ["Recipients", data.parties.map((p) => `${escapeHtml(p.name)} (${escapeHtml(p.partyType.replace(/_/g, " "))})`).join("; ") || "&mdash;"],
+        ["Volume and pages", "Volume 1 of 1"],
+        ["Superseded issue", data.bookRevision && data.bookRevision > 0 ? `Revision ${formatBookRevision(data.bookRevision - 1)} of this book` : "None"],
+        ["Access and retention", "Project distribution; retained under the agreed project retention policy"],
+      ],
+      ["30%", "70%"]
+    )}
+    <h3>Manifest of records</h3>
+    ${manifestRows.length > 0 ? table(["Req", "Record", "ITP and revision", "Attempt", "State", "Counts as accepted", "Book page"], manifestRows, ["7%", "22%", "20%", "9%", "14%", "18%", "10%"]) : "<p>No records on this project.</p>"}
+    <ul>
+      <li>Each inspection report is filed in the Document Vault as its own controlled original. This book is a viewing copy and does not alter or re-sign those originals.</li>
+      <li>Failed earlier attempts stay filed and are listed in the appendix; the register shows the final attempt of each activity.</li>
+      <li>Release is blocked while any record is missing, rejected or unaccepted, or while an NCR or punch item is open, whatever the percentage shows.</li>
+    </ul>`
+  );
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -1053,6 +1092,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
   ${readiness}
   ${certification}
   ${acceptance}
+  ${manifest}
   ${attemptsAppendix}
   <p class="small" style="text-align:right;margin-top:10px">Generated ${escapeHtml(generatedAtLabel)} &middot; Uncontrolled when printed</p>
 </body>
