@@ -58,6 +58,7 @@ export function PartyMembersPanel({
   const [open, setOpen] = useState(false);
   const [modeState, modeAction, modePending] = useActionState(setPartyAccessModeAction, INITIAL_STATE);
   const [addState, addAction, addPending] = useActionState(addPartyMemberAction, INITIAL_STATE);
+  const keepAddSubmit = useKeepFormValues(addState, addAction);
   const [permissionMode, setPermissionMode] = useState<"standard" | "custom">("standard");
 
   const extraMembers = members.filter((m) => m.user_id !== primaryContactUserId);
@@ -117,12 +118,13 @@ export function PartyMembersPanel({
         ))}
       </ul>
 
-      <form action={addAction} className="mt-2 flex flex-wrap items-center gap-1.5">
+      <form onSubmit={keepAddSubmit} className="mt-2 flex flex-wrap items-center gap-1.5">
         <input type="hidden" name="project_party_id" value={projectPartyId} />
         <input aria-label={tl("person@company.com")}
           name="email"
           type="email"
           required
+          aria-invalid={addState.fieldErrors?.email ? true : undefined}
           placeholder={tl("person@company.com")}
           className="w-40 rounded border border-border bg-surface px-1.5 py-1 text-xs outline-none focus:border-burgundy"
         />
@@ -139,6 +141,7 @@ export function PartyMembersPanel({
           <select
             name="custom_role_id"
             required
+            aria-invalid={addState.fieldErrors?.custom_role_id ? true : undefined}
             className="rounded border border-border bg-surface px-1 py-1 text-xs outline-none focus:border-burgundy"
           >
             <option value=""><Tx>— choose role —</Tx></option>
@@ -153,7 +156,7 @@ export function PartyMembersPanel({
         <Button type="submit" disabled={addPending} variant="link">
           {addPending ? "Adding…" : "Add"}
         </Button>
-        {addState.error && <span className="w-full text-danger">{addState.error}</span>}
+        {addState.error && <span role="alert" className="w-full text-danger">{addState.fieldErrors?.email ?? addState.fieldErrors?.custom_role_id ?? addState.error}</span>}
       </form>
     </div>
   );

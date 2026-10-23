@@ -38,7 +38,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <FormField label="Party type">
+          <FormField label="Party type" error={state.fieldErrors?.party_type}>
             <select
             name="party_type"
             required
@@ -53,7 +53,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
           </FormField>
         </div>
         <div>
-          <FormField label="Organisation / company name">
+          <FormField label="Organisation / company name" error={state.fieldErrors?.name}>
             <input
             name="name"
             required
@@ -63,7 +63,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
           </FormField>
         </div>
         <div className="sm:col-span-2">
-          <FormField label="Their JAGS Assurance account email">
+          <FormField label="Their JAGS Assurance account email" error={state.fieldErrors?.email}>
             <input aria-label={tl("name@company.com")}
             name="email"
             type="email"
@@ -75,7 +75,7 @@ export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      {state.error && !state.fieldErrors && <p role="alert" className="text-sm text-danger">{state.error}</p>}
 
       <Button type="submit" disabled={pending}>
         {pending ? "Adding…" : "+ Add party"}

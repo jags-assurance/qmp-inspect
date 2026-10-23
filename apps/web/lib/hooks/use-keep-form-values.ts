@@ -7,7 +7,8 @@ export const FORM_SAVED_EVENT = "jags:form-saved";
 
 function hasOwnMessage(state: unknown): boolean {
   if (state === null || typeof state !== "object") return false;
-  const o = state as { message?: unknown; notice?: unknown; created?: unknown };
+  const o = state as { message?: unknown; notice?: unknown; created?: unknown; saved?: unknown };
+  if (o.saved === true) return true;
   const m = o.message ?? o.notice ?? o.created;
   return typeof m === "string" && m.length > 0;
 }

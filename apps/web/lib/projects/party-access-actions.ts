@@ -10,6 +10,8 @@ import { PROJECT_PARTY_MEMBERS_TABLE } from "@/lib/projects/party-access-types";
 
 export interface PartyMemberActionState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
 }
 
 const INITIAL_STATE: PartyMemberActionState = { error: null };
@@ -109,9 +111,9 @@ export async function addPartyMemberAction(
   const customRoleId = String(formData.get("custom_role_id") ?? "").trim() || null;
 
   if (!projectPartyId) return { error: "Missing party." };
-  if (!emailInput) return { error: "Enter an email address." };
+  if (!emailInput) return { error: "Enter an email address.", fieldErrors: { email: "Enter an email address." } };
   if (permissionMode !== "standard" && permissionMode !== "custom") return { error: "Invalid permission mode." };
-  if (permissionMode === "custom" && !customRoleId) return { error: "Choose a custom role." };
+  if (permissionMode === "custom" && !customRoleId) return { error: "Choose a custom role.", fieldErrors: { custom_role_id: "Choose a custom role." } };
 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -133,7 +135,10 @@ export async function addPartyMemberAction(
     .maybeSingle<{ id: string; is_active: boolean }>();
 
   if (existingUser && !existingUser.is_active) {
-    return { error: "An account exists for that email but has been deactivated." };
+    return {
+      error: "An account exists for that email but has been deactivated.",
+      fieldErrors: { email: "An account exists for that email but has been deactivated." },
+    };
   }
 
   if (permissionMode === "custom" && customRoleId) {

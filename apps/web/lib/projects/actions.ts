@@ -311,6 +311,8 @@ export async function addProjectPartyAction(
 
 export interface AddSelfManagedPartyState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: FieldErrors;
 }
 
 /**
@@ -350,7 +352,14 @@ export async function addSelfManagedPartyAction(
   const email = String(formData.get("email") ?? "").trim();
 
   if (!projectId || !partyType || !name || !email) {
-    return { error: "Party type, organisation name and the person's email are all required." };
+    return {
+      error: "Party type, organisation name and the person's email are all required.",
+      fieldErrors: {
+        ...(!partyType ? { party_type: "Choose a party type." } : {}),
+        ...(!name ? { name: "Enter the organisation name." } : {}),
+        ...(!email ? { email: "Enter the person's email." } : {}),
+      },
+    };
   }
   if (!VALID_PARTY_TYPES.includes(partyType as PartyType)) {
     return { error: "Invalid party type." };
@@ -397,7 +406,10 @@ export async function addSelfManagedPartyAction(
     .maybeSingle<{ id: string; is_active: boolean }>();
 
   if (!targetUser) {
-    return { error: "No JAGS Assurance account exists for that email yet — that person needs an account created first." };
+    return {
+      error: "No JAGS Assurance account exists for that email yet — that person needs an account created first.",
+      fieldErrors: { email: "No JAGS Assurance account exists for that email yet — that person needs an account created first." },
+    };
   }
   if (!targetUser.is_active) {
     return { error: "That account has been deactivated and can't be granted access." };
@@ -1367,6 +1379,8 @@ export async function askProjectQuestionAction(
 
 export interface UpdateProjectDetailsState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: FieldErrors;
   saved?: boolean;
 }
 
@@ -1389,12 +1403,30 @@ export async function updateProjectDetailsAction(
   const startDate = String(formData.get("start_date") ?? "").trim();
   const endDate = String(formData.get("end_date") ?? "").trim();
   const tz = parseProjectTimeZone(formData.get("timezone"));
-  if (!tz.ok) return { error: tz.error };
+  if (!tz.ok) return { error: tz.error, fieldErrors: { timezone: tz.error } };
 
   if (!projectId) return { error: "Missing project." };
-  if (!projectNumber || !name) return { error: "Project number and name are required." };
-  if (projectNumber.length > 60 || name.length > 200) return { error: "Project number or name is too long." };
-  if (startDate && endDate && endDate < startDate) return { error: "The end date can't be before the start date." };
+  if (!projectNumber || !name) {
+    return {
+      error: "Project number and name are required.",
+      fieldErrors: {
+        ...(!projectNumber ? { project_number: "Project number is required." } : {}),
+        ...(!name ? { name: "Project name is required." } : {}),
+      },
+    };
+  }
+  if (projectNumber.length > 60 || name.length > 200) {
+    return {
+      error: "Project number or name is too long.",
+      fieldErrors: {
+        ...(projectNumber.length > 60 ? { project_number: "Use 60 characters or fewer." } : {}),
+        ...(name.length > 200 ? { name: "Use 200 characters or fewer." } : {}),
+      },
+    };
+  }
+  if (startDate && endDate && endDate < startDate) {
+    return { error: "The end date can't be before the start date.", fieldErrors: { end_date: "The end date can't be before the start date." } };
+  }
 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -1436,7 +1468,10 @@ export async function updateProjectDetailsAction(
   if (tz.value && error && isMissingSchemaError(error)) {
     ({ data: updated, error } = await supabase.from("projects").update(next).eq("id", projectId).select("id"));
   }
-  if (error?.code === "23505") return { error: "A project with that number already exists for this organisation." };
+  if (error?.code === "23505") {
+    const msg = "A project with that number already exists for this organisation.";
+    return { error: msg, fieldErrors: { project_number: msg } };
+  }
   if (error || !updated || updated.length === 0) {
     return { error: "Could not save the changes. Check you have permission and try again." };
   }

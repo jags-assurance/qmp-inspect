@@ -5,6 +5,7 @@ import { updateProjectDetailsAction, type UpdateProjectDetailsState } from "@/li
 import { Button } from "@/components/ui/button";
 import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
+import { FieldError } from "@/components/ui/field-error";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
@@ -47,11 +48,13 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
           <input type="hidden" name="project_id" value={project.id} />
           <label className="text-sm text-ink">
             <Tx>Project number *</Tx>
-            <input name="project_number" required maxLength={60} defaultValue={project.project_number} className={inputClass} />
+            <input name="project_number" required maxLength={60} defaultValue={project.project_number} aria-invalid={state.fieldErrors?.project_number ? true : undefined} className={inputClass} />
+            <FieldError message={state.fieldErrors?.project_number} />
           </label>
           <label className="text-sm text-ink">
             <Tx>Project name *</Tx>
-            <input name="name" required maxLength={200} defaultValue={project.name} className={inputClass} />
+            <input name="name" required maxLength={200} defaultValue={project.name} aria-invalid={state.fieldErrors?.name ? true : undefined} className={inputClass} />
+            <FieldError message={state.fieldErrors?.name} />
           </label>
           <label className="text-sm text-ink">
             <Tx>Site location</Tx>
@@ -68,6 +71,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
           <label className="text-sm text-ink">
             <Tx>Site time zone</Tx>
             <TimeZonePicker blankLabel={tl("Keep current")} defaultValue={project.timezone ?? ""} className={inputClass} />
+            <FieldError message={state.fieldErrors?.timezone} />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm text-ink">
@@ -76,7 +80,8 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
             </label>
             <label className="text-sm text-ink">
               <Tx>End date</Tx>
-              <input type="date" name="end_date" defaultValue={project.end_date ?? ""} className={inputClass} />
+              <input type="date" name="end_date" defaultValue={project.end_date ?? ""} aria-invalid={state.fieldErrors?.end_date ? true : undefined} className={inputClass} />
+              <FieldError message={state.fieldErrors?.end_date} />
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
@@ -84,7 +89,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
               {pending ? "Saving…" : "Save details"}
             </Button>
             {state.saved && !state.error && <span className="text-sm text-success"><Tx>Saved.</Tx></span>}
-            {state.error && <span role="alert" className="text-sm text-danger">{state.error}</span>}
+            {state.error && !state.fieldErrors && <span role="alert" className="text-sm text-danger">{state.error}</span>}
           </div>
         </form>
       )}
