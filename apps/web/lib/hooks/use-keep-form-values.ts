@@ -27,7 +27,23 @@ export function useKeepFormValues(state: unknown, formAction: (formData: FormDat
   useEffect(() => {
     if (!submitted.current) return;
     submitted.current = false;
-    if (actionSucceeded(state)) formRef.current?.reset();
+    const form = formRef.current;
+    if (!form) return;
+    if (actionSucceeded(state)) {
+      form.reset();
+      return;
+    }
+    // Failed: take the person to the problem instead of leaving it off-screen below the fold.
+    // Wait a frame so the field error / banner has rendered.
+    requestAnimationFrame(() => {
+      const bad = form.querySelector<HTMLElement>('[aria-invalid="true"]');
+      if (bad) {
+        bad.focus({ preventScroll: true });
+        bad.scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+      form.querySelector<HTMLElement>('[role="alert"]:not(:empty)')?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
   }, [state]);
 
   return function onSubmit(event: FormEvent<HTMLFormElement>) {
