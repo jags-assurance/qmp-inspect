@@ -113,7 +113,7 @@ export async function createProjectAction(
     // specific message — everything else (including "not JAGS staff", caught by RLS) is a plain
     // permission/validation failure with no extra detail to leak.
     if (error?.code === "23505") {
-      return { error: "A project with that number already exists for this organisation." };
+      return { error: "A project with that number already exists for this organisation.", fieldErrors: { project_number: "A project with that number already exists for this organisation." } };
     }
     return { error: "Could not create the project. Check you have permission and try again." };
   }

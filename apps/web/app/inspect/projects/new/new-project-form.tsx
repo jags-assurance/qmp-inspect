@@ -12,6 +12,7 @@ import { FormField } from "@/components/ui/form-field";
 import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateProjectState = { error: null };
 
@@ -32,6 +33,7 @@ export function NewProjectForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
+  const onSubmit = useKeepFormValues(formAction);
   const [projectNumber, setProjectNumber] = useState("");
   // Once the user types their own number we stop overwriting it when they change the organisation.
   const [numberEdited, setNumberEdited] = useState(false);
@@ -45,7 +47,7 @@ export function NewProjectForm({
   }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form onSubmit={onSubmit} className="space-y-5">
       <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <Section title={<Tx>Project details</Tx>} bodyClassName="space-y-4">
       <div>
