@@ -5,6 +5,7 @@ import { renameVaultDocumentAction, type RenameVaultDocumentState } from "@/lib/
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RenameVaultDocumentState = { error: null };
 
@@ -19,6 +20,7 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
     },
     initialState
   );
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
 
   if (!open) {
     return (
@@ -28,7 +30,7 @@ export function RenameDocumentForm({ projectId, documentId, title }: { projectId
     );
   }
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <form onSubmit={keepValuesSubmit1} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="document_id" value={documentId} />
       <input type="hidden" name="project_id" value={projectId} />
       <input

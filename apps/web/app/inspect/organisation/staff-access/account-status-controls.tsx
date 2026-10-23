@@ -13,15 +13,17 @@ import { FormMessage } from "@/components/ui/form-message";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: DeactivationState = { error: null, message: null };
 
 /** Deactivate / reactivate one known account (used on each staff card). */
 export function AccountStatusButton({ userId, active, name }: { userId: string; active: boolean; name: string }) {
   const [state, formAction, pending] = useActionState(active ? deactivateUserAction : reactivateUserAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   const { askThenSubmit, dialog } = useConfirm();
   return (
-    <form action={formAction} className="flex flex-col items-end gap-1">
+    <form onSubmit={keepValuesSubmit1} className="flex flex-col items-end gap-1">
       {dialog}
       <input type="hidden" name="user_id" value={userId} />
       <Button
@@ -49,8 +51,9 @@ export function AccountStatusButton({ userId, active, name }: { userId: string; 
 /** Offboard any account (staff or an external party user) by email. */
 export function OffboardByEmailForm() {
   const [state, formAction, pending] = useActionState(accountLifecycleByEmailAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit2} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <h2 className="text-sm font-semibold text-ink"><Tx>Offboard or restore an account</Tx></h2>
       <p className="mt-1 text-xs text-muted">
         <Tx>Works on any account by email — JAGS staff or an external party user. Deactivating signs the person out, stops them signing in again and removes every access grant (recorded, so Reactivate restores them).</Tx>
@@ -82,9 +85,10 @@ const bulkInitialState: BulkDeactivationState = { error: null, results: [] };
 /** S1-16: deactivate or restore several accounts at once from a pasted list of emails (JAGS Admin). */
 export function BulkOffboardForm() {
   const [state, formAction, pending] = useActionState(bulkAccountLifecycleAction, bulkInitialState);
+  const keepValuesSubmit3 = useKeepFormValues(state, formAction);
   const { askThenSubmit, dialog } = useConfirm();
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit3} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       {dialog}
       <h2 className="text-sm font-semibold text-ink"><Tx>Bulk offboard or restore accounts</Tx></h2>
       <p className="mt-1 text-xs text-muted">

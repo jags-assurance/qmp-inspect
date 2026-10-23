@@ -26,6 +26,7 @@ const commitInitialState: CommitImportState = { error: null, addedCount: 0 };
  */
 export function ImportPanel({ templateId }: { templateId: string }) {
   const [parseState, parseFormAction, parsePending] = useActionState(parseLibraryImportAction, parseInitialState);
+  const keepValuesSubmit1 = useKeepFormValues(parseState, parseFormAction);
   const [commitState, commitFormAction, commitPending] = useActionState(commitLibraryImportAction, commitInitialState);
   const keepValuesSubmit_commitFormAction = useKeepFormValues(commitState, commitFormAction);
 
@@ -73,7 +74,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       {!rows && (
-        <form action={parseFormAction} className="space-y-2">
+        <form onSubmit={keepValuesSubmit1} className="space-y-2">
           <input type="hidden" name="template_id" value={templateId} />
           <input
             type="file"

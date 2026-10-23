@@ -10,6 +10,7 @@ import {
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const suggestInitialState: SuggestMeasurementsState = { error: null, suggestions: null };
 
@@ -21,10 +22,11 @@ const suggestInitialState: SuggestMeasurementsState = { error: null, suggestions
  */
 export function SuggestMeasurements({ assignmentId }: { assignmentId: string }) {
   const [state, formAction, pending] = useActionState(suggestStandaloneMeasurementsAction, suggestInitialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
 
   return (
     <div className="border-t border-border bg-surface px-4 py-3">
-      <form action={formAction} className="flex items-center gap-3">
+      <form onSubmit={keepValuesSubmit1} className="flex items-center gap-3">
         <input type="hidden" name="assignment_id" value={assignmentId} />
         <Button
           type="submit"
@@ -65,6 +67,7 @@ function SuggestionRow({
   suggestion: { description: string; nominal: string; tolerance: string; unit: string };
 }) {
   const [state, formAction, pending] = useActionState(addMeasurementAction, addInitialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   const added = !pending && state.error === null && state !== addInitialState;
 
   return (
@@ -77,7 +80,7 @@ function SuggestionRow({
           {suggestion.unit ? ` · Unit: ${suggestion.unit}` : ""}
         </p>
       </div>
-      <form action={formAction}>
+      <form onSubmit={keepValuesSubmit2}>
         <input type="hidden" name="assignment_id" value={assignmentId} />
         <input type="hidden" name="description" value={suggestion.description} />
         <input type="hidden" name="nominal_value" value={suggestion.nominal} />

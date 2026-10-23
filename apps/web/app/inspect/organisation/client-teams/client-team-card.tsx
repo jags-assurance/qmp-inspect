@@ -14,6 +14,7 @@ import {
 } from "@/lib/client-teams/actions";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ClientTeamActionState = { error: null };
 
@@ -95,7 +96,9 @@ function MemberRow({
   canManage: boolean;
 }) {
   const [leadState, leadAction, leadPending] = useActionState(setClientTeamLeadAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(leadState, leadAction);
   const [removeState, removeAction, removePending] = useActionState(removeClientTeamMemberAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(removeState, removeAction);
 
   return (
     <li className="flex items-center justify-between text-sm">
@@ -106,7 +109,7 @@ function MemberRow({
         {member.isTeamLead && <Badge tone="success"><Tx>Team lead</Tx></Badge>}
         {canManage && (
           <>
-            <form action={leadAction} className="inline">
+            <form onSubmit={keepValuesSubmit1} className="inline">
               <input type="hidden" name="client_team_id" value={clientTeamId} />
               <input type="hidden" name="user_id" value={member.userId} />
               <input type="hidden" name="is_team_lead" value={member.isTeamLead ? "" : "on"} />
@@ -114,7 +117,7 @@ function MemberRow({
                 {member.isTeamLead ? "Unset lead" : "Make lead"}
               </Button>
             </form>
-            <form action={removeAction} className="inline">
+            <form onSubmit={keepValuesSubmit2} className="inline">
               <input type="hidden" name="client_team_id" value={clientTeamId} />
               <input type="hidden" name="user_id" value={member.userId} />
               <Button type="submit" disabled={removePending} variant="link-danger" size="sm">
@@ -142,11 +145,13 @@ function AddMemberForm({ clientTeamId, users }: { clientTeamId: string; users: U
   const tl = useTranslate();
   const [mode, setMode] = useState<"pick" | "email">(users.length > 0 ? "pick" : "email");
   const [pickState, pickAction, pickPending] = useActionState(addClientTeamMemberAction, initialState);
+  const keepValuesSubmit3 = useKeepFormValues(pickState, pickAction);
   const [emailState, emailAction, emailPending] = useActionState(addClientTeamMemberByEmailAction, initialState);
+  const keepValuesSubmit4 = useKeepFormValues(emailState, emailAction);
 
   if (mode === "pick") {
     return (
-      <form action={pickAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
+      <form onSubmit={keepValuesSubmit3} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
         <input type="hidden" name="client_team_id" value={clientTeamId} />
         {users.length > 0 ? (
           <select
@@ -180,7 +185,7 @@ function AddMemberForm({ clientTeamId, users }: { clientTeamId: string; users: U
   }
 
   return (
-    <form action={emailAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
+    <form onSubmit={keepValuesSubmit4} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
       <input type="hidden" name="client_team_id" value={clientTeamId} />
       <input aria-label={tl("person@company.com")}
         name="email"
@@ -215,12 +220,13 @@ function AssignedProjectRow({
   canManage: boolean;
 }) {
   const [state, formAction, pending] = useActionState(unassignClientTeamFromProjectAction, initialState);
+  const keepValuesSubmit5 = useKeepFormValues(state, formAction);
 
   return (
     <li className="flex items-center justify-between text-sm">
       <span className="text-ink">{project.name}</span>
       {canManage && (
-        <form action={formAction} className="inline">
+        <form onSubmit={keepValuesSubmit5} className="inline">
           <input type="hidden" name="client_team_id" value={clientTeamId} />
           <input type="hidden" name="project_id" value={project.projectId} />
           <Button type="submit" disabled={pending} variant="link-danger" size="sm">
@@ -235,9 +241,10 @@ function AssignedProjectRow({
 
 function AssignProjectForm({ clientTeamId, projects }: { clientTeamId: string; projects: ProjectOption[] }) {
   const [state, formAction, pending] = useActionState(assignClientTeamToProjectAction, initialState);
+  const keepValuesSubmit6 = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
+    <form onSubmit={keepValuesSubmit6} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-dashed border-border bg-off-white p-2">
       <input type="hidden" name="client_team_id" value={clientTeamId} />
       <select
         name="project_id"

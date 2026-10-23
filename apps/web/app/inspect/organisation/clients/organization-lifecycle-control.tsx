@@ -12,11 +12,12 @@ const initialState: OrganizationLifecycleState = { error: null, message: null };
 /** Admin controls: rename (name only, slug unchanged) and deactivate / reactivate (reason required, data kept). */
 export function OrganizationLifecycleControl({ organizationId, name, isActive }: { organizationId: string; name: string; isActive: boolean }) {
   const [renameState, renameAction, renaming] = useActionState(renameOrganizationAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(renameState, renameAction);
   const [activeState, activeAction, toggling] = useActionState(setOrganizationActiveAction, initialState);
   const keepValuesSubmit_activeAction = useKeepFormValues(activeState, activeAction);
   return (
     <div className="mt-3 space-y-3 border-t border-border pt-3">
-      <form action={renameAction} className="flex flex-wrap items-end gap-2">
+      <form onSubmit={keepValuesSubmit1} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="organization_id" value={organizationId} />
         <label className="text-xs font-medium text-ink">
           <Tx>Organisation name</Tx>

@@ -18,6 +18,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
   const [enrol, setEnrol] = useState<MfaEnrolState | null>(null);
   const [starting, setStarting] = useState(false);
   const [confirmState, confirmAction, confirming] = useActionState(confirmMfaEnrolAction, initial);
+  const keepValuesSubmit1 = useKeepFormValues(confirmState, confirmAction);
   const [removeState, removeAction, removing] = useActionState(removeMfaAction, initial);
   const keepValuesSubmit_removeAction = useKeepFormValues(removeState, removeAction);
 
@@ -56,7 +57,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
           {enrol?.error && <p role="alert" className="mt-2 text-xs text-danger">{enrol.error}</p>}
         </>
       ) : (
-        <form action={confirmAction} className="space-y-3">
+        <form onSubmit={keepValuesSubmit1} className="space-y-3">
           <p className="text-sm text-ink"><Tx>1. Scan this code with your authenticator app (or type the secret).</Tx></p>
           {/* A data: SVG from Supabase; next/image adds nothing for it. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}

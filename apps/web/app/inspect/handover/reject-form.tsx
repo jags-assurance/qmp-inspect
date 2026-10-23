@@ -10,12 +10,14 @@ import {
 import { MIN_REJECT_REASON_LENGTH } from "@/lib/handover/helpers";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RejectHandoverState = { error: null };
 
 /** The client's alternative to accepting: refuse the package with a reason (reject_handover()). */
 export function RejectForm({ certificateId, certificateNumber }: { certificateId: string; certificateNumber: string }) {
   const [state, formAction, pending] = useActionState(rejectHandoverAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   const [expanded, setExpanded] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [reason, setReason] = useState("");
@@ -31,7 +33,7 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
   const reasonId = `reject_reason_${certificateId}`;
   const confirmId = `reject_confirm_${certificateId}`;
   return (
-    <form action={formAction} className="flex w-full flex-wrap items-end gap-2">
+    <form onSubmit={keepValuesSubmit1} className="flex w-full flex-wrap items-end gap-2">
       <input type="hidden" name="certificate_id" value={certificateId} />
       <p className="w-full text-xs text-muted">
         <Tx>Rejecting certificate</Tx> <span className="font-medium text-ink">{certificateNumber}</span> <Tx>tells JAGS the package is not acceptable. You cannot undo it.</Tx>
@@ -76,6 +78,7 @@ export function RejectForm({ certificateId, certificateNumber }: { certificateId
 /** Admin-only: clear a rejection that was made in error (reopen_handover_rejection()). */
 export function ReopenRejectionForm({ certificateId }: { certificateId: string }) {
   const [state, formAction, pending] = useActionState(reopenHandoverRejectionAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   const [expanded, setExpanded] = useState(false);
 
   if (!expanded) {
@@ -87,7 +90,7 @@ export function ReopenRejectionForm({ certificateId }: { certificateId: string }
   }
   const reasonId = `reopen_reason_${certificateId}`;
   return (
-    <form action={formAction} className="flex w-full flex-wrap items-end gap-2">
+    <form onSubmit={keepValuesSubmit2} className="flex w-full flex-wrap items-end gap-2">
       <input type="hidden" name="certificate_id" value={certificateId} />
       <div className="w-full sm:w-80">
         <label htmlFor={reasonId} className="block text-xs font-medium text-ink">

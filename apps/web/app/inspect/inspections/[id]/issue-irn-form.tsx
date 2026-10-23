@@ -7,14 +7,16 @@ import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: IssueIrnState = { error: null };
 
 export function IssueIrnForm({ inspectionRecordId }: { inspectionRecordId: string }) {
   const [state, formAction, pending] = useActionState(issueIrnAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction}>
+    <form onSubmit={keepValuesSubmit1}>
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <Button type="submit" disabled={pending}>
         {pending ? "Issuing…" : "Issue IRN"}
@@ -28,9 +30,10 @@ export function IssueIrnForm({ inspectionRecordId }: { inspectionRecordId: strin
 export function VoidIrnForm({ irnId }: { irnId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(voidIrnAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   return (
     <Disclosure variant="inline" summary={<><Tx>Void this IRN…</Tx></>} className="mt-3 text-sm">
-      <form action={formAction} className="mt-2 space-y-2">
+      <form onSubmit={keepValuesSubmit2} className="mt-2 space-y-2">
         <input type="hidden" name="irn_id" value={irnId} />
         <textarea aria-label={tl("Reason for voiding (required, min 15 characters)")}
           name="reason"

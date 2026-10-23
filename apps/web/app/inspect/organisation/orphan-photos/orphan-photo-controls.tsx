@@ -14,6 +14,7 @@ const INPUT = "rounded-md border border-border bg-surface px-2 py-1 text-xs outl
 export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
   const tl = useTranslate();
   const [state, reviewAction, pending] = useActionState(reviewOrphanPhotoAction, initial);
+  const keepValuesSubmit1 = useKeepFormValues(state, reviewAction);
   const [removeState, removeAction, removing] = useActionState(removeOrphanFileAction, initial);
   const keepValuesSubmit_removeAction = useKeepFormValues(removeState, removeAction);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -21,7 +22,7 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
 
   return (
     <div className="mt-3 space-y-2">
-      <form action={reviewAction} className="flex flex-wrap items-center gap-2">
+      <form onSubmit={keepValuesSubmit1} className="flex flex-wrap items-center gap-2">
         <input type="hidden" name="storage_path" value={storagePath} />
         <input aria-label={tl("Note (optional)")} name="note" maxLength={300} placeholder={tl("Note (optional)")} className={`w-56 ${INPUT}`} />
         <Button type="submit" name="decision" value="kept" disabled={pending} variant="outline" size="sm">

@@ -40,6 +40,7 @@ export function NarrativeEditor({
 }) {
   const tl = useTranslate();
   const [draftState, draftFormAction, draftPending] = useActionState(draftAction, draftInitialState);
+  const keepValuesSubmit1 = useKeepFormValues(draftState, draftFormAction);
   const [saveState, saveFormAction, savePending] = useActionState(saveAction, saveInitialState);
   const keepValuesSubmit_saveFormAction = useKeepFormValues(saveState, saveFormAction);
   const [cleanupState, cleanupFormAction, cleanupPending] = useActionState(cleanUpNarrativeAction, cleanupInitialState);
@@ -71,7 +72,7 @@ export function NarrativeEditor({
     <div className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-ink"><Tx>Report conclusion / narrative</Tx></h2>
-        <form action={draftFormAction}>
+        <form onSubmit={keepValuesSubmit1}>
           <input type="hidden" name={recordIdFieldName} value={recordId} />
           <Button
             type="submit"

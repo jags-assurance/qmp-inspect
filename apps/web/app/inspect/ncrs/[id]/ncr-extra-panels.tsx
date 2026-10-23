@@ -15,6 +15,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const field = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
 
@@ -41,6 +42,7 @@ export function EditNcrDetailsForm({
 }) {
   const tl = useTranslate();
   const [state, action, pending] = useActionState(editNcrDetailsAction, { error: null } as EditNcrDetailsState);
+  const keepValuesSubmit1 = useKeepFormValues(state, action);
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
@@ -50,7 +52,7 @@ export function EditNcrDetailsForm({
   }, [state]);
   return (
     <Disclosure variant="inline" summary={<><Tx>Correct the description</Tx></>} className="mt-3 text-sm">
-      <form action={action} className="mt-2 space-y-3">
+      <form onSubmit={keepValuesSubmit1} className="mt-2 space-y-3">
         <input type="hidden" name="ncr_id" value={ncrId} />
         <textarea name="description" rows={3} required minLength={10} defaultValue={description} className={field} aria-label={tl("Description")} />
         <textarea name="requirement_not_met" rows={2} defaultValue={requirementNotMet ?? ""} placeholder={tl("Requirement not met (optional)")} className={field} aria-label={tl("Requirement not met")} />
@@ -74,6 +76,7 @@ export function EditNcrDetailsForm({
 export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; others: { id: string; ncr_number: string }[]; onDone?: () => void }) {
   const tl = useTranslate();
   const [state, action, pending] = useActionState(withdrawNcrAction, { error: null } as WithdrawNcrState);
+  const keepValuesSubmit2 = useKeepFormValues(state, action);
   const { askThenSubmit, dialog } = useConfirm();
   const doneRef = useRef(onDone);
   useEffect(() => {
@@ -84,7 +87,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
   }, [state]);
   return (
     <Disclosure variant="inline" summary={<><Tx>Withdraw (raised in error / duplicate)</Tx></>} className="mt-4 border-t border-border pt-4 text-sm">
-      <form action={action} className="mt-2 space-y-2">
+      <form onSubmit={keepValuesSubmit2} className="mt-2 space-y-2">
         {dialog}
         <input type="hidden" name="ncr_id" value={ncrId} />
         <textarea name="reason" rows={2} required minLength={WITHDRAW_REASON_MIN} placeholder={tl("Why is this being withdrawn? (required)")} className={field} aria-label={tl("Reason")} />
@@ -110,6 +113,7 @@ export function WithdrawNcrForm({ ncrId, others, onDone }: { ncrId: string; othe
 /** Repair path when the punch item was never created (or was lost). Idempotent. */
 export function EnsurePunchButton({ ncrId, onDone }: { ncrId: string; onDone?: () => void }) {
   const [state, action, pending] = useActionState(ensureNcrPunchItemAction, { error: null } as EnsurePunchState);
+  const keepValuesSubmit3 = useKeepFormValues(state, action);
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
@@ -118,7 +122,7 @@ export function EnsurePunchButton({ ncrId, onDone }: { ncrId: string; onDone?: (
     if (state.done) doneRef.current?.();
   }, [state]);
   return (
-    <form action={action} className="mt-2">
+    <form onSubmit={keepValuesSubmit3} className="mt-2">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <p className="text-sm text-warning"><Tx>This NCR has no punch-list item, so handover tracking would miss it.</Tx></p>
       <Button type="submit" variant="outline" disabled={pending}>

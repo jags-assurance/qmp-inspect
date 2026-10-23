@@ -101,6 +101,8 @@ export function NewItpFromAiForm({
 }) {
   const tl = useTranslate();
   const [genState, genFormAction, genPending] = useActionState(generateItpDraftAction, genInitialState);
+  const keepValuesSubmit2 = useKeepFormValues(genState, genFormAction);
+  const keepValuesSubmit1 = useKeepFormValues(genState, genFormAction);
   const [draft, setDraft] = useState<ItpDraftResult | null>(null);
   const [projectParties, setProjectParties] = useState<GenerateItpDraftState["projectParties"]>([]);
   const [onlyNeedsReview, setOnlyNeedsReview] = useState(false);
@@ -162,7 +164,7 @@ export function NewItpFromAiForm({
 
   if (!draft) {
     return (
-      <form action={genFormAction} className="mt-6 space-y-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+      <form onSubmit={keepValuesSubmit1} className="mt-6 space-y-5 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div>
           <FormField required label="Project">
             <select
@@ -419,7 +421,7 @@ export function NewItpFromAiForm({
             </label>
           )}
         </div>
-        <form action={genFormAction} className="mt-3 space-y-2">
+        <form onSubmit={keepValuesSubmit2} className="mt-3 space-y-2">
           <input type="hidden" name="project_id" value={projectId} />
           {selectedDocIds.map((id) => (
             <input key={id} type="hidden" name="vault_document_ids" value={id} />

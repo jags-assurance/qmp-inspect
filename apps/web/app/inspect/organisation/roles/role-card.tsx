@@ -62,8 +62,11 @@ export function RoleCard({
   isClientManagedOrg?: boolean;
 }) {
   const [deleteState, deleteAction, deletePending] = useActionState(deleteCustomRoleAction, deleteInitial);
+  const keepValuesSubmit1 = useKeepFormValues(deleteState, deleteAction);
   const [toggleState, toggleAction] = useActionState(toggleRolePermissionAction, toggleInitial);
+  const keepValuesSubmit2 = useKeepFormValues(toggleState, toggleAction);
   const [assignState, assignAction, assignPending] = useActionState(assignCustomRoleAction, assignInitial);
+  const keepValuesSubmit3 = useKeepFormValues(assignState, assignAction);
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
@@ -80,7 +83,7 @@ export function RoleCard({
           </div>
           <p className="text-xs text-muted">{role.organizationName ?? "JAGS-global"}</p>
         </div>
-        <form action={deleteAction}>
+        <form onSubmit={keepValuesSubmit1}>
           <input type="hidden" name="role_id" value={role.id} />
           <Button type="submit" disabled={deletePending} variant="link-danger" size="sm">
             {deletePending ? "Deleting…" : "Delete role"}
@@ -101,7 +104,7 @@ export function RoleCard({
             // admin-only key must stay clickable, matching the server action/RLS exactly.
             const disabled = restrictGrantableKeys && !granted && !clientCanGrant;
             return (
-              <form key={key} action={toggleAction}>
+              <form key={key} onSubmit={keepValuesSubmit2}>
                 <input type="hidden" name="role_id" value={role.id} />
                 <input type="hidden" name="permission_key" value={key} />
                 <input type="hidden" name="grant" value={granted ? "" : "on"} />
@@ -133,7 +136,7 @@ export function RoleCard({
           {role.assignments.length === 0 && <p className="text-xs text-muted"><Tx>No one holds this role yet.</Tx></p>}
         </div>
 
-        <form action={assignAction} className="mt-2 flex flex-wrap items-end gap-2">
+        <form onSubmit={keepValuesSubmit3} className="mt-2 flex flex-wrap items-end gap-2">
           <input type="hidden" name="role_id" value={role.id} />
           <select name="user_id" required className="rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy">
             <option value=""><Tx>— choose person —</Tx></option>

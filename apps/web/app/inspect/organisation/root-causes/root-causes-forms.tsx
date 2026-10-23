@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: TaxonomyState = { error: null };
 const INPUT = "rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -34,8 +35,9 @@ function Message({ state }: { state: TaxonomyState }) {
 export function AddCategoryForm({ organizationId }: { organizationId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addRootCauseCategoryAction, initial);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit1} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <FormField label="New category">
@@ -70,8 +72,9 @@ export function EditCategoryRow({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateRootCauseCategoryAction, initial);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-3 px-4 py-3">
+    <form onSubmit={keepValuesSubmit2} className="flex flex-wrap items-center gap-3 px-4 py-3">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="organization_id" value={organizationId} />
       <input name="label" defaultValue={label} aria-label={tl("Category name")} required minLength={2} maxLength={80} className={`w-64 ${INPUT}`} />

@@ -23,6 +23,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
   const [state, formAction, pending] = useActionState(updateInterventionLevelAction, initialState);
   const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteInterventionLevelAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(deleteState, deleteAction);
 
   return (
     <div className="py-3">
@@ -74,7 +75,7 @@ export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
       </form>
       {state.error && <p role="alert" className="mt-1 text-sm text-danger">{state.error}</p>}
 
-      <form action={deleteAction} className="mt-1.5">
+      <form onSubmit={keepValuesSubmit1} className="mt-1.5">
         <input type="hidden" name="id" value={level.id} />
         <Button
           type="submit"

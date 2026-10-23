@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RetentionState = { error: null };
 
@@ -22,8 +23,9 @@ export function RetentionSettingsForm({
   enabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState(saveRetentionSettingsAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit1} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <label className="flex items-center gap-2 text-sm text-ink">
         <input type="checkbox" name="enabled" defaultChecked={enabled} className="h-4 w-4" />
@@ -60,9 +62,10 @@ export function RetentionSettingsForm({
 
 export function ReviewFlagForm({ documentId }: { documentId: string }) {
   const [state, formAction, pending] = useActionState(reviewRetentionFlagAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   const [outcome, setOutcome] = useState<"keep" | "dispose_approved">("keep");
   return (
-    <form action={formAction} className="mt-2 flex flex-wrap items-end gap-2">
+    <form onSubmit={keepValuesSubmit2} className="mt-2 flex flex-wrap items-end gap-2">
       <input type="hidden" name="document_id" value={documentId} />
       <div>
         <label htmlFor={`outcome_${documentId}`} className="block text-xs font-medium text-ink">
@@ -101,8 +104,9 @@ export function ReviewFlagForm({ documentId }: { documentId: string }) {
 
 export function DisposeDocumentForm({ documentId }: { documentId: string }) {
   const [state, formAction, pending] = useActionState(markRetentionDisposedAction, initialState);
+  const keepValuesSubmit3 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="mt-2 flex flex-wrap items-end gap-2">
+    <form onSubmit={keepValuesSubmit3} className="mt-2 flex flex-wrap items-end gap-2">
       <input type="hidden" name="document_id" value={documentId} />
       <div className="min-w-48 flex-1">
         <label htmlFor={`confirm_${documentId}`} className="block text-xs font-medium text-ink">
@@ -128,8 +132,9 @@ const initialLimitState: VaultUploadLimitState = { error: null };
 
 export function VaultUploadLimitForm({ organizationId, maxUploadMb }: { organizationId: string; maxUploadMb: number }) {
   const [state, formAction, pending] = useActionState(saveVaultUploadLimitAction, initialLimitState);
+  const keepValuesSubmit4 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit4} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <label htmlFor={`max_upload_mb_${organizationId}`} className="block text-xs font-medium text-ink">

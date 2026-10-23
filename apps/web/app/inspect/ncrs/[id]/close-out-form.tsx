@@ -111,6 +111,7 @@ export function CloseOutForm({
 
   const [fields2, setFields2] = useState({ preventive: preventiveAction ?? "" });
   const [reopenState, reopenAction, reopenPending] = useActionState(reopenNcrAction, { error: null } as ReopenNcrState);
+  const keepValuesSubmit1 = useKeepFormValues(reopenState, reopenAction);
   const capaComplete = Boolean(fields.rootCause.trim() && fields.correctiveAction.trim() && fields2.preventive.trim() && fields.verificationNotes.trim());
   const canCloseNow = capaComplete && photoCount > 0 && status === "pending_verification" && canClose;
 
@@ -326,7 +327,7 @@ export function CloseOutForm({
     </form>
     {!isClosed && canVerify && status === "pending_verification" && <ReturnForReworkForm ncrId={ncrId} onDone={onSaved} />}
     {isClosed && canClose && (
-      <form action={reopenAction} className="mt-4 space-y-2 border-t border-border pt-4">
+      <form onSubmit={keepValuesSubmit1} className="mt-4 space-y-2 border-t border-border pt-4">
         <input type="hidden" name="ncr_id" value={ncrId} />
         <label htmlFor="reopen_reason" className="block text-sm font-medium text-ink"><Tx>Re-open this NCR</Tx></label>
         <textarea id="reopen_reason" name="reason" rows={2} required placeholder={tl("Reason for re-opening (required)")} className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy" />

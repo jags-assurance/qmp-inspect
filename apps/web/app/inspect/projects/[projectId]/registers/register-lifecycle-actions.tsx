@@ -51,7 +51,9 @@ export function RegisterLifecycleActions({
   lifecycleStatus?: string | null;
 }) {
   const [verifyState, verifyAction, verifying] = useActionState(verifyRegisterEntryAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(verifyState, verifyAction);
   const [lifeState, lifeAction, changing] = useActionState(setRegisterLifecycleAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(lifeState, lifeAction);
   const [recalState, recalAction, recalibrating] = useActionState(recalibrateInstrumentAction, initialState);
   const keepValuesSubmit_recalAction = useKeepFormValues(recalState, recalAction);
   const inactive = !!lifecycleStatus && lifecycleStatus !== "active";
@@ -60,7 +62,7 @@ export function RegisterLifecycleActions({
   return (
     <div className="flex flex-wrap items-start gap-2">
       {unverified && (
-        <form action={verifyAction}>
+        <form onSubmit={keepValuesSubmit1}>
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="project_id" value={projectId} />
@@ -112,7 +114,7 @@ export function RegisterLifecycleActions({
       )}
 
       <Disclosure variant="inline" summary={<>{inactive ? "Reactivate" : "Retire"}</>} className="relative">
-        <form action={lifeAction} className="mt-1 w-64 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
+        <form onSubmit={keepValuesSubmit2} className="mt-1 w-64 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="id" value={id} />
           <input type="hidden" name="project_id" value={projectId} />

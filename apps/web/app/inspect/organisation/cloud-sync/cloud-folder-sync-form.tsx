@@ -26,12 +26,13 @@ export function CloudFolderSyncForm({
 }) {
   const tl = useTranslate();
   const [saveState, saveAction, savePending] = useActionState(saveCloudFolderSyncConfigAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(saveState, saveAction);
   const [clearState, clearAction, clearPending] = useActionState(clearCloudFolderSyncConfigAction, initialState);
   const keepValuesSubmit_clearAction = useKeepFormValues(clearState, clearAction);
 
   return (
     <div className="space-y-4">
-      <form action={saveAction} className="space-y-3">
+      <form onSubmit={keepValuesSubmit1} className="space-y-3">
         <input type="hidden" name="organization_id" value={organizationId} />
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

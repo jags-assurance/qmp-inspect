@@ -18,6 +18,7 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 /** Formats a plain YYYY-MM-DD date as dd/mm/yyyy without the timezone shift `new Date("YYYY-MM-DD")` causes west of UTC. */
 export function formatRegisterDate(date: string | null | undefined): string {
@@ -286,6 +287,7 @@ export function RegisterRowActions({
   const [editing, setEditing] = useState(false);
   const [deleteState, deleteAction, deleting] = useActionState(deleteRegisterEntryAction, initialState);
   const [releaseState, releaseAction, releasing] = useActionState(updateRegisterEntryAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(releaseState, releaseAction);
   const { gateSubmit, dialog } = useConfirm();
   const canQuickRelease = !contributorOnly && kind === "material" && row.receipt_status !== "released" && row.receipt_status !== "on_hold" && (row.approval_status === "A" || row.approval_status === "B");
 
@@ -294,7 +296,7 @@ export function RegisterRowActions({
     <div className="flex flex-wrap items-center gap-2 whitespace-nowrap">
       {dialog}
       {canQuickRelease && (
-        <form action={releaseAction}>
+        <form onSubmit={keepValuesSubmit1}>
           {Object.entries(row).map(([key, value]) => (key === "receipt_status" ? null : <input key={key} type="hidden" name={key} value={value ?? ""} />))}
           <input type="hidden" name="kind" value="material" />
           <input type="hidden" name="project_id" value={projectId} />

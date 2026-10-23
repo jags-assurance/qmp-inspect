@@ -7,6 +7,7 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Disclosure } from "@/components/ui/disclosure";
 import { formatDateTime } from "@/lib/dates/format";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CorrectionRequestState = { error: null };
 
@@ -14,9 +15,10 @@ const initialState: CorrectionRequestState = { error: null };
 export function RequestCorrectionForm({ inspectionRecordId }: { inspectionRecordId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(requestCorrectionAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   return (
     <Disclosure variant="inline" summary={<><Tx>Request correction…</Tx></>} className="text-sm">
-      <form action={formAction} className="mt-2 space-y-2">
+      <form onSubmit={keepValuesSubmit1} className="mt-2 space-y-2">
         <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
         <p className="text-xs text-muted">
           <Tx>Ask a JAGS admin or team lead to re-open this inspection so it can be corrected. They are notified and will approve or decline.</Tx>
@@ -50,9 +52,10 @@ export interface CorrectionRequestView {
 function ResolveForm({ requestId }: { requestId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(resolveCorrectionRequestAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   const [declining, setDeclining] = useState(false);
   return (
-    <form action={formAction} className="mt-2 space-y-2">
+    <form onSubmit={keepValuesSubmit2} className="mt-2 space-y-2">
       <input type="hidden" name="request_id" value={requestId} />
       {declining && (
         <textarea aria-label={tl("Why is this declined? (required)")}

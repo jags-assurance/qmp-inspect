@@ -16,6 +16,7 @@ import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vau
 import type { VaultDocumentOption } from "./expected-record-form";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: EvidenceActionState = { error: null };
 
@@ -78,12 +79,13 @@ function MeasurementRow({
   const tl = useTranslate();
   const [editing, setEditing] = useState(false);
   const [state, formAction, pending] = useActionState(updateItpItemMeasurementAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
 
   if (editing) {
     return (
       <tr className="border-t border-border/60 bg-off-white">
         <td colSpan={canDelete ? 7 : 6} className="py-1.5">
-          <form action={formAction} className="flex flex-wrap items-center gap-1.5 px-1">
+          <form onSubmit={keepValuesSubmit1} className="flex flex-wrap items-center gap-1.5 px-1">
             <input type="hidden" name="itp_item_id" value={itpItemId} />
             <input type="hidden" name="measurement_id" value={measurement.id} />
             <input aria-label={tl("What's being measured")}
@@ -171,6 +173,7 @@ function MeasurementRow({
 function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addItpItemMeasurementAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -182,7 +185,7 @@ function AddMeasurementForm({ itpItemId }: { itpItemId: string }) {
   }
 
   return (
-    <form action={formAction} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
+    <form onSubmit={keepValuesSubmit2} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input aria-label={tl("What's being measured")}
         name="description"
@@ -305,6 +308,7 @@ function LinkDocumentForm({
   folders: VaultPickerFolder[];
 }) {
   const [state, formAction, pending] = useActionState(linkItpItemEvidenceDocumentAction, initialState);
+  const keepValuesSubmit3 = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
 
   if (availableDocuments.length === 0 && !projectId) {
@@ -326,7 +330,7 @@ function LinkDocumentForm({
   }
 
   return (
-    <form action={formAction} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
+    <form onSubmit={keepValuesSubmit3} className="mt-2 space-y-1.5 rounded border border-border bg-off-white p-2 text-xs">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload={!!projectId} />
       {state.error && <p role="alert" className="text-danger">{state.error}</p>}

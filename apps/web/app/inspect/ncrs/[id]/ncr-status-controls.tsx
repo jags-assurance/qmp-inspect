@@ -7,6 +7,7 @@ import { NEXT_STATUS, NEXT_STATUS_LABEL } from "../ncr-shared";
 import type { NcrStatus } from "@/lib/ncrs/types";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const statusInitial: NcrStatusState = { error: null };
 const returnInitial: ReturnNcrState = { error: null };
@@ -34,6 +35,7 @@ export function NcrStatusButton({
   onDone?: () => void;
 }) {
   const [state, formAction, pending] = useActionState(setNcrStatusAction, statusInitial);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
@@ -55,7 +57,7 @@ export function NcrStatusButton({
       : "Attach a photo or linked document as evidence first.";
 
   return (
-    <form action={formAction} className="flex flex-col items-end gap-1">
+    <form onSubmit={keepValuesSubmit1} className="flex flex-col items-end gap-1">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <input type="hidden" name="status" value={next} />
       <Button
@@ -73,6 +75,7 @@ export function NcrStatusButton({
 /** Staff-only: return a pending-verification NCR to In progress with a mandatory reason. */
 export function ReturnForReworkForm({ ncrId, onDone }: { ncrId: string; onDone?: () => void }) {
   const [state, formAction, pending] = useActionState(returnNcrForReworkAction, returnInitial);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   const doneRef = useRef(onDone);
   useEffect(() => {
     doneRef.current = onDone;
@@ -82,7 +85,7 @@ export function ReturnForReworkForm({ ncrId, onDone }: { ncrId: string; onDone?:
   }, [state]);
 
   return (
-    <form action={formAction} className="mt-4 space-y-2 border-t border-border pt-4">
+    <form onSubmit={keepValuesSubmit2} className="mt-4 space-y-2 border-t border-border pt-4">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <label htmlFor={`return_reason_${ncrId}`} className="block text-sm font-medium text-ink">
         <Tx>Return for rework</Tx>

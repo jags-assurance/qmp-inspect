@@ -55,6 +55,7 @@ export function ExtractRegisterPanel({
   const addInitialState: AddState = { error: null, addedCount: 0 };
 
   const [extractState, extractFormAction, extractPending] = useActionState(extractAction, extractInitialState);
+  const keepValuesSubmit1 = useKeepFormValues(extractState, extractFormAction);
   const [addState, addFormAction, addPending] = useActionState(addAction, addInitialState);
   const keepValuesSubmit_addFormAction = useKeepFormValues(addState, addFormAction);
   const [sourceText, setSourceText] = useState("");
@@ -110,7 +111,7 @@ export function ExtractRegisterPanel({
           <p className="text-xs text-muted">{description}</p>
 
           {!rows && (
-            <form action={extractFormAction} className="space-y-2">
+            <form onSubmit={keepValuesSubmit1} className="space-y-2">
               <input type="hidden" name="project_id" value={projectId} />
               <textarea
                 name="source_text"

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: MasterAdminState = { error: null };
 const field = "mt-1 w-full min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
@@ -30,6 +31,7 @@ export function MasterAdminPanel({
   const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [metaState, metaAction, metaPending] = useActionState(updateMasterTemplateMetaAction, initial);
+  const keepValuesSubmit1 = useKeepFormValues(metaState, metaAction);
   const [activeState, activeAction, activePending] = useActionState(setMasterTemplateActiveAction, initial);
   const { gateSubmit, dialog } = useConfirm();
 
@@ -43,7 +45,7 @@ export function MasterAdminPanel({
       </div>
 
       {open && (
-        <form action={metaAction} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <form onSubmit={keepValuesSubmit1} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input type="hidden" name="template_id" value={templateId} />
           <label className="text-sm text-ink sm:col-span-2">
             <Tx>Title</Tx>

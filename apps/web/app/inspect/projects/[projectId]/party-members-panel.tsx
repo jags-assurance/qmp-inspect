@@ -57,6 +57,7 @@ export function PartyMembersPanel({
   const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [modeState, modeAction, modePending] = useActionState(setPartyAccessModeAction, INITIAL_STATE);
+  const keepValuesSubmit1 = useKeepFormValues(modeState, modeAction);
   const [addState, addAction, addPending] = useActionState(addPartyMemberAction, INITIAL_STATE);
   const keepAddSubmit = useKeepFormValues(addState, addAction);
   const [permissionMode, setPermissionMode] = useState<"standard" | "custom">("standard");
@@ -76,7 +77,7 @@ export function PartyMembersPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
           <span className="text-muted"><Tx>Access mode:</Tx></span>
-          <form action={modeAction} className="flex items-center gap-1">
+          <form onSubmit={keepValuesSubmit1} className="flex items-center gap-1">
             <input type="hidden" name="project_party_id" value={projectPartyId} />
             <select
               name="access_mode"

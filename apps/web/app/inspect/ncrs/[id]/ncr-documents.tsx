@@ -5,6 +5,7 @@ import { linkNcrDocumentAction, unlinkNcrDocumentAction, type NcrDocumentState }
 import { VaultFilePicker, type VaultPickerDocument } from "@/components/domain/vault-file-picker";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 export interface NcrLinkedDocument {
   linkId: string;
@@ -42,6 +43,7 @@ export function NcrDocuments({
     },
     { error: null } as NcrDocumentState
   );
+  const keepValuesSubmit1 = useKeepFormValues(state, action);
 
   return (
     <div className="space-y-2">
@@ -89,7 +91,7 @@ export function NcrDocuments({
         </button>
       )}
       {!readOnly && open && (
-        <form action={action} className="space-y-2 rounded-md border border-border bg-off-white p-3">
+        <form onSubmit={keepValuesSubmit1} className="space-y-2 rounded-md border border-border bg-off-white p-3">
           <input type="hidden" name="ncr_id" value={ncrId} />
           {available.length === 0 ? (
             <p className="text-sm text-muted"><Tx>No approved files in this project&apos;s Document Vault are available to link.</Tx></p>

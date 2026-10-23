@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { formatDateTime } from "@/lib/dates/format";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: InspectionCommentState = { error: null };
 const textareaClass = "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
@@ -143,9 +144,10 @@ function EditForm({ comment, onDone }: { comment: InspectionCommentRow; onDone: 
     },
     initialState
   );
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
   const [body, setBody] = useState(comment.body);
   return (
-    <form action={formAction} className="mt-1 space-y-2">
+    <form onSubmit={keepValuesSubmit1} className="mt-1 space-y-2">
       <input type="hidden" name="comment_id" value={comment.id} />
       <FormField label="Edit comment" error={state.error} hint="You can edit a comment for 15 minutes after posting.">
         <textarea name="body" rows={3} maxLength={MAX_COMMENT_LENGTH} required value={body} onChange={(e) => setBody(e.target.value)} className={textareaClass} />
@@ -164,8 +166,9 @@ function EditForm({ comment, onDone }: { comment: InspectionCommentRow; onDone: 
 
 function ResolveToggle({ commentId, resolved }: { commentId: string; resolved: boolean }) {
   const [state, formAction, pending] = useActionState(resolveInspectionCommentAction, initialState);
+  const keepValuesSubmit2 = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <form onSubmit={keepValuesSubmit2} className="flex items-center gap-2">
       <input type="hidden" name="comment_id" value={commentId} />
       <input type="hidden" name="resolve" value={resolved ? "false" : "true"} />
       <Button type="submit" disabled={pending} variant="link" size="sm">

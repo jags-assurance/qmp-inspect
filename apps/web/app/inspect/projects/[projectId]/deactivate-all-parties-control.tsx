@@ -30,6 +30,7 @@ export function DeactivateAllPartiesControl({
     deactivateAllProjectPartiesAction,
     initialState
   );
+  const keepValuesSubmit1 = useKeepFormValues(deactivateState, deactivateAction);
   const [reactivateState, reactivateAction, reactivatePending] = useActionState(
     reactivateAllProjectPartiesAction,
     initialState
@@ -42,7 +43,7 @@ export function DeactivateAllPartiesControl({
     <div className="mt-3 flex flex-col gap-2">
       {hasActiveParties ? (
         confirmingDeactivate ? (
-          <form action={deactivateAction} className="flex flex-wrap items-center gap-2">
+          <form onSubmit={keepValuesSubmit1} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="project_id" value={projectId} />
             <span className="text-sm font-medium text-danger">
               <Tx>Deactivate every currently-active party&apos;s access on this project?</Tx>

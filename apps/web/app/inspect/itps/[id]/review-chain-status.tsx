@@ -36,6 +36,7 @@ export function ReviewChainStatus({
   const [state, formAction, pending] = useActionState(approveReviewStepAction, initialState);
   const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [reassignState, reassignAction, reassigning] = useActionState(reassignReviewStepAction, initialReassignState);
+  const keepValuesSubmit1 = useKeepFormValues(reassignState, reassignAction);
   const [reviewed, setReviewed] = useState(false);
   const firstPending = steps.find((s) => s.status === "pending");
   const canActNow = !!firstPending && (isAdminStaff || firstPending.reviewerUserId === currentUserId);
@@ -84,7 +85,7 @@ export function ReviewChainStatus({
       </ol>
       {state.error && <p role="alert" className="mt-1.5 text-xs text-danger">{state.error}</p>}
       {isAdminStaff && firstPending && reassignOptions.length > 0 && (
-        <form action={reassignAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-info/20 pt-3">
+        <form onSubmit={keepValuesSubmit1} className="mt-3 flex flex-wrap items-end gap-2 border-t border-info/20 pt-3">
           <input type="hidden" name="itp_id" value={itpId} />
           <input type="hidden" name="step_id" value={firstPending.id} />
           <div>

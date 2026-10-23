@@ -57,6 +57,7 @@ function NoticePeriodRow({
   currentHours: number | null;
 }) {
   const [setState, setFormAction, setPending] = useActionState(setProjectNoticePeriodAction, initialState);
+  const keepValuesSubmit1 = useKeepFormValues(setState, setFormAction);
   const [clearState, clearFormAction, clearPending] = useActionState(clearProjectNoticePeriodAction, initialState);
   const keepValuesSubmit_clearFormAction = useKeepFormValues(clearState, clearFormAction);
 
@@ -65,7 +66,7 @@ function NoticePeriodRow({
       <span className="min-w-32 text-sm font-medium text-ink">
         {level.label} <span className="text-xs text-muted">({level.code})</span>
       </span>
-      <form action={setFormAction} className="flex items-center gap-2">
+      <form onSubmit={keepValuesSubmit1} className="flex items-center gap-2">
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="intervention" value={level.code} />
         <input aria-label={

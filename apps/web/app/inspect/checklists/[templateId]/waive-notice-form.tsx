@@ -6,6 +6,7 @@ import { waiveWitnessNoticeAction, type WaiveNoticeState } from "@/lib/checklist
 import { WAIVER_REASON_MIN } from "@/lib/checklists/notice-waiver";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: WaiveNoticeState = { error: null };
 
@@ -17,9 +18,10 @@ export function WaiveNoticeForm({ inspectionRecordId, labels }: { inspectionReco
     if (next.done) router.refresh();
     return next;
   }, initial);
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="rounded-md border border-warning/60 bg-warning/10 p-3 text-sm">
+    <form onSubmit={keepValuesSubmit1} className="rounded-md border border-warning/60 bg-warning/10 p-3 text-sm">
       <p className="font-medium text-ink"><Tx>The</Tx> {labels.join(", ")} <Tx>party has not been notified.</Tx></p>
       <p className="mt-1 text-xs text-muted">
         <Tx>Notify them from the Sign-off tab on the ITP, or record a written waiver so this one inspection can be completed.</Tx>

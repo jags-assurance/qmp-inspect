@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { updateVaultDocumentMetadataAction, type UpdateVaultMetadataState } from "@/lib/vault/document-control-actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdateVaultMetadataState = { error: null };
 
@@ -36,6 +37,7 @@ export function EditMetadataForm({
     },
     initialState
   );
+  const keepValuesSubmit1 = useKeepFormValues(state, formAction);
 
   if (!open) {
     return (
@@ -46,7 +48,7 @@ export function EditMetadataForm({
   }
   const cls = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy read-only:bg-off-white";
   return (
-    <form action={formAction} className="mt-3 grid grid-cols-1 gap-3 rounded-md border border-border p-3 sm:grid-cols-2">
+    <form onSubmit={keepValuesSubmit1} className="mt-3 grid grid-cols-1 gap-3 rounded-md border border-border p-3 sm:grid-cols-2">
       <input type="hidden" name="document_id" value={documentId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label className="block text-xs text-muted sm:col-span-2">

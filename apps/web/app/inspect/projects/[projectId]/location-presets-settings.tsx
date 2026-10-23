@@ -34,6 +34,7 @@ export function LocationPresetsSettings({
 }) {
   const tl = useTranslate();
   const [addState, addAction, addPending] = useActionState(addLocationPresetAction, initialAddState);
+  const keepValuesSubmit1 = useKeepFormValues(addState, addAction);
   const [newName, setNewName] = useState("");
   const nameCheck = useAvailability("location_name", newName, { projectId });
   // The input is controlled so a failed add keeps what was typed; clear it once an add succeeds.
@@ -58,7 +59,7 @@ export function LocationPresetsSettings({
         </ul>
       )}
 
-      <form action={addAction} className="mt-3 flex flex-wrap items-center gap-2">
+      <form onSubmit={keepValuesSubmit1} className="mt-3 flex flex-wrap items-center gap-2">
         <input type="hidden" name="organization_id" value={organizationId} />
         <input type="hidden" name="project_id" value={projectId} />
         <input
