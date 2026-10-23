@@ -1,5 +1,6 @@
 "use client";
 
+import { TodayButton } from "@/components/ui/today-button";
 import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,7 @@ export function RecordWalkdownForm({
         <label className="text-xs font-medium text-ink">
           <Tx>Walk-down date</Tx>
           <input name="walked_on" type="date" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+          <TodayButton name="walked_on" fillOnLoad />
         </label>
         <label className="text-xs font-medium text-ink">
           <Tx>Area walked</Tx>

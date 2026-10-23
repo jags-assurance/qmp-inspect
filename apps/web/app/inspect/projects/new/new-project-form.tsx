@@ -1,5 +1,6 @@
 "use client";
 
+import { TodayButton } from "@/components/ui/today-button";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { suggestProjectNumber } from "@/lib/projects/suggest-number";
@@ -153,6 +154,7 @@ export function NewProjectForm({
           <FormField label="Start date (optional)">
             <input name="start_date" type="date" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
+          <TodayButton name="start_date" />
         </div>
         <div>
           <FormField label="End date (optional)" error={state.fieldErrors?.end_date}>
@@ -160,12 +162,12 @@ export function NewProjectForm({
           </FormField>
         </div>
         <div>
-          <FormField label="Site time zone (optional)">
+          <FormField label="Site time zone (optional)" hint={<Tx>Used for the site dates on this project&apos;s records. Left blank, it uses the default (UTC).</Tx>}>
             <TimeZonePicker blankLabel={tl("Default (UTC)")} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
-          <FormField label="Status">
+          <FormField label="Status" hint={<Tx>Draft: still being set up (a Draft project can be deleted). Active: work is live. On hold: paused, no new field work should start until it is reactivated.</Tx>}>
             <select name="status" defaultValue="active" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm">
             <option value="draft"><Tx>Draft</Tx></option>
             <option value="active"><Tx>Active</Tx></option>
@@ -186,7 +188,7 @@ export function NewProjectForm({
       {staffUsers.length > 0 && (
         <Section title={<Tx>Responsibility</Tx>}>
         <div>
-          <FormField label="Responsible person (optional)">
+          <FormField label="Responsible person (optional)" hint={<Tx>The JAGS staff member accountable for this project. Only a JAGS Admin can set this.</Tx>}>
             <select name="responsible_person_id" defaultValue="" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm">
             <option value=""><Tx>— none set —</Tx></option>
             {staffUsers.map((u) => (

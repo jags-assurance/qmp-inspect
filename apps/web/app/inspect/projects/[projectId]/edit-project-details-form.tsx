@@ -1,5 +1,6 @@
 "use client";
 
+import { TodayButton } from "@/components/ui/today-button";
 import { useActionState, useState } from "react";
 import { updateProjectDetailsAction, type UpdateProjectDetailsState } from "@/lib/projects/actions";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
             <label className="text-sm text-ink">
               <Tx>Start date</Tx>
               <input type="date" name="start_date" defaultValue={project.start_date ?? ""} className={inputClass} />
+              <TodayButton name="start_date" />
             </label>
             <label className="text-sm text-ink">
               <Tx>End date</Tx>

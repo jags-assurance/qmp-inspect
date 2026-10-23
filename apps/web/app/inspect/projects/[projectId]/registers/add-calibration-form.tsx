@@ -1,5 +1,6 @@
 "use client";
 
+import { TodayButton } from "@/components/ui/today-button";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { addCalibrationEntryAction, type AddCalibrationEntryState } from "@/lib/registers/actions";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
           className={inputClass}
         />
         </FormField>
+        <TodayButton name="cal_date" />
       </div>
 
       <div className="w-36">

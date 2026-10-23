@@ -65,6 +65,7 @@ export function NewItpForm({
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm doc-id"
         />
         <NextNumberHint kind="itp" id={projectId} />
+        <p className="mt-1 text-xs text-muted"><Tx>Only JAGS staff can choose a number; for everyone else the next number is assigned automatically.</Tx></p>
         {(state.fieldErrors?.itp_number ?? numberCheck.message) && (
           <p id="itp_number-err" role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors?.itp_number ?? numberCheck.message}</p>
         )}
