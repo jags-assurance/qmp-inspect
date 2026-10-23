@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CloudFolderSyncConfigState = { error: null };
 
@@ -26,6 +27,7 @@ export function CloudFolderSyncForm({
   const tl = useTranslate();
   const [saveState, saveAction, savePending] = useActionState(saveCloudFolderSyncConfigAction, initialState);
   const [clearState, clearAction, clearPending] = useActionState(clearCloudFolderSyncConfigAction, initialState);
+  const keepValuesSubmit_clearAction = useKeepFormValues(clearState, clearAction);
 
   return (
     <div className="space-y-4">
@@ -66,7 +68,7 @@ export function CloudFolderSyncForm({
           </Button>
 
           {folderReference && (
-            <form action={clearAction}>
+            <form onSubmit={keepValuesSubmit_clearAction}>
               <input type="hidden" name="organization_id" value={organizationId} />
               <Button type="submit" variant="outline" disabled={clearPending}>
                 {clearPending ? "Clearing…" : "Clear"}

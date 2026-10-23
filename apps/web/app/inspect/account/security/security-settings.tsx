@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth/mfa-actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: MfaState = { error: null };
 
@@ -18,6 +19,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
   const [starting, setStarting] = useState(false);
   const [confirmState, confirmAction, confirming] = useActionState(confirmMfaEnrolAction, initial);
   const [removeState, removeAction, removing] = useActionState(removeMfaAction, initial);
+  const keepValuesSubmit_removeAction = useKeepFormValues(removeState, removeAction);
 
   async function start() {
     setStarting(true);
@@ -30,7 +32,7 @@ export function SecuritySettings({ verifiedFactorId }: { verifiedFactorId: strin
       <section className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <p className="text-sm text-ink"><Tx>✓ Two-step sign-in is on for your account.</Tx></p>
         {verifiedFactorId && (
-          <form action={removeAction} className="mt-3">
+          <form onSubmit={keepValuesSubmit_removeAction} className="mt-3">
             <input type="hidden" name="factor_id" value={verifiedFactorId} />
             <Button type="submit" variant="outline" disabled={removing}>
               {removing ? "Switching off…" : "Switch off two-step sign-in"}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { useAvailability } from "@/lib/hooks/use-availability";
 import {
   addLocationPresetAction,
   removeLocationPresetAction,
@@ -10,6 +11,7 @@ import {
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialAddState: AddLocationPresetState = { error: null };
 const initialRemoveState: RemoveLocationPresetState = { error: null };
@@ -32,6 +34,14 @@ export function LocationPresetsSettings({
 }) {
   const tl = useTranslate();
   const [addState, addAction, addPending] = useActionState(addLocationPresetAction, initialAddState);
+  const [newName, setNewName] = useState("");
+  const nameCheck = useAvailability("location_name", newName, { projectId });
+  // The input is controlled so a failed add keeps what was typed; clear it once an add succeeds.
+  const [seenAddState, setSeenAddState] = useState(addState);
+  if (addState !== seenAddState) {
+    setSeenAddState(addState);
+    if (!addState.error) setNewName("");
+  }
 
   return (
     <div className="rounded-lg border border-border bg-surface p-5">
@@ -53,8 +63,11 @@ export function LocationPresetsSettings({
         <input type="hidden" name="project_id" value={projectId} />
         <input
           name="name"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
           placeholder={tl("e.g. Block C, Level 2")}
           required
+          aria-invalid={nameCheck.message ? true : undefined}
           className="w-full sm:min-w-56 rounded-md border border-border bg-off-white px-2.5 py-1.5 text-sm"
         />
         <Button
@@ -65,7 +78,7 @@ export function LocationPresetsSettings({
           {addPending ? "Adding…" : "+ Add location"}
         </Button>
       </form>
-      {addState.error && <p role="alert" className="mt-2 text-sm text-danger">{addState.error}</p>}
+      {(nameCheck.message ?? addState.error) && <p role="alert" className="mt-2 text-sm text-danger">{nameCheck.message ?? addState.error}</p>}
     </div>
   );
 }
@@ -82,9 +95,10 @@ function PresetPill({
   name: string;
 }) {
   const [state, action, pending] = useActionState(removeLocationPresetAction, initialRemoveState);
+  const keepValuesSubmit_action = useKeepFormValues(state, action);
   return (
     <li>
-      <form action={action} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-off-white px-3 py-1 text-xs">
+      <form onSubmit={keepValuesSubmit_action} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-off-white px-3 py-1 text-xs">
         <input type="hidden" name="organization_id" value={organizationId} />
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="preset_id" value={presetId} />

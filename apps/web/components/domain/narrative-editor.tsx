@@ -5,6 +5,7 @@ import { cleanUpNarrativeAction, type CleanUpNarrativeState, type DraftReportNar
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const draftInitialState: DraftReportNarrativeState = { error: null, narrative: null, aiLogId: null };
 const saveInitialState: SaveNarrativeState = { error: null };
@@ -40,6 +41,7 @@ export function NarrativeEditor({
   const tl = useTranslate();
   const [draftState, draftFormAction, draftPending] = useActionState(draftAction, draftInitialState);
   const [saveState, saveFormAction, savePending] = useActionState(saveAction, saveInitialState);
+  const keepValuesSubmit_saveFormAction = useKeepFormValues(saveState, saveFormAction);
   const [cleanupState, cleanupFormAction, cleanupPending] = useActionState(cleanUpNarrativeAction, cleanupInitialState);
   const [narrative, setNarrative] = useState(initialNarrative ?? "");
   const [aiLogId, setAiLogId] = useState<string | null>(null);
@@ -86,7 +88,7 @@ export function NarrativeEditor({
 
       {draftState.error && <p role="alert" className="mt-2 text-xs text-danger">{draftState.error}</p>}
 
-      <form action={saveFormAction} className="mt-3 space-y-2">
+      <form onSubmit={keepValuesSubmit_saveFormAction} className="mt-3 space-y-2">
         <input type="hidden" name={recordIdFieldName} value={recordId} />
         <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
         <input type="hidden" name="ai_original_narrative" value={aiOriginalNarrative ?? ""} />

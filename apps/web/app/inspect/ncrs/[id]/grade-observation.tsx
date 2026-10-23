@@ -5,12 +5,14 @@ import { gradeObservationToNcrAction, type GradeNcrState } from "@/lib/ncrs/acti
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 export function GradeObservation({ ncrId }: { ncrId: string }) {
   const tl = useTranslate();
   const [state, action, pending] = useActionState(gradeObservationToNcrAction, { error: null } as GradeNcrState);
+  const keepValuesSubmit_action = useKeepFormValues(state, action);
   return (
-    <form id="grade" action={action} className="space-y-2">
+    <form id="grade" onSubmit={keepValuesSubmit_action} className="space-y-2">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <p className="text-sm text-muted">
         <Tx>Escalate this observation to a formal NCR. It gets a new due date by severity and moves to the NCR Register.</Tx>

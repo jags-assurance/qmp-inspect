@@ -9,6 +9,7 @@ import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useAvailability } from "@/lib/hooks/use-availability";
 import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CopyMasterTemplateState = { error: null };
@@ -26,6 +27,8 @@ export function NewItpFromTemplateForm({
   const [state, formAction, pending] = useActionState(copyMasterTemplateToItpAction, initialState);
   const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [projectId, setProjectId] = useState("");
+  const [itpNumber, setItpNumber] = useState("");
+  const numberCheck = useAvailability("itp_number", itpNumber, { projectId });
   useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
@@ -69,9 +72,11 @@ export function NewItpFromTemplateForm({
       </div>
 
       <div>
-        <FormField label="ITP number (optional)">
+        <FormField label="ITP number (optional)" error={numberCheck.message ?? undefined}>
           <input aria-label={tl("Leave blank to auto-number")}
           name="itp_number"
+          value={itpNumber}
+          onChange={(e) => setItpNumber(e.target.value)}
           placeholder={tl("Leave blank to auto-number")}
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm doc-id"
         />

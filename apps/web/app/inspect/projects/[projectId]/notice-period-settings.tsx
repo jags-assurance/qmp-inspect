@@ -8,6 +8,7 @@ import {
 } from "@/lib/signoff/notice-period-config-actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: NoticePeriodConfigState = { error: null };
 
@@ -57,6 +58,7 @@ function NoticePeriodRow({
 }) {
   const [setState, setFormAction, setPending] = useActionState(setProjectNoticePeriodAction, initialState);
   const [clearState, clearFormAction, clearPending] = useActionState(clearProjectNoticePeriodAction, initialState);
+  const keepValuesSubmit_clearFormAction = useKeepFormValues(clearState, clearFormAction);
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-off-white px-3 py-2">
@@ -87,7 +89,7 @@ function NoticePeriodRow({
         </Button>
       </form>
       {currentHours != null && (
-        <form action={clearFormAction}>
+        <form onSubmit={keepValuesSubmit_clearFormAction}>
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="intervention" value={level.code} />
           <Button

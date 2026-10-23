@@ -1,5 +1,6 @@
 "use client";
 
+import { useAvailability } from "@/lib/hooks/use-availability";
 import { useActionState, useState } from "react";
 import {
   createItpFromDraftAction,
@@ -17,6 +18,7 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { computeItemReviewFlags, REVIEW_FLAG_LABELS } from "@/lib/itps/draft-validation";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const EXTRACTION_LABEL: Record<string, string> = {
   done: "Ready",
@@ -113,6 +115,7 @@ export function NewItpFromAiForm({
   const [countMode, setCountMode] = useState<CountMode>("auto");
   const [customCount, setCustomCount] = useState("4");
   const [itpNumber, setItpNumber] = useState("");
+  const numberCheck = useAvailability("itp_number", itpNumber, { projectId });
   const [title, setTitle] = useState("");
   const [applicableStandard, setApplicableStandard] = useState("");
 
@@ -155,6 +158,7 @@ export function NewItpFromAiForm({
     createItpFromDraftAction,
     createInitialState
   );
+  const keepValuesSubmit_createFormAction = useKeepFormValues(createState, createFormAction);
 
   if (!draft) {
     return (
@@ -444,7 +448,7 @@ export function NewItpFromAiForm({
         </form>
       </div>
 
-      <form action={createFormAction} className="space-y-6">
+      <form onSubmit={keepValuesSubmit_createFormAction} className="space-y-6">
         <input type="hidden" name="project_id" value={projectId} />
         <input type="hidden" name="draft_json" value={JSON.stringify(draft)} readOnly />
         <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
@@ -455,7 +459,7 @@ export function NewItpFromAiForm({
           </p>
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
-              <FormField required label="ITP number">
+              <FormField required label="ITP number" error={numberCheck.message ?? undefined}>
                 <input
                 name="itp_number"
                 required

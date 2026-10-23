@@ -13,6 +13,7 @@ import { CertificateUpload } from "./certificate-upload";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ManageRegisterState = { error: null };
 const INPUT = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy";
@@ -52,6 +53,7 @@ export function RegisterLifecycleActions({
   const [verifyState, verifyAction, verifying] = useActionState(verifyRegisterEntryAction, initialState);
   const [lifeState, lifeAction, changing] = useActionState(setRegisterLifecycleAction, initialState);
   const [recalState, recalAction, recalibrating] = useActionState(recalibrateInstrumentAction, initialState);
+  const keepValuesSubmit_recalAction = useKeepFormValues(recalState, recalAction);
   const inactive = !!lifecycleStatus && lifecycleStatus !== "active";
   const unverified = verifiedAt === null;
 
@@ -70,7 +72,7 @@ export function RegisterLifecycleActions({
 
       {kind === "calibration" && !inactive && (
         <Disclosure variant="inline" summary={<><Tx>Recalibrate</Tx></>} className="relative">
-          <form action={recalAction} className="mt-1 w-72 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
+          <form onSubmit={keepValuesSubmit_recalAction} className="mt-1 w-72 space-y-2 rounded-md border border-border bg-surface p-3 shadow-md">
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="project_id" value={projectId} />
             <p className="text-xs text-muted"><Tx>Keeps the old certificate on record and adds the new one, so earlier inspections stay traceable.</Tx></p>

@@ -5,6 +5,7 @@ import { renameOrganizationAction, setOrganizationActiveAction, type Organizatio
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: OrganizationLifecycleState = { error: null, message: null };
 
@@ -12,6 +13,7 @@ const initialState: OrganizationLifecycleState = { error: null, message: null };
 export function OrganizationLifecycleControl({ organizationId, name, isActive }: { organizationId: string; name: string; isActive: boolean }) {
   const [renameState, renameAction, renaming] = useActionState(renameOrganizationAction, initialState);
   const [activeState, activeAction, toggling] = useActionState(setOrganizationActiveAction, initialState);
+  const keepValuesSubmit_activeAction = useKeepFormValues(activeState, activeAction);
   return (
     <div className="mt-3 space-y-3 border-t border-border pt-3">
       <form action={renameAction} className="flex flex-wrap items-end gap-2">
@@ -25,7 +27,7 @@ export function OrganizationLifecycleControl({ organizationId, name, isActive }:
         </Button>
         <FormMessage error={renameState.error} success={renameState.message} className="basis-full" />
       </form>
-      <form action={activeAction} className="flex flex-wrap items-end gap-2">
+      <form onSubmit={keepValuesSubmit_activeAction} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="organization_id" value={organizationId} />
         <input type="hidden" name="activate" value={isActive ? "false" : "true"} />
         {isActive && (

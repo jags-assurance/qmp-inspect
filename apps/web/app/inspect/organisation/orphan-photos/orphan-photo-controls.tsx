@@ -6,6 +6,7 @@ import { isRemoveConfirmed, REMOVE_CONFIRMATION } from "@/lib/orphan-photos/logi
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: OrphanReviewState = { error: null };
 const INPUT = "rounded-md border border-border bg-surface px-2 py-1 text-xs outline-none focus:border-burgundy";
@@ -14,6 +15,7 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
   const tl = useTranslate();
   const [state, reviewAction, pending] = useActionState(reviewOrphanPhotoAction, initial);
   const [removeState, removeAction, removing] = useActionState(removeOrphanFileAction, initial);
+  const keepValuesSubmit_removeAction = useKeepFormValues(removeState, removeAction);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
 
@@ -34,7 +36,7 @@ export function OrphanPhotoControls({ storagePath }: { storagePath: string }) {
       </form>
 
       {confirmOpen && (
-        <form action={removeAction} className="rounded-md border border-danger/40 bg-danger/5 p-3">
+        <form onSubmit={keepValuesSubmit_removeAction} className="rounded-md border border-danger/40 bg-danger/5 p-3">
           <input type="hidden" name="storage_path" value={storagePath} />
           <p className="text-xs text-ink">
             <Tx>This permanently deletes the file from storage and cannot be undone. Type</Tx> <span className="font-mono font-semibold">{REMOVE_CONFIRMATION}</span> <Tx>to confirm.</Tx>

@@ -12,6 +12,7 @@ import { FormField } from "@/components/ui/form-field";
 import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useAvailability } from "@/lib/hooks/use-availability";
 import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateProjectState = { error: null };
@@ -34,13 +35,20 @@ export function NewProjectForm({
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
   const onSubmit = useKeepFormValues(state, formAction);
-  const [projectNumber, setProjectNumber] = useState("");
+  // With a single organisation there is nothing to choose: preselect it and suggest the number.
+  const onlyOrg = organizations.length === 1 ? organizations[0] : null;
+  const [projectNumber, setProjectNumber] = useState(() =>
+    onlyOrg ? suggestProjectNumber(onlyOrg.name, new Date().getFullYear(), existingNumbersByOrg[onlyOrg.id] ?? []) : ""
+  );
+  const [organizationId, setOrganizationId] = useState(onlyOrg?.id ?? "");
+  const numberCheck = useAvailability("project_number", projectNumber, { organizationId });
   // Once the user types their own number we stop overwriting it when they change the organisation.
   const [numberEdited, setNumberEdited] = useState(false);
 
-  function onOrganisationChange(organizationId: string) {
+  function onOrganisationChange(orgId: string) {
+    setOrganizationId(orgId);
     if (numberEdited) return;
-    const org = organizations.find((o) => o.id === organizationId);
+    const org = organizations.find((o) => o.id === orgId);
     setProjectNumber(
       org ? suggestProjectNumber(org.name, new Date().getFullYear(), existingNumbersByOrg[org.id] ?? []) : ""
     );
@@ -67,6 +75,7 @@ export function NewProjectForm({
           id="organization_id"
           name="organization_id"
           required
+          defaultValue={onlyOrg?.id ?? ""}
           aria-required="true"
           onChange={(e) => onOrganisationChange(e.target.value)}
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
@@ -89,7 +98,7 @@ export function NewProjectForm({
       </div>
 
       <div>
-        <FormField required label="Project number" error={state.fieldErrors?.project_number}>
+        <FormField required label="Project number" error={state.fieldErrors?.project_number ?? numberCheck.message ?? undefined}>
           <input
           name="project_number"
           required
@@ -110,6 +119,7 @@ export function NewProjectForm({
           <input
           name="name"
           required
+          placeholder={tl("e.g. Substation 3 electrical installation")}
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
@@ -119,6 +129,7 @@ export function NewProjectForm({
         <FormField label="Site location">
           <input
           name="site_location"
+          placeholder={tl("e.g. Jebel Ali, Dubai")}
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm"
         />
         </FormField>
@@ -130,12 +141,12 @@ export function NewProjectForm({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <FormField label="Country (optional)">
-            <input name="country" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
+            <input name="country" placeholder={tl("e.g. United Arab Emirates")} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>
           <FormField label="Contract number (optional)">
-            <input name="contract_number" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
+            <input name="contract_number" placeholder={tl("e.g. C-2026-014")} className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>

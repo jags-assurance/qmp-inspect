@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useAvailability } from "@/lib/hooks/use-availability";
 import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddProjectPartyState = { error: null };
@@ -27,6 +28,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
   const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [partyType, setPartyType] = useState(PARTY_TYPE_OPTIONS[0].value);
   const [partyName, setPartyName] = useState("");
+  const nameCheck = useAvailability("party_name", partyName, { projectId, partyType });
   const [reusable, setReusable] = useState<ReusableParty[]>([]);
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -140,7 +142,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
           </FormField>
         </div>
         <div>
-          <FormField label="Organisation / company name" error={state.fieldErrors?.name}>
+          <FormField label="Organisation / company name" error={state.fieldErrors?.name ?? nameCheck.message ?? undefined}>
             <input
             name="name"
             required

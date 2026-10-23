@@ -11,6 +11,7 @@ import type { VaultDocKind, VaultFileType } from "@/lib/vault/doc-kind";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 export interface VaultDocumentTableRow {
   id: string;
@@ -83,6 +84,7 @@ export function VaultDocumentsTable({
   const [showSuperseded, setShowSuperseded] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkState, bulkAction, bulkPending] = useActionState(bulkApproveDocumentsAction, initialBulk);
+  const keepValuesSubmit_bulkAction = useKeepFormValues(bulkState, bulkAction);
 
   const uploaders = useMemo(
     () => Array.from(new Set(rows.map((r) => r.uploader_name).filter((n): n is string => !!n))).sort(),
@@ -363,7 +365,7 @@ export function VaultDocumentsTable({
             </span>
           )}
           {selectedApprovable.length > 0 && (
-            <form action={bulkAction} className="inline-flex flex-wrap items-center">
+            <form onSubmit={keepValuesSubmit_bulkAction} className="inline-flex flex-wrap items-center">
               <input type="hidden" name="project_id" value={projectId} />
               <input type="hidden" name="folder_id" value={folderId} />
               {selectedApprovable.map((r) => (

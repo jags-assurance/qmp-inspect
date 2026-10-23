@@ -2,6 +2,15 @@
 
 import { startTransition, useEffect, useRef, type FormEvent } from "react";
 
+/** Fired on window when a form action succeeds without printing a message of its own. */
+export const FORM_SAVED_EVENT = "jags:form-saved";
+
+function hasOwnMessage(state: unknown): boolean {
+  if (state === null || typeof state !== "object") return false;
+  const m = (state as { message?: unknown; notice?: unknown }).message ?? (state as { notice?: unknown }).notice;
+  return typeof m === "string" && m.length > 0;
+}
+
 function actionSucceeded(state: unknown): boolean {
   if (state === null || typeof state !== "object") return true;
   const s = state as { error?: unknown; ok?: unknown; success?: unknown; fieldErrors?: unknown };
@@ -31,6 +40,7 @@ export function useKeepFormValues(state: unknown, formAction: (formData: FormDat
     if (!form) return;
     if (actionSucceeded(state)) {
       form.reset();
+      if (!hasOwnMessage(state)) window.dispatchEvent(new Event(FORM_SAVED_EVENT));
       return;
     }
     // Failed: take the person to the problem instead of leaving it off-screen below the fold.

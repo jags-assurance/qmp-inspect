@@ -10,6 +10,7 @@ import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
+import { useAvailability } from "@/lib/hooks/use-availability";
 import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateItpState = { error: null };
@@ -23,6 +24,8 @@ export function NewItpForm({
   const [state, formAction, pending] = useActionState(createItpAction, initialState);
   const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [projectId, setProjectId] = useState("");
+  const [itpNumber, setItpNumber] = useState("");
+  const numberCheck = useAvailability("itp_number", itpNumber, { projectId });
   useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
@@ -54,14 +57,16 @@ export function NewItpForm({
         <input
           id="itp_number"
           name="itp_number"
+          value={itpNumber}
+          onChange={(e) => setItpNumber(e.target.value)}
           placeholder={tl("Leave blank to auto-generate, e.g. MER-JAGS-ITP-002")}
-          aria-invalid={state.fieldErrors?.itp_number ? true : undefined}
-          aria-describedby={state.fieldErrors?.itp_number ? "itp_number-err" : undefined}
+          aria-invalid={state.fieldErrors?.itp_number || numberCheck.message ? true : undefined}
+          aria-describedby={state.fieldErrors?.itp_number || numberCheck.message ? "itp_number-err" : undefined}
           className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm doc-id"
         />
         <NextNumberHint kind="itp" id={projectId} />
-        {state.fieldErrors?.itp_number && (
-          <p id="itp_number-err" role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors.itp_number}</p>
+        {(state.fieldErrors?.itp_number ?? numberCheck.message) && (
+          <p id="itp_number-err" role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors?.itp_number ?? numberCheck.message}</p>
         )}
       </div>
 

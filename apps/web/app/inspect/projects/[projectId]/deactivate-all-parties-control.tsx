@@ -8,6 +8,7 @@ import {
 } from "@/lib/projects/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: BulkProjectPartiesState = { error: null };
 
@@ -33,6 +34,7 @@ export function DeactivateAllPartiesControl({
     reactivateAllProjectPartiesAction,
     initialState
   );
+  const keepValuesSubmit_reactivateAction = useKeepFormValues(reactivateState, reactivateAction);
   const [confirmingDeactivate, setConfirmingDeactivate] = useState(false);
   const [confirmingReactivate, setConfirmingReactivate] = useState(false);
 
@@ -71,7 +73,7 @@ export function DeactivateAllPartiesControl({
         )
       ) : (
         confirmingReactivate ? (
-          <form action={reactivateAction} className="flex flex-wrap items-center gap-2">
+          <form onSubmit={keepValuesSubmit_reactivateAction} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="project_id" value={projectId} />
             <span className="text-sm font-medium text-ink"><Tx>Reactivate every party on this project?</Tx></span>
             <Button

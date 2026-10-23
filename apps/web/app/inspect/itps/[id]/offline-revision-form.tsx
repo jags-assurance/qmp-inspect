@@ -9,6 +9,7 @@ import {
 } from "@/lib/itps/offline-revision-actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const parseInitialState: ParseOfflineUploadState = { error: null, itpId: null, rowsJson: null, diff: null };
 const applyInitialState: ApplyOfflineRevisionState = { error: null, success: false };
@@ -23,6 +24,7 @@ const applyInitialState: ApplyOfflineRevisionState = { error: null, success: fal
 export function OfflineRevisionForm({ itpId }: { itpId: string }) {
   const [parseState, parseFormAction, parsePending] = useActionState(parseOfflineItpUploadAction, parseInitialState);
   const [applyState, applyFormAction, applyPending] = useActionState(applyOfflineItpRevisionAction, applyInitialState);
+  const keepValuesSubmit_applyFormAction = useKeepFormValues(applyState, applyFormAction);
   const [reason, setReason] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -91,7 +93,7 @@ export function OfflineRevisionForm({ itpId }: { itpId: string }) {
       )}
 
       {showDiff && parseState.diff && parseState.itpId && parseState.rowsJson && (
-        <form action={applyFormAction} className="mt-3 space-y-4">
+        <form onSubmit={keepValuesSubmit_applyFormAction} className="mt-3 space-y-4">
           <input type="hidden" name="itp_id" value={parseState.itpId} />
           <input type="hidden" name="rows_json" value={parseState.rowsJson} />
           <input type="hidden" name="base_token" value={parseState.baseToken ?? ""} />

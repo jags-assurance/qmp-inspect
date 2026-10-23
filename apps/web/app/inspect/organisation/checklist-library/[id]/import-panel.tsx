@@ -11,6 +11,7 @@ import type { ParsedLibraryItemRow } from "@/lib/checklist-library/types";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const parseInitialState: ParseImportState = { error: null, rows: null };
 const commitInitialState: CommitImportState = { error: null, addedCount: 0 };
@@ -26,6 +27,7 @@ const commitInitialState: CommitImportState = { error: null, addedCount: 0 };
 export function ImportPanel({ templateId }: { templateId: string }) {
   const [parseState, parseFormAction, parsePending] = useActionState(parseLibraryImportAction, parseInitialState);
   const [commitState, commitFormAction, commitPending] = useActionState(commitLibraryImportAction, commitInitialState);
+  const keepValuesSubmit_commitFormAction = useKeepFormValues(commitState, commitFormAction);
 
   const [rows, setRows] = useState<ParsedLibraryItemRow[] | null>(null);
 
@@ -91,7 +93,7 @@ export function ImportPanel({ templateId }: { templateId: string }) {
       )}
 
       {rows && (
-        <form action={commitFormAction} className="space-y-3">
+        <form onSubmit={keepValuesSubmit_commitFormAction} className="space-y-3">
           <input type="hidden" name="template_id" value={templateId} />
           <input type="hidden" name="rows_json" value={JSON.stringify(rows)} readOnly />
 

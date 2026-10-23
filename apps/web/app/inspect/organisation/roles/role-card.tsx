@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const deleteInitial: RbacActionState = { error: null };
 const toggleInitial: RbacActionState = { error: null };
@@ -172,13 +173,14 @@ function AssignmentRow({
   projectName: string | null;
 }) {
   const [state, action, pending] = useActionState(unassignCustomRoleAction, assignInitial);
+  const keepValuesSubmit_action = useKeepFormValues(state, action);
 
   return (
     <div className="flex items-center justify-between text-xs">
       <span className="text-ink">
         {userName} ({userEmail}) {projectName ? `· ${projectName} only` : "· org/platform-wide"}
       </span>
-      <form action={action}>
+      <form onSubmit={keepValuesSubmit_action}>
         <input type="hidden" name="assignment_id" value={assignmentId} />
         <Button type="submit" disabled={pending} variant="link-muted">
           {pending ? "Removing…" : "Remove"}

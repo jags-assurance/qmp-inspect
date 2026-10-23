@@ -8,6 +8,7 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ImportRegisterCsvState = { error: null, lineErrors: [], imported: null, duplicates: 0 };
 
@@ -15,6 +16,7 @@ const initialState: ImportRegisterCsvState = { error: null, lineErrors: [], impo
 export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: string; kind: CsvRegisterKind; canAdd: boolean }) {
   const tl = useTranslate();
   const [state, action, pending] = useActionState(importRegisterCsvAction, initialState);
+  const keepValuesSubmit_action = useKeepFormValues(state, action);
   return (
     <Disclosure variant="inline" summary={<><Tx>Import / export CSV</Tx></>} className="mt-3 rounded-md border border-border bg-surface px-3 py-2 text-sm">
       <div className="mt-2 flex flex-wrap gap-3 text-xs">
@@ -26,7 +28,7 @@ export function RegisterCsvTools({ projectId, kind, canAdd }: { projectId: strin
         </a>
       </div>
       {canAdd && (
-        <form action={action} className="mt-3 space-y-2">
+        <form onSubmit={keepValuesSubmit_action} className="mt-3 space-y-2">
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="kind" value={kind} />
           <p className="text-xs text-muted">

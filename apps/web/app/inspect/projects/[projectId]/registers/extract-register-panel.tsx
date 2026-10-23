@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 export interface ExtractFieldConfig {
   key: string;
@@ -55,6 +56,7 @@ export function ExtractRegisterPanel({
 
   const [extractState, extractFormAction, extractPending] = useActionState(extractAction, extractInitialState);
   const [addState, addFormAction, addPending] = useActionState(addAction, addInitialState);
+  const keepValuesSubmit_addFormAction = useKeepFormValues(addState, addFormAction);
   const [sourceText, setSourceText] = useState("");
   const [rows, setRows] = useState<Record<string, string | null>[] | null>(null);
   const [aiLogId, setAiLogId] = useState<string | null>(null);
@@ -129,7 +131,7 @@ export function ExtractRegisterPanel({
           )}
 
           {rows && (
-            <form action={addFormAction} className="space-y-3">
+            <form onSubmit={keepValuesSubmit_addFormAction} className="space-y-3">
               <input type="hidden" name="project_id" value={projectId} />
               <input type="hidden" name="ai_log_id" value={aiLogId ?? ""} />
               <input type="hidden" name="rows_json" value={JSON.stringify(rows)} readOnly />
