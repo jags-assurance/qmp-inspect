@@ -6,6 +6,7 @@ import {
   reactivateProjectPartyAction,
   type ProjectPartyActiveState,
 } from "@/lib/projects/actions";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ProjectPartyActiveState = { error: null };
 
@@ -27,9 +28,10 @@ export function ProjectPartyActiveToggle({
     isActive ? deactivateProjectPartyAction : reactivateProjectPartyAction,
     initialState
   );
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="inline-flex items-center gap-1.5">
+    <form onSubmit={keepValuesSubmit} className="inline-flex items-center gap-1.5">
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="project_party_id" value={projectPartyId} />
       <button

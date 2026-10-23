@@ -6,6 +6,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: StaffAccessState = { error: null };
 
@@ -37,13 +38,14 @@ export function StaffGrantForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addStaffGrantAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [scopeType, setScopeType] = useState<"global" | "organization" | "project">("global");
   const [organizationId, setOrganizationId] = useState("");
 
   const projectsInOrg = projects.filter((p) => p.organization_id === organizationId);
 
   return (
-    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form onSubmit={keepValuesSubmit} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <div>
         <FormField required label="Staff member">
           <select

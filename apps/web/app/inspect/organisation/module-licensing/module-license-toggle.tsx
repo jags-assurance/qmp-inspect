@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { setModuleLicenseAction, type ModuleLicenseState } from "@/lib/module-licensing/actions";
 import type { ModuleKey } from "@/lib/module-licensing/types";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ModuleLicenseState = { error: null };
 
@@ -21,11 +22,12 @@ export function ModuleLicenseToggle({
   isLicensed: boolean;
 }) {
   const [state, formAction, pending] = useActionState(setModuleLicenseAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
     <div className="flex items-center justify-between gap-4 py-3">
       <span className="text-sm text-ink">{label}</span>
-      <form action={formAction} className="flex items-center gap-2">
+      <form onSubmit={keepValuesSubmit} className="flex items-center gap-2">
         <input type="hidden" name="organization_id" value={organizationId} />
         <input type="hidden" name="module_key" value={moduleKey} />
         <label className="flex items-center gap-2 text-xs text-muted">

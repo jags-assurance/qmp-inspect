@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { PasswordField } from "@/components/domain/password-field";
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdatePasswordState = { error: null };
 
 export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
   const [state, formAction, pending] = useActionState(updatePasswordAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -23,7 +25,7 @@ export function ResetPasswordForm({ isForced }: { isForced: boolean }) {
           : "Choose a new password for your account."}
       </p>
 
-      <form action={formAction} className="mt-8 space-y-4">
+      <form onSubmit={keepValuesSubmit} className="mt-8 space-y-4">
         <PasswordField
           id="password"
           name="password"

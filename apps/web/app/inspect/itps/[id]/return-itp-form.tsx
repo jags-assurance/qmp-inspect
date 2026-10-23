@@ -5,6 +5,7 @@ import { returnItpToDraftAction, type ReturnItpState } from "@/lib/itps/actions"
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ReturnItpState = { error: null };
 
@@ -13,6 +14,7 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
   const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(returnItpToDraftAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   if (!open) {
     return (
@@ -27,7 +29,7 @@ export function ReturnItpForm({ itpId }: { itpId: string }) {
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-start gap-2">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-start gap-2">
       <input type="hidden" name="itp_id" value={itpId} />
       <textarea
         name="reason"

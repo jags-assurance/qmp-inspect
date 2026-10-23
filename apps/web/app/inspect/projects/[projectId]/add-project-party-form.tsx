@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddProjectPartyState = { error: null };
 
@@ -23,6 +24,7 @@ const PARTY_TYPE_OPTIONS: { value: string; label: string }[] = [
 export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { projectId: string; canGrantAccess?: boolean }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addProjectPartyAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [partyType, setPartyType] = useState(PARTY_TYPE_OPTIONS[0].value);
   const [partyName, setPartyName] = useState("");
   const [reusable, setReusable] = useState<ReusableParty[]>([]);
@@ -88,7 +90,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
   }, [state.partyId, grantNow, picked, contactEmail]);
 
   return (
-    <form action={formAction} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
+    <form onSubmit={keepValuesSubmit} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
       <input type="hidden" name="project_id" value={projectId} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {reusable.length > 0 && (

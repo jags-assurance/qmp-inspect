@@ -5,15 +5,17 @@ import { addPunchItemAction, type AddPunchItemState } from "@/lib/standalone/act
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddPunchItemState = { error: null };
 
 export function AddPunchItemForm({ assignmentId }: { assignmentId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addPunchItemAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-2 border-t border-border bg-off-white px-4 py-3">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-2 border-t border-border bg-off-white px-4 py-3">
       <input type="hidden" name="assignment_id" value={assignmentId} />
 
       <div className="min-w-48 flex-1">

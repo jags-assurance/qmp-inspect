@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { setSiteGeofenceAction, type SetSiteGeofenceState } from "@/lib/projects/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SetSiteGeofenceState = { error: null };
 
@@ -20,9 +21,10 @@ export function SiteGeofenceSettings({
   radiusM: number | null;
 }) {
   const [state, formAction, pending] = useActionState(setSiteGeofenceAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const input = "min-h-10 w-full rounded-md border border-border bg-off-white px-3 py-2 text-sm outline-none focus:border-burgundy";
   return (
-    <form action={formAction} className="mt-3 grid grid-cols-1 max-w-2xl gap-3 sm:grid-cols-3">
+    <form onSubmit={keepValuesSubmit} className="mt-3 grid grid-cols-1 max-w-2xl gap-3 sm:grid-cols-3">
       <input type="hidden" name="project_id" value={projectId} />
       <label className="text-sm text-ink">
         <Tx>Latitude</Tx>

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { setMasterDefaultLevelAction, type SetMasterDefaultLevelState } from "@/lib/itp-master/actions";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SetMasterDefaultLevelState = { error: null };
 
@@ -35,6 +36,7 @@ function LevelSelect({
   editable: boolean;
 }) {
   const [state, formAction, pending] = useActionState(setMasterDefaultLevelAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   if (!editable) {
     return (
       <span className="text-xs text-muted">
@@ -43,7 +45,7 @@ function LevelSelect({
     );
   }
   return (
-    <form action={formAction} className="flex items-center gap-1">
+    <form onSubmit={keepValuesSubmit} className="flex items-center gap-1">
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="master_item_id" value={masterItemId} />
       <input type="hidden" name="party_type" value={partyType} />

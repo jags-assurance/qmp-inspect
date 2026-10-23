@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddSelfManagedPartyState = { error: null };
 
@@ -27,9 +28,10 @@ const PARTY_TYPE_OPTIONS: { value: string; label: string }[] = [
 export function AddSelfManagedPartyForm({ projectId }: { projectId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addSelfManagedPartyAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
+    <form onSubmit={keepValuesSubmit} className="mt-4 space-y-3 rounded-md border border-dashed border-border bg-off-white p-3">
       <input type="hidden" name="project_id" value={projectId} />
       <p className="text-xs text-muted">
         <Tx>Add someone who already has an account.</Tx>

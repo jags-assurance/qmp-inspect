@@ -6,16 +6,18 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddChecklistItemState = { error: null };
 
 export function AddChecklistItemForm({ templateId, disabledReason }: { templateId: string; disabledReason?: string | null }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addChecklistItemAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [numeric, setNumeric] = useState(false);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border bg-off-white px-4 py-4">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-3 border-t border-border bg-off-white px-4 py-4">
       <fieldset disabled={!!disabledReason || pending} className="contents">
       <input type="hidden" name="template_id" value={templateId} />
 

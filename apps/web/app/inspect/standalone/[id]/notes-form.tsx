@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateNotesAction, type UpdateNotesState } from "@/lib/standalone/actions";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdateNotesState = { error: null };
 
@@ -18,13 +19,14 @@ export function NotesForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateNotesAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   if (readOnly) {
     return <p className="whitespace-pre-wrap text-sm text-ink">{notes || "No notes recorded."}</p>;
   }
 
   return (
-    <form action={formAction} className="space-y-2">
+    <form onSubmit={keepValuesSubmit} className="space-y-2">
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <textarea aria-label={tl("General notes about this assignment…")}
         name="notes"

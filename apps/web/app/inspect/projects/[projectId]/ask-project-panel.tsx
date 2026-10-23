@@ -6,6 +6,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AskProjectQuestionState = { error: null, answer: null, question: null };
 
@@ -24,6 +25,7 @@ interface Exchange {
 export function AskProjectPanel({ projectId }: { projectId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(askProjectQuestionAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [history, setHistory] = useState<Exchange[]>([]);
   const [inputKey, setInputKey] = useState(0);
 
@@ -54,7 +56,7 @@ export function AskProjectPanel({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <form key={inputKey} action={formAction} className="mt-3 flex flex-wrap items-end gap-2">
+      <form key={inputKey} onSubmit={keepValuesSubmit} className="mt-3 flex flex-wrap items-end gap-2">
         <input type="hidden" name="project_id" value={projectId} />
         <div className="w-full sm:min-w-[240px] flex-1">
           <FormField label="Your question">

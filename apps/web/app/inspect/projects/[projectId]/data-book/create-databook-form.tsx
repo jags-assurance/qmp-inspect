@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateDataBookState = { error: null };
 
@@ -13,9 +14,10 @@ const initialState: CreateDataBookState = { error: null };
 export function CreateDataBookForm({ projectId, revisionOf = null }: { projectId: string; revisionOf?: string | null }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createDataBookAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="w-48">

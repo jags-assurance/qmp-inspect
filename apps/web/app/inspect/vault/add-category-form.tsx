@@ -7,16 +7,18 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { Disclosure } from "@/components/ui/disclosure";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateCustomVaultFolderState = { error: null };
 
 export function AddCategoryForm({ projectId }: { projectId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createCustomVaultFolderAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
     <Disclosure variant="pill" summary={<Tx>Add a custom category</Tx>} className="mt-5" bodyClassName="mt-2">
-    <form action={formAction} className="flex flex-wrap items-end gap-2">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-2">
       <input type="hidden" name="project_id" value={projectId} />
       <div>
         <FormField label="Category name">

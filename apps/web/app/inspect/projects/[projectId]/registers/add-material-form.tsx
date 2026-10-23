@@ -16,12 +16,14 @@ import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddMaterialEntryState = { error: null };
 
 export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isStaff: boolean }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addMaterialEntryAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [receiptStatus, setReceiptStatus] = useState<MaterialReceiptStatus>("released");
   const needsDisposition = isStaff && receiptStatus !== "released" && receiptStatus !== "received_pending_inspection";
   const formRef = useRef<HTMLFormElement>(null);
@@ -50,7 +52,7 @@ export function AddMaterialForm({ projectId, isStaff }: { projectId: string; isS
   }, [pending, state]);
 
   return (
-    <form ref={formRef} action={formAction} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
+    <form ref={formRef} onSubmit={keepValuesSubmit} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="min-w-0 md:col-span-2">

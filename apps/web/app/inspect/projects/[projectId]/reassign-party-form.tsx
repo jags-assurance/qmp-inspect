@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { reassignSignoffPartyAction, type ReassignPartyState } from "@/lib/signoff/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ReassignPartyState = { error: null };
 
@@ -15,6 +16,7 @@ export function ReassignPartyForm({
   eligibleUsers: { id: string; full_name: string; email: string }[];
 }) {
   const [state, formAction, pending] = useActionState(reassignSignoffPartyAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -26,7 +28,7 @@ export function ReassignPartyForm({
   }
 
   return (
-    <form action={formAction} className="flex items-center gap-1.5">
+    <form onSubmit={keepValuesSubmit} className="flex items-center gap-1.5">
       <input type="hidden" name="project_party_id" value={projectPartyId} />
       <select
         name="new_user_id"

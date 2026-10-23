@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
 import { acceptItpAction, type AcceptItpState } from "@/lib/itps/actions";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AcceptItpState = { error: null };
 
@@ -15,10 +16,11 @@ const initialState: AcceptItpState = { error: null };
  */
 export function AcceptItpForm({ itpId, requiresChecklistReview = false }: { itpId: string; requiresChecklistReview?: boolean }) {
   const [state, formAction, pending] = useActionState(acceptItpAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [reviewed, setReviewed] = useState(false);
 
   return (
-    <form action={formAction}>
+    <form onSubmit={keepValuesSubmit}>
       <input type="hidden" name="itp_id" value={itpId} />
       {requiresChecklistReview && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
       <Button

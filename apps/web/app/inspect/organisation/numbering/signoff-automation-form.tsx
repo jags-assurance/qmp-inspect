@@ -6,6 +6,7 @@ import {
   type SignoffAutomationSettingsState,
 } from "@/lib/signoff/automation-settings-actions";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SignoffAutomationSettingsState = { error: null };
 
@@ -22,9 +23,10 @@ export function SignoffAutomationForm({
   available: boolean;
 }) {
   const [state, formAction, pending] = useActionState(updateSignoffAutomationSettingsAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="space-y-3">
+    <form onSubmit={keepValuesSubmit} className="space-y-3">
       <input type="hidden" name="organization_id" value={organizationId} />
       <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 has-[:checked]:border-burgundy">
         <input type="checkbox" name="auto_notify_signoffs" defaultChecked={autoNotify} disabled={!available} className="mt-1" />

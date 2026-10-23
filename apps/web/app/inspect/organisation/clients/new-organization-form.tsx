@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateOrganizationState = { error: null };
 
@@ -22,9 +23,10 @@ const ENGAGEMENT_MODE_OPTIONS: { value: string; label: string; description: stri
 export function NewOrganizationForm() {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createOrganizationAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-6 max-w-lg space-y-4 rounded-lg border border-border bg-surface p-5">
+    <form onSubmit={keepValuesSubmit} className="mt-6 max-w-lg space-y-4 rounded-lg border border-border bg-surface p-5">
       <div>
         <FormField required label="Organisation name">
           <input

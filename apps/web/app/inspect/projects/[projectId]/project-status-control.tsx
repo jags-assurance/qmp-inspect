@@ -11,6 +11,7 @@ import { isClosedStatus } from "@/lib/projects/close-helpers";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdateProjectStatusState = { error: null };
 
@@ -44,6 +45,7 @@ export function ProjectStatusControl({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateProjectStatusAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [target, setTarget] = useState<string | null>(null);
   const [summary, setSummary] = useState<ProjectCloseSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
@@ -97,7 +99,7 @@ export function ProjectStatusControl({
   }
 
   return (
-    <form ref={formRef} action={formAction} className="flex flex-col gap-2">
+    <form ref={formRef} onSubmit={keepValuesSubmit} className="flex flex-col gap-2">
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="status" value={target ?? status} />
       <input type="hidden" name="reason" value={reason} />

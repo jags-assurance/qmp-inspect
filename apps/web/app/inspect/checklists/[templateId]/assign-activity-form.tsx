@@ -3,6 +3,7 @@
 import { useActionState, useRef } from "react";
 import { assignActivityAction, type AssignActivityState } from "@/lib/checklists/assignment-actions";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AssignActivityState = { error: null };
 
@@ -19,9 +20,10 @@ export function AssignActivityForm({
   options: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(assignActivityAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const formRef = useRef<HTMLFormElement>(null);
   return (
-    <form ref={formRef} action={formAction} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+    <form ref={formRef} onSubmit={keepValuesSubmit} className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="template_id" value={templateId} />
       <label className="flex flex-col gap-1 text-sm text-ink">

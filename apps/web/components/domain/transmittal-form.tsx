@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SendTransmittalState = { error: null };
 
@@ -23,12 +24,13 @@ export function TransmittalForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(sendTransmittalAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [recipients, setRecipients] = useState("");
   const parsed = parseRecipients(recipients);
   const fieldCls = "mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy";
 
   return (
-    <form action={formAction} className="mt-2 space-y-3 rounded-lg border border-border bg-surface p-4">
+    <form onSubmit={keepValuesSubmit} className="mt-2 space-y-3 rounded-lg border border-border bg-surface p-4">
       <input type="hidden" name="entity_type" value={entityType} />
       <input type="hidden" name="entity_id" value={entityId} />
       <input type="hidden" name="project_id" value={projectId} />

@@ -6,14 +6,16 @@ import type { ChecklistLibraryItemRow } from "@/lib/checklist-library/types";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: LibraryItemFormState = { error: null };
 
 function DeleteItemButton({ templateId, itemId }: { templateId: string; itemId: string }) {
   const [state, formAction, pending] = useActionState(deleteLibraryItemAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction}>
+    <form onSubmit={keepValuesSubmit}>
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="item_id" value={itemId} />
       <Button type="submit" disabled={pending} variant="link-danger" size="sm">

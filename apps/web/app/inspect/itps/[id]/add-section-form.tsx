@@ -6,6 +6,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddSectionState = { error: null };
 
@@ -17,9 +18,10 @@ const initialState: AddSectionState = { error: null };
 export function AddSectionForm({ itpId, isIssued }: { itpId: string; isIssued: boolean }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addItpSectionAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+    <form onSubmit={keepValuesSubmit} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
       <input type="hidden" name="itp_id" value={itpId} />
       <div className="w-full sm:min-w-56 flex-1">
         <FormField label="New section title">

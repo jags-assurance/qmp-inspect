@@ -7,12 +7,14 @@ import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { FormMessage } from "@/components/ui/form-message";
 import { CertificateUpload } from "./certificate-upload";
 import { FormField } from "@/components/ui/form-field";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddCalibrationEntryState = { error: null };
 const inputClass = "mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy";
 
 export function AddCalibrationForm({ projectId }: { projectId: string }) {
   const [state, formAction, pending] = useActionState(addCalibrationEntryAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const formRef = useRef<HTMLFormElement>(null);
   const wasPending = useRef(false);
   const [calDate, setCalDate] = useState("");
@@ -40,7 +42,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
   }, [pending, state]);
 
   return (
-    <form ref={formRef} action={formAction} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
+    <form ref={formRef} onSubmit={keepValuesSubmit} className="grid grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="project_id" value={projectId} />
 
       <div className="min-w-0">

@@ -4,12 +4,14 @@ import { useActionState, useState } from "react";
 import { withdrawDataBookAction, type WithdrawDataBookState } from "@/lib/databook/actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: WithdrawDataBookState = { error: null };
 
 /** Admin-only: returns a COMPILED book to draft (wrong override reason / number / data changed). */
 export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: string; dataBookId: string }) {
   const [state, formAction, pending] = useActionState(withdrawDataBookAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
 
@@ -21,7 +23,7 @@ export function WithdrawDataBookForm({ projectId, dataBookId }: { projectId: str
     );
   }
   return (
-    <form action={formAction} className="mt-2 flex flex-col gap-2 rounded-md border border-border p-2">
+    <form onSubmit={keepValuesSubmit} className="mt-2 flex flex-col gap-2 rounded-md border border-border p-2">
       <input type="hidden" name="data_book_id" value={dataBookId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label htmlFor={`withdraw_reason_${dataBookId}`} className="text-xs font-medium text-ink">

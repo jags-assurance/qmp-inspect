@@ -5,6 +5,7 @@ import { updateOrgPlanAction, type PlanSettingsState } from "@/lib/plans/actions
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: PlanSettingsState = { error: null };
 
@@ -25,9 +26,10 @@ export function OrgPlanForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateOrgPlanAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-4">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-4">
       <input type="hidden" name="organization_id" value={organizationId} />
 
       <div>

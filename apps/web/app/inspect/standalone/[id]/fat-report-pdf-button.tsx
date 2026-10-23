@@ -11,6 +11,7 @@ import {
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestFatReportPdfState = { error: null };
 
@@ -24,6 +25,7 @@ const STATUS_LABEL: Record<FatReportPdfStatus["status"], string> = {
 /** Same trigger/poll/View+Download pattern as ItpPdfButton — see lib/reports/use-pdf-polling.ts. */
 export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: string; latest: FatReportPdfStatus | null }) {
   const [state, formAction, pending] = useActionState(requestFatReportPdfAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestFatReportPdf, assignmentId);
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function FatReportPdfButton({ assignmentId, latest }: { assignmentId: str
             <Tx>Download ↓</Tx>
           </a>
         )}
-        <form action={formAction}>
+        <form onSubmit={keepValuesSubmit}>
           <input type="hidden" name="assignment_id" value={assignmentId} />
           <Button
             type="submit"

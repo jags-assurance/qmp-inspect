@@ -7,6 +7,7 @@ import { FormMessage } from "@/components/ui/form-message";
 import { describeScopeChange, isEngagementScope, summarizeScopeChange } from "@/lib/numbering/scope-impact";
 import { Tx } from "@/components/domain/tx";
 import { MoreDetails } from "@/components/domain/more-details";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -45,13 +46,14 @@ export function EngagementScopeForm({
   tierOnlyPermissionCount?: number | null;
 }) {
   const [state, formAction, pending] = useActionState(updateEngagementScopeAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [selected, setSelected] = useState(engagementScope);
   const current = isEngagementScope(engagementScope) ? engagementScope : "full_service";
   // S1-12: what saving would change, shown before the admin ticks the confirmation.
   const impact = isEngagementScope(selected) ? summarizeScopeChange(current, selected, tierOnlyPermissionCount) : null;
 
   return (
-    <form action={formAction} className="space-y-3">
+    <form onSubmit={keepValuesSubmit} className="space-y-3">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div className="space-y-2">
         {SCOPES.map((scope) => (

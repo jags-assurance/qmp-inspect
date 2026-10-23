@@ -4,14 +4,16 @@ import { useActionState } from "react";
 import { generateChecklistTemplatesAction, type GenerateChecklistsState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: GenerateChecklistsState = { error: null };
 
 export function GenerateChecklistsButton({ itpId }: { itpId: string }) {
   const [state, formAction, pending] = useActionState(generateChecklistTemplatesAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction}>
+    <form onSubmit={keepValuesSubmit}>
       <input type="hidden" name="itp_id" value={itpId} />
       <Button type="submit" name="mode" value="ai" disabled={pending}>
         {pending ? "Generating…" : "Generate checklists with AI"}

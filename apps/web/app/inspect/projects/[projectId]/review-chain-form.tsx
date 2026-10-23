@@ -5,6 +5,7 @@ import { setProjectReviewChainAction, type SetReviewChainState } from "@/lib/itp
 import { Tx } from "@/components/domain/tx";
 import { FormMessage } from "@/components/ui/form-message";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SetReviewChainState = { error: null };
 
@@ -23,13 +24,14 @@ export function ReviewChainForm({
   initialChain: { reviewerUserId: string }[];
 }) {
   const [state, formAction, pending] = useActionState(setProjectReviewChainAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   // Controlled on purpose: React resets uncontrolled fields after a form action, which made a just-saved
   // chain look blank (as if nothing had saved) until the page was reloaded.
   const slotCount = Math.min(Math.max(initialChain.length + 1, 3), 5);
   const [values, setValues] = useState<string[]>(() => Array.from({ length: slotCount }, (_, i) => initialChain[i]?.reviewerUserId ?? ""));
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+    <form onSubmit={keepValuesSubmit} className="rounded-lg border border-border bg-surface p-4">
       <h2 className="text-sm font-semibold text-ink"><Tx>ITP review chain (optional)</Tx></h2>
       <p className="mt-1 text-xs text-muted">
         <Tx>Blank: any JAGS staff can approve. Otherwise reviewers approve in order.</Tx>

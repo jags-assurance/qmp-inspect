@@ -11,6 +11,7 @@ import {
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestPortfolioSummaryPdfState = { error: null };
 
@@ -37,6 +38,7 @@ function fetchLatestPortfolioSummary(): Promise<PortfolioSummaryPdfStatus | null
  */
 export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummaryPdfStatus | null }) {
   const [state, formAction, pending] = useActionState(requestPortfolioSummaryPdfAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, fetchLatestPortfolioSummary, null);
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
             <Tx>Download ↓</Tx>
           </a>
         )}
-        <form action={formAction}>
+        <form onSubmit={keepValuesSubmit}>
           <Button
             type="submit"
             onClick={beginGenerate}
@@ -85,7 +87,8 @@ export function PortfolioSummaryPdfButton({ latest }: { latest: PortfolioSummary
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {jobStatusText(liveStatus)}
+          {jobStatusText(liveStatus)}
+
         </p>
       )}
     </div>

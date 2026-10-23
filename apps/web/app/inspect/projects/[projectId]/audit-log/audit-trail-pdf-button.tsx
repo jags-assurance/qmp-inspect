@@ -10,6 +10,7 @@ import {
 } from "@/lib/reports/actions";
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestAuditTrailPdfState = { error: null };
 
@@ -28,6 +29,7 @@ export function AuditTrailPdfButton({
   latest: AuditTrailPdfStatus | null;
 }) {
   const [state, formAction, pending] = useActionState(requestAuditTrailPdfAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestAuditTrailPdf, projectId);
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export function AuditTrailPdfButton({
             <Tx>Download PDF ↓</Tx>
           </a>
         )}
-        <form action={formAction}>
+        <form onSubmit={keepValuesSubmit}>
           <input type="hidden" name="project_id" value={projectId} />
           <input type="hidden" name="range" value={range ?? ""} />
           <input type="hidden" name="cat" value={cat ?? ""} />

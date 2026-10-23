@@ -5,6 +5,7 @@ import { updatePunchItemAction, type UpdatePunchItemState } from "@/lib/punch-li
 import { Button } from "@/components/ui/button";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdatePunchItemState = { error: null };
 
@@ -21,6 +22,7 @@ export function EditPunchItemForm({
   current: { responsible_party_id: string | null; due_date: string | null; priority: string; location: string | null };
 }) {
   const [state, formAction, pending] = useActionState(updatePunchItemAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [expanded, setExpanded] = useState(false);
 
   if (!expanded) {
@@ -33,7 +35,7 @@ export function EditPunchItemForm({
 
   const field = "mt-1 min-h-11 w-full rounded-md border border-control-border bg-surface px-3 py-2 text-sm min-h-11";
   return (
-    <form action={formAction} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
+    <form onSubmit={keepValuesSubmit} className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <label className="text-xs font-medium text-ink">

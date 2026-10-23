@@ -5,6 +5,7 @@ import { proposeItpToMasterAction, type ProposeToMasterState } from "@/lib/itp-m
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ProposeToMasterState = { error: null, success: false };
 
@@ -24,6 +25,7 @@ export function ProposeToMasterForm({
   masterTemplates: { id: string; title: string }[];
 }) {
   const [state, formAction, pending] = useActionState(proposeItpToMasterAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<"new_template" | "update_existing">("new_template");
 
@@ -40,7 +42,7 @@ export function ProposeToMasterForm({
   }
 
   return (
-    <form action={formAction} className="w-full max-w-md rounded-lg border border-border bg-surface p-4 text-start">
+    <form onSubmit={keepValuesSubmit} className="w-full max-w-md rounded-lg border border-border bg-surface p-4 text-start">
       <input type="hidden" name="source_itp_id" value={itpId} />
       <p className="text-sm font-medium text-ink"><Tx>Propose to master library</Tx></p>
 

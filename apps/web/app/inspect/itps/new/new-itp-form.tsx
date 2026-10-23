@@ -10,6 +10,7 @@ import { Tx } from "@/components/domain/tx";
 import { NextNumberHint } from "@/components/domain/next-number-hint";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateItpState = { error: null };
 
@@ -20,11 +21,12 @@ export function NewItpForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createItpAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [projectId, setProjectId] = useState("");
   useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
-    <form action={formAction} className="mt-6 space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit} className="mt-6 space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <div>
         <FormField required label="Project" error={state.fieldErrors?.project_id}>

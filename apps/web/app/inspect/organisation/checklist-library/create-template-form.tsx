@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: LibraryTemplateFormState = { error: null };
 
@@ -20,9 +21,10 @@ export function CreateTemplateForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createLibraryTemplateAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div>
         <FormField required label="Title">
           <input

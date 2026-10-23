@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateItpSequencingModeAction } from "@/lib/intervention-levels/actions";
 import { Button } from "@/components/ui/button";
 import { MoreDetails } from "@/components/domain/more-details";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 interface SequencingModeState {
   error: string | null;
@@ -36,9 +37,10 @@ export function ItpSequencingModeForm({
   itpSequencingMode: string;
 }) {
   const [state, formAction, pending] = useActionState(updateItpSequencingModeAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="space-y-3">
+    <form onSubmit={keepValuesSubmit} className="space-y-3">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div className="space-y-2">
         {MODES.map((mode) => (

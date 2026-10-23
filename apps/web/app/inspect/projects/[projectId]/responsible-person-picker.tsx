@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { setResponsiblePersonAction, type SetResponsiblePersonState } from "@/lib/projects/actions";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SetResponsiblePersonState = { error: null };
 
@@ -21,9 +22,10 @@ export function ResponsiblePersonPicker({
   eligibleUsers: { id: string; full_name: string; email: string }[];
 }) {
   const [state, formAction, pending] = useActionState(setResponsiblePersonAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
+    <form onSubmit={keepValuesSubmit} className="mt-2 flex flex-wrap items-center gap-2">
       <input type="hidden" name="project_id" value={projectId} />
       <select
         name="responsible_person_id"

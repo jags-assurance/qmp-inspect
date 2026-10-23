@@ -5,6 +5,7 @@ import { rejectDocumentAction, type RejectDocumentState } from "@/lib/vault/mult
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RejectDocumentState = { error: null };
 
@@ -12,6 +13,7 @@ export function RejectDocumentButton({ documentId, projectId, folderId }: { docu
   const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(rejectDocumentAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   if (!open) {
     return (
@@ -26,7 +28,7 @@ export function RejectDocumentButton({ documentId, projectId, folderId }: { docu
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-1.5">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="document_id" value={documentId} />
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="folder_id" value={folderId} />

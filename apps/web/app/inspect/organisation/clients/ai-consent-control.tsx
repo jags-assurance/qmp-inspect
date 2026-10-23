@@ -5,14 +5,16 @@ import { setAiConsentAction, type AiConsentState } from "@/lib/ai/consent-action
 import { FormMessage } from "@/components/ui/form-message";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AiConsentState = { error: null, message: null };
 
 /** Admin control to give or withdraw an organisation's AI consent (E-09). Giving it needs the short name typed. */
 export function AiConsentControl({ organizationId, slug, consent }: { organizationId: string; slug: string; consent: boolean }) {
   const [state, formAction, pending] = useActionState(setAiConsentAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction} className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
+    <form onSubmit={keepValuesSubmit} className="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="enable" value={consent ? "false" : "true"} />
       {!consent && (

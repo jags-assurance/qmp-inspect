@@ -5,15 +5,17 @@ import { createTeamAction, type TeamActionState } from "@/lib/teams/actions";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: TeamActionState = { error: null };
 
 export function CreateTeamForm() {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createTeamAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form onSubmit={keepValuesSubmit} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <div>
         <FormField required label="Team name">
           <input

@@ -33,7 +33,7 @@ export function NewProjectForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createProjectAction, initialState);
-  const onSubmit = useKeepFormValues(formAction);
+  const onSubmit = useKeepFormValues(state, formAction);
   const [projectNumber, setProjectNumber] = useState("");
   // Once the user types their own number we stop overwriting it when they change the organisation.
   const [numberEdited, setNumberEdited] = useState(false);

@@ -12,6 +12,7 @@ import {
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestDataBookPdfState = { error: null };
 
@@ -82,6 +83,7 @@ export function DataBookPdfButton({
   pdfOutOfDate?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(requestDataBookPdfAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestDataBookPdf, dataBookId);
   const [viewing, setViewing] = useState(false);
 
@@ -114,7 +116,7 @@ export function DataBookPdfButton({
           </a>
         )}
         {showGenerate && (
-          <form action={formAction}>
+          <form onSubmit={keepValuesSubmit}>
             <input type="hidden" name="data_book_id" value={dataBookId} />
             <input type="hidden" name="project_id" value={projectId} />
             {issuedLocked && <input type="hidden" name="regenerate" value="true" />}

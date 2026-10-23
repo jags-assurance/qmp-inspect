@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const INITIAL_STATE: PartyMemberActionState = { error: null };
 
@@ -160,8 +161,9 @@ export function PartyMembersPanel({
 
 function RemoveMemberButton({ memberId }: { memberId: string }) {
   const [state, formAction, pending] = useActionState(removePartyMemberAction, INITIAL_STATE);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   return (
-    <form action={formAction}>
+    <form onSubmit={keepValuesSubmit}>
       <input type="hidden" name="member_id" value={memberId} />
       <Button type="submit" disabled={pending} variant="link-danger">
         {pending ? "Removing…" : "Remove"}

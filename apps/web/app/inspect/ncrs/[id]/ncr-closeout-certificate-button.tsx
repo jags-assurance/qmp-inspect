@@ -11,6 +11,7 @@ import {
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestNcrCloseoutCertificateState = { error: null };
 
@@ -28,6 +29,7 @@ const STATUS_LABEL: Record<NcrCloseoutCertificateStatus["status"], string> = {
  */
 export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string; latest: NcrCloseoutCertificateStatus | null }) {
   const [state, formAction, pending] = useActionState(requestNcrCloseoutCertificateAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrCloseoutCertificate, ncrId);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
             <Tx>Download ↓</Tx>
           </a>
         )}
-        <form action={formAction}>
+        <form onSubmit={keepValuesSubmit}>
           <input type="hidden" name="ncr_id" value={ncrId} />
           <Button
             type="submit"
@@ -77,7 +79,8 @@ export function NcrCloseoutCertificateButton({ ncrId, latest }: { ncrId: string;
       )}
       {!polling && !state.error && liveStatus && liveStatus.status !== "completed" && (
         <p className="text-xs text-muted">
-          {jobStatusText(liveStatus)}
+          {jobStatusText(liveStatus)}
+
         </p>
       )}
     </div>

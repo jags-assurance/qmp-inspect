@@ -9,6 +9,7 @@ import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { useActiveProjectDefault } from "@/lib/projects/use-active-project-default";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CopyMasterTemplateState = { error: null };
 
@@ -23,11 +24,12 @@ export function NewItpFromTemplateForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(copyMasterTemplateToItpAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [projectId, setProjectId] = useState("");
   useActiveProjectDefault(projects.map((p) => p.id), projectId, setProjectId);
 
   return (
-    <form action={formAction} className="mt-6 space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit} className="mt-6 space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <div>
         <FormField required label="Master template">

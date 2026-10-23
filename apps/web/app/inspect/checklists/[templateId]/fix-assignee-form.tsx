@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { assignChecklistFixAction, type AssignFixState } from "@/lib/checklists/fix-assignment-actions";
 import { Button } from "@/components/ui/button";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AssignFixState = { error: null };
 
@@ -22,6 +23,7 @@ export function FixAssigneeForm({
   options: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState(assignChecklistFixAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [online, setOnline] = useState(true);
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -34,7 +36,7 @@ export function FixAssigneeForm({
     };
   }, []);
   return (
-    <form action={formAction} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+    <form onSubmit={keepValuesSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="checklist_item_id" value={checklistItemId} />

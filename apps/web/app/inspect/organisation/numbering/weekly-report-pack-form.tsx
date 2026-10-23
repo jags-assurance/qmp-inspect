@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestWeeklyReportPackState = { error: null };
 
@@ -31,6 +32,7 @@ function defaultWeekStart(): string {
 /** Same polling/View+Download fix as MonthlyReportPackForm — see its doc comment. */
 export function WeeklyReportPackForm({ organizationId, initialPacks, projects = [] }: { organizationId: string; initialPacks: WeeklyReportPackListItem[]; projects?: { id: string; name: string }[] }) {
   const [state, formAction, pending] = useActionState(requestWeeklyReportPackAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { items: weeklyReportPacks, polling, startPolling } = useReportPackListPolling(initialPacks, listWeeklyReportPacks, organizationId);
   const inFlightPack = weeklyReportPacks.find((p) => p.status === "pending" || p.status === "processing");
 
@@ -78,7 +80,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks, projects = 
 
   return (
     <div>
-      <form action={formAction} className="flex flex-wrap items-end gap-3">
+      <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="organization_id" value={organizationId} />
         <ProjectScopeSelect projects={projects} />
 

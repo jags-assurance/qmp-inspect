@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { AuthShell } from "@/components/domain/auth-shell";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: MfaState = { error: null };
 
 export function MfaForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(verifyMfaLoginAction, initial);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   return (
     <AuthShell>
       <h1 className="text-2xl font-semibold text-ink"><Tx>Two-step sign-in</Tx></h1>
       <p className="mt-1 text-sm text-muted"><Tx>Open your authenticator app and enter the 6-digit code for this account.</Tx></p>
-      <form action={formAction} className="mt-4 space-y-3">
+      <form onSubmit={keepValuesSubmit} className="mt-4 space-y-3">
         <input type="hidden" name="next" value={next} />
         <div>
           <FormField required label="Code" id="mfa-code">

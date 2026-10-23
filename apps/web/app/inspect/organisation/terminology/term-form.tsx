@@ -6,6 +6,7 @@ import { previewSentence, validateTermForms, type TermForms, type TermKey } from
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initial: TermState = { error: null };
 const INPUT = "mt-1 w-64 rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-burgundy";
@@ -22,6 +23,7 @@ export function TermForm({
   current: TermForms | null;
 }) {
   const [state, formAction, pending] = useActionState(saveTermAction, initial);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [singular, setSingular] = useState((current ?? defaults).singular);
   const [plural, setPlural] = useState((current ?? defaults).plural);
 
@@ -30,7 +32,7 @@ export function TermForm({
   const previewForms: TermForms = checked.ok ? (checked.forms ?? defaults) : defaults;
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="term_key" value={termKey} />
       <h2 className="text-sm font-semibold text-ink">
         {defaults.singular}{" "}

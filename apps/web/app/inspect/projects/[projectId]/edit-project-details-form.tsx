@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TimeZonePicker } from "@/components/domain/timezone-picker";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdateProjectDetailsState = { error: null };
 
@@ -29,6 +30,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
   const tl = useTranslate();
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(updateProjectDetailsAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
     <div className="mt-3">
@@ -41,7 +43,7 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
         {open ? "Close editor" : "Edit project details"}
       </button>
       {open && (
-        <form action={formAction} className="mt-2 grid grid-cols-1 gap-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
+        <form onSubmit={keepValuesSubmit} className="mt-2 grid grid-cols-1 gap-3 rounded-md border border-border bg-surface p-4 sm:grid-cols-2">
           <input type="hidden" name="project_id" value={project.id} />
           <label className="text-sm text-ink">
             <Tx>Project number *</Tx>

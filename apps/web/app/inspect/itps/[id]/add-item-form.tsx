@@ -6,6 +6,7 @@ import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AddItemState = { error: null };
 
@@ -37,6 +38,7 @@ export function AddItemForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addItpItemAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   // Was always rendered fully open, one 7-field row per section, whether or not anyone was
   // actively adding an activity — real clutter on an ITP with several sections. Collapsed behind
   // its own button, same click-to-reveal pattern as the per-activity evidence sections right above.
@@ -55,7 +57,7 @@ export function AddItemForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-end gap-3 border-t border-border bg-off-white px-4 py-4">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-3 border-t border-border bg-off-white px-4 py-4">
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="section_id" value={sectionId} />
 

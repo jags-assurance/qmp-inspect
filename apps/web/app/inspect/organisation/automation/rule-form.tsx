@@ -7,6 +7,7 @@ import { MoreDetails } from "@/components/domain/more-details";
 import { Badge } from "@/components/ui/badge";
 import type { AutomationRuleType } from "@/lib/automation/types";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpsertAutomationRuleState = { error: null };
 
@@ -28,10 +29,11 @@ export function RuleForm({
   repeatHours: number;
 }) {
   const [state, formAction, pending] = useActionState(upsertAutomationRuleAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [isEnabled, setIsEnabled] = useState(enabled);
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
+    <form onSubmit={keepValuesSubmit} className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="rule_type" value={ruleType} />
 

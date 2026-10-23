@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { approveDocumentAction, type ApproveDocumentState } from "@/lib/vault/multi-approval-actions";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ApproveDocumentState = { error: null };
 
@@ -29,6 +30,7 @@ export function ApproveDocumentButton({
   isAdmin?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(approveDocumentAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [asking, setAsking] = useState(false);
 
   if (uploadedByMe && !isAdmin) {
@@ -36,7 +38,7 @@ export function ApproveDocumentButton({
   }
 
   return (
-    <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
+    <form onSubmit={keepValuesSubmit} className="inline-flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="document_id" value={documentId} />
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="folder_id" value={folderId} />

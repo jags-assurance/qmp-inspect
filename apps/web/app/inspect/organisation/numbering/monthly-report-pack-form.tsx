@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { ResponsiveTable, type ResponsiveColumn } from "@/components/ui/responsive-table";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: GenerateMonthlyReportPackState = { error: null };
 const summaryInitialState: GenerateReportSummaryState = { error: null, summary: null };
@@ -49,6 +50,7 @@ export function MonthlyReportPackForm({
   aiConfigured?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(generateMonthlyReportPackAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [summaryState, summaryFormAction, summaryPending] = useActionState(generateReportPackSummaryAction, summaryInitialState);
   const { items: reportPacks, polling, startPolling } = useReportPackListPolling(initialPacks, listMonthlyReportPacks, organizationId);
   const inFlightPack = reportPacks.find((p) => p.status === "pending" || p.status === "processing");
@@ -100,7 +102,7 @@ export function MonthlyReportPackForm({
 
   return (
     <div>
-      <form action={formAction} className="flex flex-wrap items-end gap-3">
+      <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="organization_id" value={organizationId} />
         <input type="hidden" name="month" value={month} />
         <input type="hidden" name="year" value={year} />

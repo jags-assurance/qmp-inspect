@@ -5,6 +5,7 @@ import { reviewProposalAction, type ReviewProposalState } from "@/lib/itp-master
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ReviewProposalState = { error: null };
 
@@ -15,6 +16,7 @@ const initialState: ReviewProposalState = { error: null };
 export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(reviewProposalAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { askThenSubmit, dialog } = useConfirm();
   const confirmReject = askThenSubmit({
     title: "Reject this proposal?",
@@ -24,7 +26,7 @@ export function ProposalReviewForm({ proposalId }: { proposalId: string }) {
   });
 
   return (
-    <form action={formAction} className="mt-3 space-y-2">
+    <form onSubmit={keepValuesSubmit} className="mt-3 space-y-2">
       {dialog}
       <input type="hidden" name="proposal_id" value={proposalId} />
 

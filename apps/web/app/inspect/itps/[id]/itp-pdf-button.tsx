@@ -7,6 +7,7 @@ import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { DropdownMenu, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tx } from "@/components/domain/tx";
 import { buttonVariants } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestItpPdfState = { error: null };
 
@@ -40,6 +41,7 @@ export function ItpPdfButton({
   extraActions?: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(requestItpPdfAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestItpPdf, itpId);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function ItpPdfButton({
             </DropdownMenuItem>
           )}
           <DropdownMenuItem>
-            <form action={formAction}>
+            <form onSubmit={keepValuesSubmit}>
               <input type="hidden" name="itp_id" value={itpId} />
               <button type="submit" onClick={beginGenerate} disabled={pending || inFlight}>
                 {generateLabel}

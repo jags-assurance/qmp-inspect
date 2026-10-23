@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { assignItpAcceptorAction, type AssignItpAcceptorState } from "@/lib/itps/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AssignItpAcceptorState = { error: null };
 
@@ -23,9 +24,10 @@ export function ItpAcceptorPicker({
   currentAcceptorUserId: string | null;
 }) {
   const [state, formAction, pending] = useActionState(assignItpAcceptorAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+    <form onSubmit={keepValuesSubmit} className="rounded-lg border border-border bg-surface p-4">
       <h3 className="text-sm font-semibold text-ink"><Tx>Assigned acceptor (optional)</Tx></h3>
       <p className="mt-1 text-xs text-muted">
         <Tx>Leave unset and any login linked to this project&apos;s client party can Accept. Assign one specific person and only they can.</Tx>

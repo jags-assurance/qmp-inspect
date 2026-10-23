@@ -6,6 +6,7 @@ import { isTranslationStale, type ItpTranslations } from "@/lib/itps/translation
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: TranslateItpContentState = { error: null, translated: null, targetLanguage: null };
 
@@ -21,11 +22,12 @@ const TARGET_LANGUAGE = "French";
  */
 export function TranslateContentPanel({ itpId, revision, stored = {} }: { itpId: string; revision: number; stored?: ItpTranslations }) {
   const [state, formAction, pending] = useActionState(translateItpContentAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
     <Disclosure variant="pill" summary={<><Tx>Translate</Tx></>} className="mt-3">
     <div className="mt-2 rounded-md border border-border bg-off-white p-3">
-      <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-2">
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="target_language" value={TARGET_LANGUAGE} />
         <p className="text-xs text-muted"><Tx>Show title &amp; scope in French.</Tx></p>

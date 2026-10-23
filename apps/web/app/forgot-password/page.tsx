@@ -8,11 +8,13 @@ import { FormMessage } from "@/components/ui/form-message";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { AuthShell } from "@/components/domain/auth-shell";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestPasswordResetState = { error: null, sent: false };
 
 export default function ForgotPasswordPage() {
   const [state, formAction, pending] = useActionState(requestPasswordResetAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   const sentHeading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -38,7 +40,7 @@ export default function ForgotPasswordPage() {
               <Tx>Enter your account email and we&apos;ll send you a link to reset it.</Tx>
             </p>
 
-            <form action={formAction} className="mt-8 space-y-4">
+            <form onSubmit={keepValuesSubmit} className="mt-8 space-y-4">
               <div>
                 <FormField required label="Email" id="email">
                   <input

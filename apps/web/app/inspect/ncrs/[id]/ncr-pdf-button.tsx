@@ -11,6 +11,7 @@ import {
 import { usePdfPolling } from "@/lib/reports/use-pdf-polling";
 import { Tx } from "@/components/domain/tx";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RequestNcrPdfState = { error: null };
 
@@ -33,6 +34,7 @@ export function NcrPdfButton({
   changedAt?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(requestNcrPdfAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const { liveStatus, polling, timedOut, beginGenerate, startPolling } = usePdfPolling(latest, getLatestNcrPdf, ncrId);
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function NcrPdfButton({
             <Tx>Download ↓</Tx>
           </a>
         )}
-        <form action={formAction}>
+        <form onSubmit={keepValuesSubmit}>
           <input type="hidden" name="ncr_id" value={ncrId} />
           <Button
             type="submit"

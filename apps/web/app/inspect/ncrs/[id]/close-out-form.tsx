@@ -9,6 +9,7 @@ import { NCR_DISPOSITIONS, NCR_DISPOSITION_LABELS } from "@/lib/ncrs/extended";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: UpdateNcrState = { error: null };
 const suggestInitialState: SuggestRootCauseState = { error: null, rootCause: null, aiLogId: null };
@@ -80,6 +81,7 @@ export function CloseOutForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateNcrAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -114,7 +116,7 @@ export function CloseOutForm({
 
   return (
     <div>
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={keepValuesSubmit} className="space-y-4">
       <input type="hidden" name="ncr_id" value={ncrId} />
       <input type="hidden" name="root_cause_ai_log_id" value={aiLogId ?? ""} />
       <input type="hidden" name="root_cause_ai_original" value={aiOriginalRootCause ?? ""} />

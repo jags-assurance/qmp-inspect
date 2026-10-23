@@ -6,6 +6,7 @@ import { formatDateTime } from "@/lib/dates/format";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ProvisionPartyLoginState = { error: null, tempPassword: null, email: null, expiresAt: null };
 
@@ -37,6 +38,7 @@ export function ProvisionPartyLoginForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(provisionPartyLoginAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState(contactEmail ?? "");
 
@@ -100,7 +102,7 @@ export function ProvisionPartyLoginForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-1.5">
+    <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="project_party_id" value={projectPartyId} />
       <input
         name="email"

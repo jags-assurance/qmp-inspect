@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateEngagementModeAction, type NumberingSettingsState } from "@/lib/numbering/actions";
 import { Button } from "@/components/ui/button";
 import { FormMessage } from "@/components/ui/form-message";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: NumberingSettingsState = { error: null };
 
@@ -25,9 +26,10 @@ export function EngagementModeForm({
   engagementMode: string;
 }) {
   const [state, formAction, pending] = useActionState(updateEngagementModeAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="space-y-3">
+    <form onSubmit={keepValuesSubmit} className="space-y-3">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div className="space-y-2">
         {MODES.map((mode) => (

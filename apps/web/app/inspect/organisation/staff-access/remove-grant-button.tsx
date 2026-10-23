@@ -3,14 +3,16 @@
 import { useActionState } from "react";
 import { removeStaffGrantAction, type StaffAccessState } from "@/lib/staff-access/actions";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: StaffAccessState = { error: null };
 
 export function RemoveGrantButton({ grantId }: { grantId: string }) {
   const [state, formAction, pending] = useActionState(removeStaffGrantAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="inline">
+    <form onSubmit={keepValuesSubmit} className="inline">
       <input type="hidden" name="grant_id" value={grantId} />
       <Button
         type="submit"

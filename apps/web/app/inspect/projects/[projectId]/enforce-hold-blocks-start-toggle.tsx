@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { setEnforceHoldBlocksStartAction, type SetEnforceHoldBlocksStartState } from "@/lib/projects/actions";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SetEnforceHoldBlocksStartState = { error: null };
 
@@ -14,9 +15,10 @@ export function EnforceHoldBlocksStartToggle({
   enforceHoldBlocksStart: boolean;
 }) {
   const [state, formAction, pending] = useActionState(setEnforceHoldBlocksStartAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-3 flex items-center gap-2">
+    <form onSubmit={keepValuesSubmit} className="mt-3 flex items-center gap-2">
       <input type="hidden" name="project_id" value={projectId} />
       <label className="flex items-center gap-2 text-sm text-ink">
         <input

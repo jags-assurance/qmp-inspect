@@ -7,6 +7,7 @@ import { Tx } from "@/components/domain/tx";
 import { FormMessage } from "@/components/ui/form-message";
 import { MoreDetails } from "@/components/domain/more-details";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: BrandingSettingsState = { error: null };
 
@@ -72,6 +73,7 @@ export function BrandingForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateOrgBrandColorsAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [primary, setPrimary] = useState(brandPrimaryColor ?? "");
   const [accent, setAccent] = useState(brandAccentColor ?? "");
   const [multiColor, setMultiColor] = useState(brandMultiColorMode);
@@ -85,7 +87,7 @@ export function BrandingForm({
   const comboColors = [p, a, ...extras.map((e) => e.color || NEW_EXTRA_DEFAULT)];
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form onSubmit={keepValuesSubmit} className="space-y-4">
       <input type="hidden" name="organization_id" value={organizationId} />
 
       <div className="flex flex-wrap gap-6">

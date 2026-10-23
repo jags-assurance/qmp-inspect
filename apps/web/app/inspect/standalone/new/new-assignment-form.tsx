@@ -9,6 +9,7 @@ import { cn } from "@/lib/cn";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CreateAssignmentState = { error: null };
 
@@ -86,11 +87,12 @@ export function NewAssignmentForm({
   }
 
   const [state, formAction, pending] = useActionState(createAssignmentAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [selectedType, setSelectedType] = useState<AssignmentType>(ASSIGNMENT_TYPES[0].value);
   const selected = ASSIGNMENT_TYPES.find((t) => t.value === selectedType) ?? ASSIGNMENT_TYPES[0];
 
   return (
-    <form action={formAction} className="mt-6 space-y-6">
+    <form onSubmit={keepValuesSubmit} className="mt-6 space-y-6">
       <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <legend className="px-1 text-sm font-semibold text-ink"><Tx>Project &amp; type</Tx></legend>

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { ChecklistReviewAck } from "@/components/domain/checklist-review-ack";
 import { advanceItpStatusAction, type AdvanceItpStatusState } from "@/lib/itps/actions";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AdvanceItpStatusState = { error: null };
 
@@ -28,12 +29,13 @@ export function AdvanceStatusForm({
   requiresChecklistReview?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(advanceItpStatusAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const copy = LABEL[fromStatus];
   const needsAck = requiresChecklistReview && fromStatus === "under_review";
   const [reviewed, setReviewed] = useState(false);
 
   return (
-    <form action={formAction}>
+    <form onSubmit={keepValuesSubmit}>
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="from_status" value={fromStatus} />
       {needsAck && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}

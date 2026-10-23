@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: InterventionLevelState = { error: null };
 
@@ -16,9 +17,10 @@ const initialState: InterventionLevelState = { error: null };
 export function AddLevelForm({ organizationId }: { organizationId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addInterventionLevelAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[90px_1fr_90px_110px_auto]">
+    <form onSubmit={keepValuesSubmit} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[90px_1fr_90px_110px_auto]">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <FormField required label="Code">

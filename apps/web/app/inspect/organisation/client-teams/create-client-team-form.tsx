@@ -5,15 +5,17 @@ import { createClientTeamAction, type ClientTeamActionState } from "@/lib/client
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ClientTeamActionState = { error: null };
 
 export function CreateClientTeamForm({ organizationId }: { organizationId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createClientTeamAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
+    <form onSubmit={keepValuesSubmit} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
         <FormField required label="Team name">

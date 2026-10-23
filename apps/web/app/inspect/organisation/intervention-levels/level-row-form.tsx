@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: InterventionLevelState = { error: null };
 
@@ -20,11 +21,12 @@ const initialState: InterventionLevelState = { error: null };
 export function LevelRowForm({ level }: { level: InterventionLevelTypeRow }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(updateInterventionLevelAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [deleteState, deleteAction, deletePending] = useActionState(deleteInterventionLevelAction, initialState);
 
   return (
     <div className="py-3">
-      <form action={formAction} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
+      <form onSubmit={keepValuesSubmit} className="grid grid-cols-1 items-end gap-3 sm:grid-cols-3 lg:grid-cols-[60px_1fr_90px_90px_110px_auto]">
         <input type="hidden" name="id" value={level.id} />
         <div>
           <span className="block text-sm font-medium text-ink"><Tx>Code</Tx></span>

@@ -10,11 +10,13 @@ import { FormField } from "@/components/ui/form-field";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { SiteLinks } from "@/components/domain/site-links";
 import { AuthShell } from "@/components/domain/auth-shell";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SignInState = { error: null };
 
 export function LoginForm({ next, notice }: { next: string; notice?: string | null }) {
   const [state, formAction, pending] = useActionState(signInAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const t = useTranslate();
 
   return (
@@ -22,7 +24,7 @@ export function LoginForm({ next, notice }: { next: string; notice?: string | nu
         <h1 className="text-2xl font-semibold text-ink">{t("Sign in")}</h1>
         <p className="mt-1 text-sm text-muted">{t("Use your JAGS Assurance account credentials.")}</p>
 
-        <form action={formAction} className="mt-8 space-y-4" aria-busy={pending}>
+        <form onSubmit={keepValuesSubmit} className="mt-8 space-y-4" aria-busy={pending}>
           <input type="hidden" name="next" value={next} />
           <div>
             <FormField required label={t("Email")} id="email" error={state.fieldErrors?.email ? t(state.fieldErrors.email) : undefined}>

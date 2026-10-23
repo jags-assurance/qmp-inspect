@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { checkChecklistConsistencyAction, type CheckConsistencyState } from "@/lib/checklists/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: CheckConsistencyState = { error: null, flags: null };
 
@@ -14,9 +15,10 @@ const initialState: CheckConsistencyState = { error: null, flags: null };
  */
 export function ConsistencyCheck({ templateId, inspectionRecordId }: { templateId: string; inspectionRecordId: string }) {
   const [state, formAction, pending] = useActionState(checkChecklistConsistencyAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="rounded-lg border border-border bg-surface p-4">
+    <form onSubmit={keepValuesSubmit} className="rounded-lg border border-border bg-surface p-4">
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <div className="flex items-center justify-between">

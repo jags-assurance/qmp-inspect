@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: SetDocumentApproversState = { error: null };
 
@@ -27,6 +28,7 @@ export function SetApproversForm({
   approverOptions: ApproverOption[];
 }) {
   const [state, formAction, pending] = useActionState(setDocumentApproversAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [selectedDocId, setSelectedDocId] = useState(documentOptions[0]?.id ?? "");
   const selectedDoc = documentOptions.find((d) => d.id === selectedDocId);
 
@@ -34,7 +36,7 @@ export function SetApproversForm({
 
   return (
     <Disclosure variant="pill" className="mt-6" bodyClassName="" summary={<Tx>Require specific approvers (optional)</Tx>}>
-    <form action={formAction} className="mt-2 rounded-lg border border-border bg-surface p-4">
+    <form onSubmit={keepValuesSubmit} className="mt-2 rounded-lg border border-border bg-surface p-4">
       <p className="text-xs text-muted">
         <Tx>Tick who must all agree. Leave none ticked so any permitted person can approve alone.</Tx>
       </p>

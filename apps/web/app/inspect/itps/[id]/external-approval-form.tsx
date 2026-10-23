@@ -6,6 +6,7 @@ import { Tx } from "@/components/domain/tx";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: RecordExternalApprovalState = { error: null };
 
@@ -28,6 +29,7 @@ export function ExternalApprovalForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(recordExternalApprovalAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
     <Disclosure variant="pill" summary={<><Tx>External approval reference</Tx></>} className="mt-6" defaultOpen={!!reference}>
@@ -48,7 +50,7 @@ export function ExternalApprovalForm({
         </div>
       )}
 
-      <form action={formAction} className="mt-3 flex flex-wrap items-start gap-2">
+      <form onSubmit={keepValuesSubmit} className="mt-3 flex flex-wrap items-start gap-2">
         <input type="hidden" name="itp_id" value={itpId} />
         <input
           type="text"

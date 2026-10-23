@@ -12,6 +12,7 @@ import type { ReviewProgressStep } from "@/lib/itps/review-chain";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ApproveReviewStepState = { error: null };
 const initialReassignState: ReassignReviewStepState = { error: null };
@@ -33,6 +34,7 @@ export function ReviewChainStatus({
   isAdminStaff: boolean;
 }) {
   const [state, formAction, pending] = useActionState(approveReviewStepAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [reassignState, reassignAction, reassigning] = useActionState(reassignReviewStepAction, initialReassignState);
   const [reviewed, setReviewed] = useState(false);
   const firstPending = steps.find((s) => s.status === "pending");
@@ -43,7 +45,7 @@ export function ReviewChainStatus({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-info"><Tx>Review chain</Tx></p>
         {canActNow && (
-          <form action={formAction}>
+          <form onSubmit={keepValuesSubmit}>
             <input type="hidden" name="itp_id" value={itpId} />
             {requiresChecklistReview && <ChecklistReviewAck checked={reviewed} onChange={setReviewed} />}
             <Button

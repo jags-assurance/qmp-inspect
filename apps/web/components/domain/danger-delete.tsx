@@ -5,6 +5,7 @@ import { Tx } from "@/components/domain/tx";
 import { confirmationMatches } from "@/lib/projects/delete-helpers";
 import type { DeletePreview, DeleteState } from "@/lib/projects/delete-actions";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: DeleteState = { error: null };
 
@@ -27,6 +28,7 @@ export function DangerDelete({
   action: (prev: DeleteState, formData: FormData) => Promise<DeleteState>;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<DeletePreview | null>(null);
@@ -51,7 +53,7 @@ export function DangerDelete({
           {kind === "project" ? "Delete this project…" : "Delete this organisation…"}
         </Button>
       ) : (
-        <form action={formAction} className="mt-3 max-w-lg space-y-3 text-sm">
+        <form onSubmit={keepValuesSubmit} className="mt-3 max-w-lg space-y-3 text-sm">
           <input type="hidden" name={kind === "project" ? "project_id" : "organization_id"} value={id} />
           {loading && <p className="text-muted"><Tx>Checking what would be deleted…</Tx></p>}
           {!loading && !preview && <p className="text-danger"><Tx>Could not load the details. Reload the page and try again.</Tx></p>}

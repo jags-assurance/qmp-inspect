@@ -7,6 +7,7 @@ import {
 } from "@/lib/checklist-library/actions";
 import { Tx } from "@/components/domain/tx";
 import { Button } from "@/components/ui/button";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: AttachLibraryTemplateState = { error: null };
 
@@ -23,10 +24,11 @@ export function AttachLibraryTemplateForm({
   libraryTemplates: { id: string; title: string }[];
 }) {
   const [state, formAction, pending] = useActionState(attachLibraryTemplateToActivityAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [selected, setSelected] = useState("");
 
   return (
-    <form action={formAction} className="flex items-center justify-end gap-1.5">
+    <form onSubmit={keepValuesSubmit} className="flex items-center justify-end gap-1.5">
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <select
         name="library_template_id"

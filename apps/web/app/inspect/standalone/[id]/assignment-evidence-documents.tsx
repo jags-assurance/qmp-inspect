@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { VaultFilePicker, type VaultPickerFolder } from "@/components/domain/vault-file-picker";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: LinkEvidenceDocumentState = { error: null };
 
@@ -95,6 +96,7 @@ function LinkDocumentForm({
   folders: VaultPickerFolder[];
 }) {
   const [state, formAction, pending] = useActionState(linkAssignmentEvidenceDocumentAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
   const [open, setOpen] = useState(false);
 
   if (availableDocuments.length === 0 && (!projectId || folders.length === 0)) {
@@ -114,7 +116,7 @@ function LinkDocumentForm({
   }
 
   return (
-    <form action={formAction} className="mt-3 space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
+    <form onSubmit={keepValuesSubmit} className="mt-3 space-y-2 rounded-md border border-border bg-off-white p-3 text-sm">
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <VaultFilePicker documents={availableDocuments} projectId={projectId} folders={folders} allowUpload />
       {state.error && <p role="alert" className="text-xs text-danger">{state.error}</p>}

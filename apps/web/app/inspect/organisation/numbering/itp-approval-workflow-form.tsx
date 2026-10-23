@@ -5,6 +5,7 @@ import { updateItpApprovalWorkflowAction, type ItpApprovalWorkflowState } from "
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
 
 const initialState: ItpApprovalWorkflowState = { error: null };
 
@@ -26,9 +27,10 @@ export function ItpApprovalWorkflowForm({
   requiredApproverUserId: string | null;
 }) {
   const [state, formAction, pending] = useActionState(updateItpApprovalWorkflowAction, initialState);
+  const keepValuesSubmit = useKeepFormValues(state, formAction);
 
   return (
-    <form action={formAction} className="space-y-3">
+    <form onSubmit={keepValuesSubmit} className="space-y-3">
       <input type="hidden" name="organization_id" value={organizationId} />
 
       <div>
