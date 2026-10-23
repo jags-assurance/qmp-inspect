@@ -8,6 +8,8 @@ import { VAULT_FOLDERS_TABLE } from "@/lib/vault/types";
 
 export interface CreateCustomVaultFolderState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
 }
 
 /**
@@ -27,10 +29,10 @@ export async function createCustomVaultFolderAction(
   const name = String(formData.get("name") ?? "").trim();
 
   if (!projectId || !name) {
-    return { error: "Missing project or category name." };
+    return { error: "Missing project or category name.", fieldErrors: { name: "Enter a category name." } };
   }
   if (name.length > 60) {
-    return { error: "Category name must be 60 characters or fewer." };
+    return { error: "Category name must be 60 characters or fewer.", fieldErrors: { name: "Use 60 characters or fewer." } };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -69,6 +71,9 @@ export async function createCustomVaultFolderAction(
   });
 
   if (error) {
+    if (error.code === "23505") {
+      return { error: "A category with that name already exists.", fieldErrors: { name: "A category with that name already exists." } };
+    }
     return { error: "Could not add this category. Check you have permission and try again." };
   }
 

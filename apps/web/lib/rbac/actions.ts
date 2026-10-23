@@ -16,6 +16,8 @@ import { getSelfManagedOrgIdsForUser, getClientManagedOrgIdsForUser, getClientOw
 
 export interface RbacActionState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
 }
 
 const ROLES_PATH = "/inspect/organisation/roles";
@@ -32,7 +34,7 @@ export async function createCustomRoleAction(_prev: RbacActionState, formData: F
   const session = await requireSession();
   const name = String(formData.get("name") ?? "").trim();
   const organizationId = String(formData.get("organization_id") ?? "").trim();
-  if (!name) return { error: "A role name is required." };
+  if (!name) return { error: "A role name is required.", fieldErrors: { name: "Enter a role name." } };
 
   if (!isAdminStaff(session)) {
     if (!organizationId) return { error: "A JAGS-global role can only be created by a JAGS Admin." };
@@ -56,6 +58,7 @@ export async function createCustomRoleAction(_prev: RbacActionState, formData: F
   if (error || !role) {
     return {
       error: error?.code === "23505" ? "A role with that name already exists in this scope." : "Could not create the role.",
+      ...(error?.code === "23505" ? { fieldErrors: { name: "A role with that name already exists in this scope." } } : {}),
     };
   }
 

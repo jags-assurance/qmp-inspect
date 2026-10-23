@@ -97,7 +97,7 @@ export function NewAssignmentForm({
       <fieldset className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <legend className="px-1 text-sm font-semibold text-ink"><Tx>Project &amp; type</Tx></legend>
         <div>
-          <FormField required label="Project">
+          <FormField required label="Project" error={state.fieldErrors?.project_id}>
             <select
             name="project_id"
             required
@@ -151,7 +151,7 @@ export function NewAssignmentForm({
         <p className="text-xs text-muted">{selected.equipmentNote}</p>
 
         <div>
-          <FormField required label="Equipment description">
+          <FormField required label="Equipment description" error={state.fieldErrors?.equipment_description}>
             <input
             name="equipment_description"
             required
@@ -185,7 +185,7 @@ export function NewAssignmentForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <FormField required={selectedType === "fat" || selectedType === "pre_shipment"} label={<Tx>Serial / tag no.</Tx>}>
+            <FormField required={selectedType === "fat" || selectedType === "pre_shipment"} label={<Tx>Serial / tag no.</Tx>} error={state.fieldErrors?.serial_tag}>
               <input
               name="serial_tag"
               maxLength={120}
@@ -238,7 +238,7 @@ export function NewAssignmentForm({
             </FormField>
           </div>
           <div>
-            <FormField label="Assignment date">
+            <FormField label="Assignment date" error={state.fieldErrors?.assignment_date}>
               <input
               name="assignment_date"
               type="date"
@@ -268,7 +268,7 @@ export function NewAssignmentForm({
         </div>
       </fieldset>
 
-      <FormMessage error={state.error} />
+      <FormMessage error={state.fieldErrors ? null : state.error} />
 
       <StickyActionBar>
         <Button type="submit" disabled={pending}>

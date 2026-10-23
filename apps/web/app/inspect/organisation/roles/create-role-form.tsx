@@ -30,7 +30,7 @@ export function CreateRoleForm({
   return (
     <form onSubmit={keepValuesSubmit} className="mt-6 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
       <div>
-        <FormField required label="Role name">
+        <FormField required label="Role name" error={state.fieldErrors?.name}>
           <input
           name="name"
           required
@@ -61,7 +61,7 @@ export function CreateRoleForm({
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "Create role"}
       </Button>
-      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && !state.fieldErrors && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

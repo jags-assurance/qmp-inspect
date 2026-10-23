@@ -14,6 +14,8 @@ import {
 
 export interface ClientTeamActionState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
 }
 
 const CLIENT_TEAMS_PATH = "/inspect/organisation/client-teams";
@@ -43,7 +45,7 @@ export async function createClientTeamAction(
 ): Promise<ClientTeamActionState> {
   const organizationId = String(formData.get("organization_id") ?? "").trim();
   const name = String(formData.get("name") ?? "").trim();
-  if (!organizationId || !name) return { error: "Organisation and team name are required." };
+  if (!organizationId || !name) return { error: "Organisation and team name are required.", ...(!name ? { fieldErrors: { name: "Enter a team name." } } : {}) };
 
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();

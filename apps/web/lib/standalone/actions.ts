@@ -233,6 +233,8 @@ const ASSIGNMENT_TYPES: AssignmentType[] = ["fat", "witness_inspection", "specif
 
 export interface CreateAssignmentState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
 }
 
 export async function createAssignmentAction(
@@ -242,7 +244,7 @@ export async function createAssignmentAction(
   const session = await requireSession();
 
   const projectId = String(formData.get("project_id") ?? "").trim();
-  if (!projectId) return { error: "Project, assignment type and equipment description are required." };
+  if (!projectId) return { error: "Project, assignment type and equipment description are required.", fieldErrors: { project_id: "Choose a project." } };
 
   const supabase = await createSupabaseServerClient();
   if (!(await canRunStandaloneAssignment(session, supabase, projectId))) return { error: STAFF_ONLY_ERROR };
@@ -263,17 +265,25 @@ export async function createAssignmentAction(
   if (assignmentDate) {
     const d = new Date(assignmentDate + "T00:00:00Z");
     const now = Date.now();
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate) || Number.isNaN(d.getTime())) return { error: "Assignment date is not a valid date." };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(assignmentDate) || Number.isNaN(d.getTime())) return { error: "Assignment date is not a valid date.", fieldErrors: { assignment_date: "Enter a valid date." } };
     if (d.getTime() < now - 5 * 365 * 86400000 || d.getTime() > now + 2 * 365 * 86400000) {
-      return { error: "Assignment date looks wrong - it must be within the last 5 years and the next 2 years." };
+      return { error: "Assignment date looks wrong - it must be within the last 5 years and the next 2 years.", fieldErrors: { assignment_date: "Must be within the last 5 years and the next 2 years." } };
     }
   }
   if ((assignmentType === "fat" || assignmentType === "pre_shipment") && !serialTag) {
-    return { error: "Serial / tag number is required for a FAT or pre-shipment check so the report identifies the exact unit." };
+    return {
+      error: "Serial / tag number is required for a FAT or pre-shipment check so the report identifies the exact unit.",
+      fieldErrors: { serial_tag: "Required for a FAT or pre-shipment check so the report identifies the exact unit." },
+    };
   }
 
   if (!projectId || !ASSIGNMENT_TYPES.includes(assignmentType) || !equipmentDescription) {
-    return { error: "Project, assignment type and equipment description are required." };
+    return {
+      error: "Project, assignment type and equipment description are required.",
+      fieldErrors: {
+        ...(!equipmentDescription ? { equipment_description: "Describe the equipment." } : {}),
+      },
+    };
   }
 
   const {

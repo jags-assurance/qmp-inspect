@@ -8,6 +8,8 @@ import { validateDeactivationReason, validateOrganizationName } from "@/lib/orga
 
 export interface CreateOrganizationState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
   /** Name of the organisation that was just created — drives the success message. */
   created?: string | null;
 }
@@ -45,16 +47,19 @@ export async function createOrganizationAction(
   const engagementMode = String(formData.get("engagement_mode") ?? "jags_led").trim();
   const engagementScope = String(formData.get("engagement_scope") ?? "full_service").trim();
 
-  if (!name) return { error: "Organisation name is required." };
+  if (!name) return { error: "Organisation name is required.", fieldErrors: { name: "Enter the organisation name." } };
   if (!["jags_led", "co_branded", "white_label"].includes(engagementMode)) {
-    return { error: "Invalid engagement mode." };
+    return { error: "Invalid engagement mode.", fieldErrors: { engagement_mode: "Choose an engagement mode." } };
   }
   if (!["full_service", "self_managed", "client_managed"].includes(engagementScope)) {
-    return { error: "Invalid engagement scope." };
+    return { error: "Invalid engagement scope.", fieldErrors: { engagement_scope: "Choose an engagement scope." } };
   }
 
   const slug = slugify(slugOverride || name);
-  if (!slug) return { error: "Could not derive a URL-safe slug from that name — try a different name or set one explicitly." };
+  if (!slug) {
+    const msg = "Could not derive a URL-safe slug from that name — try a different name or set one explicitly.";
+    return { error: msg, fieldErrors: { [slugOverride ? "slug" : "name"]: msg } };
+  }
 
   const supabase = await createSupabaseServerClient();
   const { data: organization, error } = await supabase
@@ -70,7 +75,8 @@ export async function createOrganizationAction(
 
   if (error || !organization) {
     if (error?.code === "23505") {
-      return { error: `An organisation with the slug "${slug}" already exists — choose a different name or set a custom slug.` };
+      const msg = `An organisation with the slug "${slug}" already exists — choose a different name or set a custom slug.`;
+      return { error: msg, fieldErrors: { [slugOverride ? "slug" : "name"]: msg } };
     }
     return { error: "Could not create the organisation. Check you have permission and try again." };
   }

@@ -18,7 +18,7 @@ export function CreateClientTeamForm({ organizationId }: { organizationId: strin
     <form onSubmit={keepValuesSubmit} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <input type="hidden" name="organization_id" value={organizationId} />
       <div>
-        <FormField required label="Team name">
+        <FormField required label="Team name" error={state.fieldErrors?.name}>
           <input
           name="name"
           required
@@ -30,7 +30,7 @@ export function CreateClientTeamForm({ organizationId }: { organizationId: strin
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "+ Create team"}
       </Button>
-      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && !state.fieldErrors && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

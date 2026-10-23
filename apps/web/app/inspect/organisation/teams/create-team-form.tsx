@@ -17,7 +17,7 @@ export function CreateTeamForm() {
   return (
     <form onSubmit={keepValuesSubmit} className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-off-white p-4">
       <div>
-        <FormField required label="Team name">
+        <FormField required label="Team name" error={state.fieldErrors?.name}>
           <input
           name="name"
           required
@@ -29,7 +29,7 @@ export function CreateTeamForm() {
       <Button type="submit" disabled={pending}>
         {pending ? "Creating…" : "+ Create team"}
       </Button>
-      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && !state.fieldErrors && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
   );
 }

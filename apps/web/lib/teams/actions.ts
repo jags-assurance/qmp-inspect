@@ -8,6 +8,8 @@ import { isTeamLeadOf } from "./helpers";
 
 export interface TeamActionState {
   error: string | null;
+  /** Per-input problems (keys are form field names), shown beside the field. */
+  fieldErrors?: Record<string, string>;
 }
 
 const TEAMS_PATH = "/inspect/organisation/teams";
@@ -19,7 +21,7 @@ export async function createTeamAction(_prev: TeamActionState, formData: FormDat
   if (!isAdminStaff(session)) return { error: "Only a JAGS Admin can create a team." };
 
   const name = String(formData.get("name") ?? "").trim();
-  if (!name) return { error: "A team name is required." };
+  if (!name) return { error: "A team name is required.", fieldErrors: { name: "Enter a team name." } };
 
   const supabase = await createSupabaseServerClient();
   const { data: team, error } = await supabase.from("teams").insert({ name }).select("id").single<{ id: string }>();

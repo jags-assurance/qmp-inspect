@@ -21,7 +21,7 @@ export function AddCategoryForm({ projectId }: { projectId: string }) {
     <form onSubmit={keepValuesSubmit} className="flex flex-wrap items-end gap-2">
       <input type="hidden" name="project_id" value={projectId} />
       <div>
-        <FormField label="Category name">
+        <FormField label="Category name" error={state.fieldErrors?.name}>
           <input
           name="name"
           placeholder={tl("e.g. Site Photos")}
@@ -34,7 +34,7 @@ export function AddCategoryForm({ projectId }: { projectId: string }) {
       <Button type="submit" variant="outline" disabled={pending}>
         {pending ? "Adding…" : "+ Add category"}
       </Button>
-      {state.error && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
+      {state.error && !state.fieldErrors && <p role="alert" className="w-full text-sm text-danger">{state.error}</p>}
     </form>
     </Disclosure>
   );

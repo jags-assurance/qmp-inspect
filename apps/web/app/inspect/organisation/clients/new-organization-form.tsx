@@ -28,7 +28,7 @@ export function NewOrganizationForm() {
   return (
     <form onSubmit={keepValuesSubmit} className="mt-6 max-w-lg space-y-4 rounded-lg border border-border bg-surface p-5">
       <div>
-        <FormField required label="Organisation name">
+        <FormField required label="Organisation name" error={state.fieldErrors?.name}>
           <input
           name="name"
           required
@@ -45,9 +45,14 @@ export function NewOrganizationForm() {
         <input
           id="org_slug"
           name="slug"
+          aria-invalid={state.fieldErrors?.slug ? true : undefined}
+          aria-describedby={state.fieldErrors?.slug ? "org_slug-err" : undefined}
           placeholder={tl("e.g. northgate")}
           className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"
         />
+        {state.fieldErrors?.slug && (
+          <p id="org_slug-err" role="alert" className="mt-1 text-xs font-medium text-danger">{state.fieldErrors.slug}</p>
+        )}
       </div>
 
       <div>
@@ -105,7 +110,7 @@ export function NewOrganizationForm() {
         </div>
       </div>
 
-      {state.error && <p role="alert" className="text-sm text-danger">{state.error}</p>}
+      {state.error && !state.fieldErrors && <p role="alert" className="text-sm text-danger">{state.error}</p>}
       {state.created && !state.error && (
         <p role="status" className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success">
           <Tx>✓ Organisation “</Tx>{state.created}<Tx>” was created. It is at the top of the list below — next, add a project for it.</Tx>
