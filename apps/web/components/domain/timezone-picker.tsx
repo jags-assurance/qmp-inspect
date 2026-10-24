@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { Button } from "@/components/ui/button";
 
@@ -28,9 +28,20 @@ function offsetLabel(zone: string): string {
   }
 }
 
-function labelFor(zone: string): string {
+/** False during server render and hydration, true afterwards: anything that depends on the viewer's own runtime
+ *  (their time zone, their ICU data, the current instant) is rendered only once this is true, so the server
+ *  HTML and the first client render match. */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
+
+function labelFor(zone: string, withOffset: boolean): string {
   const city = zone === "UTC" ? "UTC" : zone.split("/").slice(1).join(" / ").replace(/_/g, " ") || zone;
-  const offset = zone === "UTC" ? "" : offsetLabel(zone);
+  const offset = zone === "UTC" || !withOffset ? "" : offsetLabel(zone);
   return offset ? `${city} (${offset})` : city;
 }
 
@@ -52,7 +63,9 @@ export function TimeZonePicker({
   className?: string;
 }) {
   const tl = useTranslate();
-  const zones = useMemo(() => allZones(), []);
+  const hydrated = useHydrated();
+  // Server and first client render use the same short list; the full runtime list replaces it after hydration.
+  const zones = useMemo(() => (hydrated ? allZones() : FALLBACK_ZONES), [hydrated]);
   const [value, setValue] = useState(defaultValue ?? "");
   const known = value === "" || zones.includes(value);
 
@@ -67,12 +80,13 @@ export function TimeZonePicker({
   }, [zones]);
 
   const browserZone = useMemo(() => {
+    if (!hydrated) return "";
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone;
     } catch {
       return "";
     }
-  }, []);
+  }, [hydrated]);
 
   return (
     <div>
@@ -82,7 +96,7 @@ export function TimeZonePicker({
         <optgroup label={tl("Common")}>
           {POPULAR.filter((z) => zones.includes(z)).map((z) => (
             <option key={z} value={z}>
-              {labelFor(z)}
+              {labelFor(z, hydrated)}
             </option>
           ))}
         </optgroup>
@@ -90,7 +104,7 @@ export function TimeZonePicker({
           <optgroup key={region} label={region}>
             {list.map((z) => (
               <option key={z} value={z}>
-                {labelFor(z)}
+                {labelFor(z, hydrated)}
               </option>
             ))}
           </optgroup>
