@@ -161,6 +161,11 @@ export function ChecklistExecutionPanel({
       ? "Add at least one photo or document first"
       : null;
 
+  // Not a blocker: one photo anywhere satisfies the completion rule, so say which items have no proof of their own.
+  const itemsWithoutOwnEvidence = items.filter(
+    (i) => (itemPhotos.get(i.id) ?? []).length === 0 && (itemDocuments.get(i.id) ?? []).length === 0
+  );
+
   // ONE polite live region: announces only the answered count and the complete state (not saving/sync noise).
   const liveMessage =
     totalCount === 0 ? "" : allAnswered ? `All ${totalCount} items answered` : `${answeredCount} of ${totalCount} items answered`;
@@ -285,6 +290,12 @@ export function ChecklistExecutionPanel({
             <p className={completeBlockedReason ? "text-xs text-muted" : "text-xs text-success"}>
               {completeBlockedReason ?? "✓ Ready to complete"}
             </p>
+            {!completeBlockedReason && itemsWithoutOwnEvidence.length > 0 && (
+              <p className="mt-0.5 text-xs text-warning">
+                {itemsWithoutOwnEvidence.length} {itemsWithoutOwnEvidence.length === 1 ? "item has" : "items have"} no photo or document of {itemsWithoutOwnEvidence.length === 1 ? "its" : "their"} own:{" "}
+                {itemsWithoutOwnEvidence.map((i) => i.item_number).join(", ")}
+              </p>
+            )}
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             {!allAnswered && (

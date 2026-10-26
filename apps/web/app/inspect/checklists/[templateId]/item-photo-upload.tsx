@@ -129,6 +129,7 @@ export function ItemPhotoUpload({
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             onChange={handleFileChange}
             className="hidden"
             id={`item-photo-camera-${checklistItemId}`}
@@ -156,6 +157,11 @@ export function ItemPhotoUpload({
             {tl("From gallery")}
           </Button>
         </>
+      )}
+      {!readOnly && (
+        <p className="w-full text-xs text-muted">
+          <Tx>To add several photos at once, use From gallery and select them together.</Tx>
+        </p>
       )}
       {error && <p role="alert" className="w-full text-xs text-danger">{error}</p>}
     </div>

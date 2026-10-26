@@ -215,9 +215,9 @@ export default async function InspectionRecordPage({ params }: { params: Promise
       >(),
     supabase
       .from(INSPECTION_PHOTOS_TABLE)
-      .select("id, storage_path, caption")
+      .select("id, storage_path, caption, checklist_item_id")
       .eq("inspection_record_id", id)
-      .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption">[]>(),
+      .returns<Pick<InspectionPhotoRow, "id" | "storage_path" | "caption" | "checklist_item_id">[]>(),
     supabase
       .from(IRNS_TABLE)
       .select("id, irn_number, release_date, voided_at, void_reason")
@@ -251,7 +251,24 @@ export default async function InspectionRecordPage({ params }: { params: Promise
   // Perf: one batched Storage call for every photo's signed URL instead of each <PhotoThumbnail>
   // fetching its own client-side (see lib/storage/signed-urls.ts's doc comment).
   const photoUrls = await getSignedPhotoUrls(supabase, "inspection-evidence", (photos ?? []).map((p) => p.storage_path));
-  const photosWithUrls = (photos ?? []).map((p) => ({ id: p.id, url: photoUrls.get(p.storage_path) ?? null, caption: p.caption }));
+  const itemLabelById = new Map(
+    (responses ?? []).map((r) => [r.checklist_item_id, r.checklist_items ? `Item ${r.checklist_items.item_number} — ${r.checklist_items.description}` : null] as const)
+  );
+  const photosWithUrls = (photos ?? []).map((p) => ({
+    id: p.id,
+    url: photoUrls.get(p.storage_path) ?? null,
+    caption: p.caption,
+    itemId: p.checklist_item_id,
+    itemLabel: p.checklist_item_id ? (itemLabelById.get(p.checklist_item_id) ?? null) : null,
+  }));
+
+  // Answered items with no photo and no linked document of their own (a single general photo satisfies the
+  // completion rule, so this shows what it does not cover).
+  const itemsWithPhotos = new Set((photos ?? []).map((p) => p.checklist_item_id).filter(Boolean));
+  const itemsWithoutEvidence = [...(responses ?? [])]
+    .filter((r) => r.result && !itemsWithPhotos.has(r.checklist_item_id) && (linkedDocsByItem.get(r.checklist_item_id) ?? []).length === 0)
+    .sort((a, b) => (a.checklist_items?.item_number ?? "").localeCompare(b.checklist_items?.item_number ?? "", undefined, { numeric: true }))
+    .map((r) => (r.checklist_items ? `Item ${r.checklist_items.item_number} — ${r.checklist_items.description}` : "Item"));
 
   const sortedResponses = [...(responses ?? [])].sort((a, b) =>
     (a.checklist_items?.item_number ?? "").localeCompare(b.checklist_items?.item_number ?? "", undefined, { numeric: true })
@@ -508,7 +525,7 @@ export default async function InspectionRecordPage({ params }: { params: Promise
 
       <Section title={<T>Photo evidence</T>} className="mt-5">
         <div className="mt-3">
-          <PhotoGallery photos={photosWithUrls} />
+          <PhotoGallery photos={photosWithUrls} itemsWithoutEvidence={itemsWithoutEvidence} />
         </div>
       </Section>
 

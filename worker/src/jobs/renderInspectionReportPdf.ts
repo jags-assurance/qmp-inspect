@@ -110,16 +110,16 @@ export async function renderInspectionReportPdf(
         : Promise.resolve({ data: null }),
       supabase
         .from("checklist_responses")
-        .select("result, comment, calibration_asset_id, material_id, welder_id, checklist_items(item_number, description)")
+        .select("checklist_item_id, result, comment, calibration_asset_id, material_id, welder_id, checklist_items(item_number, description)")
         .eq("inspection_record_id", record.id)
         .returns<
-          { result: "yes" | "no" | "na"; comment: string | null; calibration_asset_id: string | null; material_id: string | null; welder_id: string | null; checklist_items: { item_number: string; description: string } | null }[]
+          { checklist_item_id: string; result: "yes" | "no" | "na"; comment: string | null; calibration_asset_id: string | null; material_id: string | null; welder_id: string | null; checklist_items: { item_number: string; description: string } | null }[]
         >(),
       supabase
         .from("inspection_photos")
-        .select("storage_path, caption")
+        .select("storage_path, caption, checklist_item_id")
         .eq("inspection_record_id", record.id)
-        .returns<{ storage_path: string; caption: string | null }[]>(),
+        .returns<{ storage_path: string; caption: string | null; checklist_item_id: string | null }[]>(),
       supabase
         .from("irns")
         .select("irn_number")
@@ -191,6 +191,10 @@ export async function renderInspectionReportPdf(
     }
   }
 
+  // Which checklist item each photo is proof for ("Item 2 — description"); null = the inspection as a whole.
+  const photoItemLabelById = new Map<string, string>(
+    (responses ?? []).map((r) => [r.checklist_item_id, `Item ${r.checklist_items?.item_number ?? ""}${r.checklist_items?.description ? ` — ${r.checklist_items.description}` : ""}`] as const)
+  );
   const photos: InspectionReportPhoto[] = [];
   const skippedPhotos: string[] = [];
   let totalPhotoBytes = 0;
@@ -210,7 +214,7 @@ export async function renderInspectionReportPdf(
       else if (totalPhotoBytes + o.bytes > MAX_TOTAL_PHOTO_BYTES) skippedPhotos.push(`${label} (report photo size limit reached)`);
       else {
         totalPhotoBytes += o.bytes;
-        photos.push({ caption: p.caption, dataUri: o.dataUri });
+        photos.push({ caption: p.caption, dataUri: o.dataUri, itemLabel: p.checklist_item_id ? (photoItemLabelById.get(p.checklist_item_id) ?? null) : null });
       }
     });
   }

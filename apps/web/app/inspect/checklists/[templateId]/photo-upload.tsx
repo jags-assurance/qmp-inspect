@@ -148,6 +148,7 @@ export function PhotoUpload({
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             onChange={handleFileChange}
             className="hidden"
             id="photo-input-camera"
@@ -160,6 +161,7 @@ export function PhotoUpload({
               <Tx>Upload from gallery</Tx>
             </Button>
           </div>
+          <p className="mt-2 text-xs text-muted"><Tx>To add several photos at once, use Upload from gallery and select them together.</Tx></p>
           <label className="mt-2 flex items-center gap-2 text-xs text-muted">
             <input type="checkbox" checked={markupFirst} onChange={(e) => toggleMarkup(e.target.checked)} />
             <Tx>Mark up photos before upload</Tx>

@@ -14,6 +14,8 @@ export interface InspectionReportResult {
 
 export interface InspectionReportPhoto {
   caption: string | null;
+  /** The checklist item this photo is proof for ("Item 2 — …"); null/absent = the inspection as a whole. */
+  itemLabel?: string | null;
   /** Already-fetched image bytes as a data: URI — the worker downloads from Storage and inlines
    *  it, so the PDF is a self-contained, permanent record with no dependency on a signed URL. */
   dataUri: string;
@@ -337,7 +339,7 @@ function renderPhotos(photos: InspectionReportPhoto[], skipped: string[] = []): 
       (p, i) => `
         <figure class="photo-tile">
           <img src="${p.dataUri}" alt="Evidence photo ${i + 1}" />
-          ${p.caption ? `<figcaption>${escapeHtml(p.caption)}</figcaption>` : ""}
+          <figcaption>${p.itemLabel ? `<b>${escapeHtml(p.itemLabel)}</b>` : "<b>Whole inspection</b>"}${p.caption ? `<br />${escapeHtml(p.caption)}` : ""}</figcaption>
         </figure>`
     )
     .join("");
