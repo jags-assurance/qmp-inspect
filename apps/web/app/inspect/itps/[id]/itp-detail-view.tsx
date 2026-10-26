@@ -145,7 +145,7 @@ const EVIDENCE_LABEL: Record<number, string> = {
   3: "Measurement record",
 };
 
-type ItpDetailBodyProps = { id: string; embedded?: boolean; view?: "list" | "matrix"; debug?: boolean };
+type ItpDetailBodyProps = { id: string; embedded?: boolean; view?: "list" | "matrix" };
 
 /**
  * The detail loads in several rounds of queries and throws on any failed one, so a single transient database error
@@ -168,7 +168,7 @@ async function ItpDetailBody(props: ItpDetailBodyProps) {
       console.error("[itp-detail] retry failed:", second);
       // JAGS Admin sees the real cause (production hides server error messages); everyone else gets the normal error page.
       const session = await requireSession();
-      if (!isAdminStaff(session) && !props.debug) throw second;
+      if (!isAdminStaff(session)) throw second;
       return (
         <div role="alert" data-itp-load-error className="mt-6 rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm text-ink">
           <p className="font-medium">This ITP could not be loaded (admin detail):</p>
@@ -1566,11 +1566,9 @@ export async function ItpDetailView({
   pane = "details",
   baseQuery = "",
   view = "list",
-  debug = false,
 }: {
   id: string;
   embedded?: boolean;
-  debug?: boolean;
   pane?: ItpPane;
   /** Full page only: "matrix" shows the party-by-activity matrix instead of the default activity list. */
   view?: "list" | "matrix";
@@ -1578,7 +1576,7 @@ export async function ItpDetailView({
   baseQuery?: string;
 }) {
   const tl = await getTranslator();
-  if (!embedded) return <ItpDetailBody id={id} view={view} debug={debug} />;
+  if (!embedded) return <ItpDetailBody id={id} view={view} />;
   const active: ItpPane = PANES.some((p) => p.key === pane) ? pane : "details";
   const hrefFor = (key: ItpPane) => {
     const sp = new URLSearchParams(baseQuery);

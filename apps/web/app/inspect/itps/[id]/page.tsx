@@ -9,9 +9,9 @@ export default async function ItpDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ view?: string; debug?: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { id } = await params;
-  const { view, debug } = await searchParams;
-  return <ItpDetailView id={id} view={view === "matrix" ? "matrix" : "list"} debug={debug === "1"} />;
+  const { view } = await searchParams;
+  return <ItpDetailView id={id} view={view === "matrix" ? "matrix" : "list"} />;
 }
