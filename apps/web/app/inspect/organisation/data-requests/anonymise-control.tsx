@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState } from "react";
 import { anonymiseUserAction, type AnonymiseState } from "@/lib/data-requests/actions";
 import { MIN_REASON_LENGTH } from "@/lib/data-requests/anonymise";
@@ -15,11 +16,14 @@ const initialState: AnonymiseState = { error: null, message: null };
 export function AnonymiseControl({ userId, name }: { userId: string; name: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(anonymiseUserAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const { gateSubmit, dialog } = useConfirm();
   return (
     <form
       action={formAction}
-      onSubmit={gateSubmit(
+      onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (gateSubmit(
         {
           title: `${tl("Anonymise")} ${name}?`,
           message: tl(
@@ -35,7 +39,8 @@ export function AnonymiseControl({ userId, name }: { userId: string; name: strin
           },
         },
         "reason"
-      )}
+      ))(e);
+      }}
       className="flex flex-col items-start gap-2"
     >
       {dialog}

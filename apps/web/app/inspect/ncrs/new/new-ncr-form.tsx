@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
 import { useRouter } from "next/navigation";
@@ -89,6 +90,7 @@ export function NewNcrForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(createNcrAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [photoError, setPhotoError] = useState<string | null>(null);
   // Photos are compressed in the browser first: the Server Action body is capped (~4 MB), and phone
   // originals are several MB each.
@@ -165,7 +167,7 @@ export function NewNcrForm({
   }
 
   return (
-    <form action={submitWithCompressedPhotos} className="space-y-5">
+    <form action={submitWithCompressedPhotos} className="space-y-5" onSubmit={(e) => captureForm(e.currentTarget)}>
       <p className="text-xs text-muted"><span aria-hidden="true" className="text-danger">*</span> <Tx>required</Tx></p>
       {onCreated && <input type="hidden" name="stay_on_page" value="true" />}
       <input type="hidden" name="request_id" value={requestId} />

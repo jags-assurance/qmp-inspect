@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState } from "react";
 import { reopenAssignmentAction, type ReopenAssignmentState } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
@@ -13,15 +14,19 @@ const initialState: ReopenAssignmentState = { error: null };
 export function ReopenForm({ assignmentId }: { assignmentId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(reopenAssignmentAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const { gateSubmit, dialog } = useConfirm();
   return (
     <form
       action={formAction}
-      onSubmit={gateSubmit({
+      onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (gateSubmit({
         title: "Reopen this assignment?",
         message: "It returns to draft and its conclusion will be cleared.",
         confirmLabel: "Reopen",
-      })}
+      }))(e);
+      }}
       className="mt-4 space-y-2 rounded-lg border border-border bg-surface p-4"
     >
       {dialog}

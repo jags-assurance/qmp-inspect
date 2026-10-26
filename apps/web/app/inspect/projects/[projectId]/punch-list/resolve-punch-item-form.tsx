@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { MarkupFileInput } from "@/components/domain/photo-markup";
 import { useActionState, useState, startTransition } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
@@ -20,6 +21,7 @@ const initialState: ResolvePunchItemState = { error: null };
 export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: string; punchItemId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(resolvePunchItemAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [expanded, setExpanded] = useState(false);
   const [evidence, setEvidence] = useState("");
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function ResolvePunchItemForm({ projectId, punchItemId }: { projectId: st
   }
 
   return (
-    <form action={submit} encType="multipart/form-data" className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
+    <form action={submit} encType="multipart/form-data" className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2" onSubmit={(e) => captureForm(e.currentTarget)}>
       <input type="hidden" name="punch_item_id" value={punchItemId} />
       <input type="hidden" name="project_id" value={projectId} />
       <textarea

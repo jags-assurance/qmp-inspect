@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { MarkupFileInput } from "@/components/domain/photo-markup";
 import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { compressFormPhotos } from "@/lib/media/compress-form-photos";
@@ -21,6 +22,7 @@ export function AddPunchItemForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addPunchItemAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const formRef = useRef<HTMLFormElement>(null);
   // Idempotency key per attempt: a double tap or a refresh-resubmit cannot add the item twice.
   const [requestId, setRequestId] = useState("");
@@ -51,7 +53,7 @@ export function AddPunchItemForm({
   }
 
   return (
-    <form ref={formRef} action={submit} encType="multipart/form-data" className="grid w-full grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2">
+    <form ref={formRef} action={submit} encType="multipart/form-data" className="grid w-full grid-cols-1 items-end gap-4 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5 md:grid-cols-2" onSubmit={(e) => captureForm(e.currentTarget)}>
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="request_id" value={requestId} />
 

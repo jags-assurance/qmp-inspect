@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { TodayButton } from "@/components/ui/today-button";
 import { useActionState, useEffect, useRef, useState, startTransition } from "react";
 import { recordWalkdownAction, type RecordWalkdownState } from "@/lib/punch-list/actions";
@@ -34,6 +35,7 @@ export function RecordWalkdownForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(recordWalkdownAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [rowIds, setRowIds] = useState<number[]>([nextRowId()]);
   const [open, setOpen] = useState(false);
   const [resetKey, setResetKey] = useState(0);
@@ -84,7 +86,7 @@ export function RecordWalkdownForm({
       action={submit}
       encType="multipart/form-data"
       className="w-full rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5"
-    >
+     onSubmit={(e) => captureForm(e.currentTarget)}>
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="request_id" value={requestId} />
 

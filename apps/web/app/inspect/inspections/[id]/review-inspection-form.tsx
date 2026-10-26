@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useId, useState } from "react";
 import { reviewInspectionAction, type ReviewInspectionState } from "@/lib/checklists/review-actions";
 import { MIN_REJECT_COMMENT_LENGTH } from "@/lib/checklists/review-logic";
@@ -16,6 +17,7 @@ const initialState: ReviewInspectionState = { error: null };
  */
 export function ReviewInspectionForm({ inspectionRecordId, hasPreviousReview }: { inspectionRecordId: string; hasPreviousReview: boolean }) {
   const [state, formAction, pending] = useActionState(reviewInspectionAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const { gateSubmit, dialog } = useConfirm();
   const [decision, setDecision] = useState<"approve" | "reject">("approve");
   const [comment, setComment] = useState("");
@@ -30,7 +32,9 @@ export function ReviewInspectionForm({ inspectionRecordId, hasPreviousReview }: 
     <form
       action={formAction}
       className="space-y-3"
-      onSubmit={gateSubmit(
+      onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (gateSubmit(
         decision === "approve"
           ? {
               title: "Approve this inspection?",
@@ -38,7 +42,8 @@ export function ReviewInspectionForm({ inspectionRecordId, hasPreviousReview }: 
               confirmLabel: "Approve",
             }
           : null
-      )}
+      ))(e);
+      }}
     >
       {dialog}
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />

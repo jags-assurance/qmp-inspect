@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState } from "react";
 import { finalizeAssignmentAction, type FinalizeAssignmentState } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ const CONCLUSION_OPTIONS: {
 
 export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: string; hasSignature: boolean }) {
   const [state, formAction, pending] = useActionState(finalizeAssignmentAction, initialState);
+  const captureForm = useRestoreOnError(state);
 
   const { gateSubmit, dialog } = useConfirm();
   const handleSubmit = gateSubmit({
@@ -44,7 +46,10 @@ export function FinalizeForm({ assignmentId, hasSignature }: { assignmentId: str
   return (
     <form
       action={formAction}
-      onSubmit={handleSubmit}
+      onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (handleSubmit)(e);
+      }}
       className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4"
     >
       {dialog}

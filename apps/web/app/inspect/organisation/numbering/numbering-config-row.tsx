@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useState, useTransition } from "react";
 import { checkClientCodeAction, upsertNumberingConfigAction, type ClientCodeCheckState, type NumberingSettingsState } from "@/lib/numbering/actions";
 import type { NumberingDocType } from "@/lib/numbering/types";
@@ -42,6 +43,7 @@ export function NumberingConfigRow({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(upsertNumberingConfigAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [codeCheck, setCodeCheck] = useState<ClientCodeCheckState | null>(null);
   const [checking, startChecking] = useTransition();
 
@@ -69,7 +71,7 @@ export function NumberingConfigRow({
     <form
       action={formAction}
       className="rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5"
-    >
+     onSubmit={(e) => captureForm(e.currentTarget)}>
       <input type="hidden" name="organization_id" value={organizationId} />
       <input type="hidden" name="doc_type" value={docType} />
 
