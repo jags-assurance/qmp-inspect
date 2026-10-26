@@ -160,7 +160,22 @@ async function ItpDetailBody(props: ItpDetailBodyProps) {
     if (typeof digest === "string" && digest.startsWith("NEXT_")) throw error;
     console.error("[itp-detail] first attempt failed, retrying once:", error);
     await new Promise((resolve) => setTimeout(resolve, 400));
-    return await ItpDetailBodyOnce(props);
+    try {
+      return await ItpDetailBodyOnce(props);
+    } catch (second) {
+      const digest2 = (second as { digest?: unknown } | null)?.digest;
+      if (typeof digest2 === "string" && digest2.startsWith("NEXT_")) throw second;
+      console.error("[itp-detail] retry failed:", second);
+      // JAGS Admin sees the real cause (production hides server error messages); everyone else gets the normal error page.
+      const session = await requireSession();
+      if (!isAdminStaff(session)) throw second;
+      return (
+        <div role="alert" data-itp-load-error className="mt-6 rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm text-ink">
+          <p className="font-medium">This ITP could not be loaded (admin detail):</p>
+          <p className="mt-1 break-words font-mono text-xs">{second instanceof Error ? second.message : String(second)}</p>
+        </div>
+      );
+    }
   }
 }
 
