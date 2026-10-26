@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useRef, useState } from "react";
 import { enqueueOutboxItem } from "@/lib/offline/db";
 import { notifyOutboxChanged } from "@/lib/offline/sync-client";
@@ -13,11 +14,13 @@ const initialState: AddMeasurementState = { error: null };
 
 export function AddMeasurementForm({ assignmentId }: { assignmentId: string }) {
   const [state, formAction, pending] = useActionState(addMeasurementAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [queued, setQueued] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Offline: keep the reading on this device and send it when the connection returns.
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    captureForm(e.currentTarget);
     setQueued(false);
     if (navigator.onLine) return;
     e.preventDefault();

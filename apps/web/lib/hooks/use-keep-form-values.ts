@@ -68,3 +68,70 @@ export function useKeepFormValues(state: unknown, formAction: (formData: FormDat
     startTransition(() => formAction(formData));
   };
 }
+
+/** Sets a field the way a person typing would, so controlled inputs pick the value up too. */
+function setFieldValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement, value: string) {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+  Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(el, value);
+  el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }));
+}
+
+function restoreForm(form: HTMLFormElement, snapshot: Array<[string, string]>) {
+  const byName = new Map<string, string[]>();
+  for (const [name, value] of snapshot) byName.set(name, [...(byName.get(name) ?? []), value]);
+  for (const el of Array.from(form.elements)) {
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) continue;
+    if (!el.name || !byName.has(el.name)) continue;
+    const values = byName.get(el.name) ?? [];
+    if (el instanceof HTMLInputElement) {
+      if (el.type === "file" || el.type === "hidden" || el.type === "submit" || el.type === "button") continue;
+      if (el.type === "checkbox" || el.type === "radio") {
+        const want = values.includes(el.value);
+        if (el.checked !== want) el.click();
+        continue;
+      }
+    }
+    if (el instanceof HTMLSelectElement && el.multiple) {
+      for (const o of Array.from(el.options)) o.selected = values.includes(o.value);
+      continue;
+    }
+    if (el.value !== values[0]) setFieldValue(el, values[0]);
+  }
+}
+
+/**
+ * For forms that must keep a native `action={formAction}` plus their own `onSubmit` (confirm dialogs, offline
+ * queues, file compression): React still resets the form after the action, so call the returned `capture(form)`
+ * at the top of `onSubmit`. If the action then fails, the typed values are put back; on success nothing is
+ * restored and the reset stands. Files and hidden fields are never touched.
+ */
+export function useRestoreOnError(state: unknown) {
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const snapshot = useRef<Array<[string, string]> | null>(null);
+
+  useEffect(() => {
+    const form = formRef.current;
+    const snap = snapshot.current;
+    if (!form || !snap) return;
+    snapshot.current = null;
+    if (actionSucceeded(state)) return;
+    // Wait a frame so React's own reset has run first.
+    requestAnimationFrame(() => {
+      restoreForm(form, snap);
+      const bad = form.querySelector<HTMLElement>('[aria-invalid="true"]');
+      if (bad) {
+        bad.focus({ preventScroll: true });
+        bad.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    });
+  }, [state]);
+
+  return function capture(form: HTMLFormElement) {
+    formRef.current = form;
+    const entries: Array<[string, string]> = [];
+    new FormData(form).forEach((value, key) => {
+      if (typeof value === "string") entries.push([key, value]);
+    });
+    snapshot.current = entries;
+  };
+}

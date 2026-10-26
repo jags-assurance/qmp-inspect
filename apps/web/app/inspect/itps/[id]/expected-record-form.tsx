@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -89,6 +90,7 @@ export function ExpectedRecordsSection({
 function RecordManageControls({ record }: { record: ActivityExpectedRecordRow }) {
   const [editing, setEditing] = useState(false);
   const [updateState, updateAction, updating] = useActionState(updateExpectedRecordAction, { error: null } as ExpectedRecordActionResult);
+  const captureForm = useRestoreOnError(updateState);
   const [deleteState, deleteAction, deleting] = useActionState(deleteExpectedRecordAction, { error: null } as ExpectedRecordActionResult);
   const { gateSubmit, dialog } = useConfirm();
   const submittedRef = useRef(false);
@@ -101,7 +103,10 @@ function RecordManageControls({ record }: { record: ActivityExpectedRecordRow })
 
   if (editing) {
     return (
-      <form action={updateAction} onSubmit={() => (submittedRef.current = true)} className="mt-1.5 flex flex-wrap items-center gap-1.5">
+      <form action={updateAction} onSubmit={(e) => {
+          captureForm(e.currentTarget);
+          submittedRef.current = true;
+        }} className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <input type="hidden" name="record_id" value={record.id} />
         <input
           name="record_type"

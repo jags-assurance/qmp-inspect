@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { addSignatureAction, type AddSignatureState } from "@/lib/standalone/actions";
 import { enqueueOutboxItem } from "@/lib/offline/db";
@@ -16,6 +17,7 @@ const initialState: AddSignatureState = { error: null };
 export function SignaturePad({ assignmentId }: { assignmentId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(addSignatureAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [signatureData, setSignatureData] = useState("");
   const [hasDrawn, setHasDrawn] = useState(false);
   const [queued, setQueued] = useState(false);
@@ -42,6 +44,7 @@ export function SignaturePad({ assignmentId }: { assignmentId: string }) {
 
   // Offline: keep the signature on this device and send it when the connection returns.
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    captureForm(e.currentTarget);
     setQueued(false);
     if (navigator.onLine) return;
     e.preventDefault();

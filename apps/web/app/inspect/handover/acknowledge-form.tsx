@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { useActionState, useRef, useState, type FormEvent } from "react";
 import { acknowledgeHandoverAction, type AcknowledgeHandoverState } from "@/lib/handover/actions";
@@ -37,6 +38,7 @@ export function AcknowledgeForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(acknowledgeHandoverAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [expanded, setExpanded] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [dialog, setDialog] = useState(false);
@@ -54,6 +56,7 @@ export function AcknowledgeForm({
   const signatureRequired = isAckSignatureRequired({ signatureEnabled, onBehalf });
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
+    captureForm(e.currentTarget);
     if (go.current) {
       go.current = false;
       return;

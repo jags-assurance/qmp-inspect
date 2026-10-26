@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useState } from "react";
 import { bulkAddItpItemsAction, type BulkAddItemsState } from "@/lib/itps/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -15,6 +16,7 @@ const initialState: BulkAddItemsState = { error: null };
 export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string; sectionId: string; isIssued: boolean }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(bulkAddItpItemsAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const { gateSubmit, dialog } = useConfirm();
   const [text, setText] = useState("");
 
@@ -45,7 +47,10 @@ export function BulkAddItemsForm({ itpId, sectionId, isIssued }: { itpId: string
   const done = state.added && state.error === null;
 
   return (
-    <form action={formAction} onSubmit={handleSubmit} className="space-y-2 border-t border-border bg-off-white px-4 py-4">
+    <form action={formAction} onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        handleSubmit(e);
+      }} className="space-y-2 border-t border-border bg-off-white px-4 py-4">
       <input type="hidden" name="itp_id" value={itpId} />
       <input type="hidden" name="section_id" value={sectionId} />
       {dialog}

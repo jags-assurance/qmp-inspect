@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState } from "react";
 import { issueClearanceAction, type IssueClearanceState } from "@/lib/standalone/actions";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ const initialState: IssueClearanceState = { error: null };
 export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: string; canClear: boolean }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(issueClearanceAction, initialState);
+  const captureForm = useRestoreOnError(state);
 
   const { gateSubmit, dialog } = useConfirm();
   const handleSubmit = gateSubmit({
@@ -24,7 +26,10 @@ export function IssueClearanceForm({ assignmentId, canClear }: { assignmentId: s
   });
 
   return (
-    <form action={formAction} onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+    <form action={formAction} onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        handleSubmit(e);
+      }} className="space-y-3 rounded-lg border border-border bg-surface p-4">
       {dialog}
       <input type="hidden" name="assignment_id" value={assignmentId} />
       <div>

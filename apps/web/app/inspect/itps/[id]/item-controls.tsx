@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { ActivityDetails } from "./activity-details";
 import { REGISTER_KINDS, REGISTER_KIND_LABEL } from "@/lib/itps/required-registers";
 import { useActionState, useEffect, useId, useRef, useState } from "react";
@@ -65,6 +66,7 @@ export function ItemControls({
   const formId = useId();
   const [isEditing, setIsEditing] = useState(false);
   const [state, formAction, pending] = useActionState(editItpItemAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [deleteState, deleteFormAction, deletePending] = useActionState(deleteItpItemAction, initialDeleteState);
   const { gateSubmit, dialog } = useConfirm();
   const hasSubmittedRef = useRef(false);
@@ -125,7 +127,10 @@ export function ItemControls({
     >
       {/* The ref is only written inside the submit handler, never read during render. */}
       {/* eslint-disable-next-line react-hooks/refs */}
-      <form id={formId} action={formAction} onSubmit={gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <form id={formId} action={formAction} onSubmit={(e) => {
+          captureForm(e.currentTarget);
+          gateSubmit(revisionOpts, "revision_reason", () => { hasSubmittedRef.current = true; })(e);
+        }} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <input type="hidden" name="itp_id" value={itpId} />
         <input type="hidden" name="item_id" value={itemId} />
         <input type="hidden" name="revision_reason" />

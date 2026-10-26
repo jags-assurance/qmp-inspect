@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useEffect, useRef, useState } from "react";
 import {
   editInspectionCommentAction,
@@ -112,6 +113,7 @@ function CommentForm({
   rows: number;
 }) {
   const [state, formAction, pending] = useActionState(postInspectionCommentAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [body, setBody] = useState("");
   const submitted = useRef(false);
   useEffect(() => {
@@ -122,7 +124,10 @@ function CommentForm({
     }
   }, [pending, state.error]);
   return (
-    <form action={formAction} onSubmit={() => (submitted.current = true)} className="mt-3 space-y-2">
+    <form action={formAction} onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        submitted.current = true;
+      }} className="mt-3 space-y-2">
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       {parentId && <input type="hidden" name="parent_id" value={parentId} />}
       <FormField label={label} error={state.error}>
