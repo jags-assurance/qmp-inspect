@@ -1,5 +1,9 @@
 import { ItpDetailView } from "./itp-detail-view";
 
+// The detail page runs many queries in several rounds (4-6 s to first byte on the dev site); give it room so a
+// slow round never ends in the generic error page.
+export const maxDuration = 300;
+
 export default async function ItpDetailPage({
   params,
   searchParams,
