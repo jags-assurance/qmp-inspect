@@ -145,7 +145,26 @@ const EVIDENCE_LABEL: Record<number, string> = {
   3: "Measurement record",
 };
 
-async function ItpDetailBody({ id, embedded = false, view = "list" }: { id: string; embedded?: boolean; view?: "list" | "matrix" }) {
+type ItpDetailBodyProps = { id: string; embedded?: boolean; view?: "list" | "matrix" };
+
+/**
+ * The detail loads in several rounds of queries and throws on any failed one, so a single transient database error
+ * (a timeout or dropped connection under load) used to end in the generic error page. Run it once more before giving
+ * up; Next's own control-flow errors (redirect, not-found) are passed straight through.
+ */
+async function ItpDetailBody(props: ItpDetailBodyProps) {
+  try {
+    return await ItpDetailBodyOnce(props);
+  } catch (error) {
+    const digest = (error as { digest?: unknown } | null)?.digest;
+    if (typeof digest === "string" && digest.startsWith("NEXT_")) throw error;
+    console.error("[itp-detail] first attempt failed, retrying once:", error);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return await ItpDetailBodyOnce(props);
+  }
+}
+
+async function ItpDetailBodyOnce({ id, embedded = false, view = "list" }: ItpDetailBodyProps) {
   const tl = await getTranslator();
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
