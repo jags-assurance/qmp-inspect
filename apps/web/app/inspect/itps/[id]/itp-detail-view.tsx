@@ -166,13 +166,25 @@ async function ItpDetailBody(props: ItpDetailBodyProps) {
       const digest2 = (second as { digest?: unknown } | null)?.digest;
       if (typeof digest2 === "string" && digest2.startsWith("NEXT_")) throw second;
       console.error("[itp-detail] retry failed:", second);
-      // JAGS Admin sees the real cause (production hides server error messages); everyone else gets the normal error page.
+      // Show what failed instead of the generic error page. Only the step and a coarse class are shown (never the raw
+      // database message), which is enough to tell a timeout from a permission or connection problem.
       const session = await requireSession();
-      if (!isAdminStaff(session)) throw second;
+      const msg = second instanceof Error ? second.message : String(second);
+      const step = /^Could not load ([^:]+):/.exec(msg)?.[1] ?? "this ITP";
+      const kind = /timeout|statement|canceling/i.test(msg)
+        ? "the database took too long to answer"
+        : /fetch failed|network|ECONN|socket|ETIMEDOUT/i.test(msg)
+          ? "the database connection dropped"
+          : /permission|row-level|denied|jwt/i.test(msg)
+            ? "access to part of the data was refused"
+            : "an unexpected error";
       return (
         <div role="alert" data-itp-load-error className="mt-6 rounded-lg border border-danger/40 bg-danger/5 p-4 text-sm text-ink">
-          <p className="font-medium">This ITP could not be loaded (admin detail):</p>
-          <p className="mt-1 break-words font-mono text-xs">{second instanceof Error ? second.message : String(second)}</p>
+          <p className="font-medium">This ITP could not be loaded.</p>
+          <p className="mt-1 text-muted">
+            While loading {step}, {kind}. Your data is safe. Reload the page to try again
+            {isAdminStaff(session) ? ` (admin detail: ${msg.slice(0, 300)})` : ""}.
+          </p>
         </div>
       );
     }
