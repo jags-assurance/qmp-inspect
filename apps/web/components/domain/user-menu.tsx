@@ -86,9 +86,8 @@ export function UserMenu({
           {initials}
           {termsPending && <span aria-label={tl("Terms of use to accept")} className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-surface bg-danger" />}
         </span>
-        <span className="hidden max-w-[12rem] text-start leading-tight xl:block">
+        <span className="hidden max-w-[9rem] text-start leading-tight xl:block">
           <span className="block truncate whitespace-nowrap text-sm font-medium text-ink" title={userName}>{userName}</span>
-          {userEmail && <span className="block truncate whitespace-nowrap text-xs text-muted" title={userEmail}>{userEmail}</span>}
           <span className="block truncate whitespace-nowrap text-xs text-muted" title={userRole}>{userRole}</span>
         </span>
         <span aria-hidden="true" className="hidden text-xs text-muted xl:inline">

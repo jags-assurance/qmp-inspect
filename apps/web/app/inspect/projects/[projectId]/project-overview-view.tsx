@@ -46,6 +46,7 @@ import { T } from "@/components/domain/t";
 import { getTranslator } from "@/lib/i18n/server";
 import { buttonVariants } from "@/components/ui/button";
 import { Disclosure } from "@/components/ui/disclosure";
+import { ProjectSectionTabs, ProjectSectionPanel } from "./project-section-tabs";
 
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
@@ -446,6 +447,22 @@ export async function ProjectOverviewView({
 
       {(await isAiEnabledForOrg(supabase, project.organization_id)) && <AskProjectPanel projectId={project.id} />}
 
+      <ProjectSectionTabs
+        tabs={[
+          { id: "parties", label: tl("Parties") },
+          ...(isAdminStaff(session)
+            ? [
+                { id: "rules", label: tl("Review & ITP rules") },
+                { id: "inspection", label: tl("Inspection settings") },
+                { id: "notice", label: tl("Notice periods") },
+                { id: "delete", label: tl("Delete project") },
+              ]
+            : canAddSelfManagedParty
+              ? [{ id: "inspection", label: tl("Inspection settings") }]
+              : []),
+        ]}
+      >
+      <ProjectSectionPanel id="parties">
       <div className="mt-6 rounded-lg border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -537,9 +554,9 @@ export async function ProjectOverviewView({
         {isAdminStaff(session) && <AddProjectPartyForm projectId={project.id} canGrantAccess />}
         {canAddSelfManagedParty && <AddSelfManagedPartyForm projectId={project.id} />}
       </div>
+      </ProjectSectionPanel>
 
-      {(isAdminStaff(session) || canAddSelfManagedParty) && (
-        <Disclosure variant="inline" summary={<><T>Project settings</T></>} className="mt-8 rounded-lg border border-border bg-surface px-5 py-3">
+      <ProjectSectionPanel id="rules">
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Checklist execution settings</T></h2>
@@ -586,6 +603,8 @@ export async function ProjectOverviewView({
         </div>
       )}
 
+      </ProjectSectionPanel>
+      <ProjectSectionPanel id="inspection">
       {(isAdminStaff(session) || canAddSelfManagedParty) && (
         <div className="mt-4">
           <LocationPresetsSettings
@@ -624,6 +643,8 @@ export async function ProjectOverviewView({
         </div>
       )}
 
+      </ProjectSectionPanel>
+      <ProjectSectionPanel id="notice">
       {isAdminStaff(session) && (
         <div className="mt-8 rounded-lg border border-border bg-surface p-5">
           <h2 className="font-medium text-ink"><T>Notice period overrides</T></h2>
@@ -641,9 +662,9 @@ export async function ProjectOverviewView({
           />
         </div>
       )}
-</Disclosure>
-      )}
 
+      </ProjectSectionPanel>
+      <ProjectSectionPanel id="delete">
       {isAdminStaff(session) && (
         <details className="group mt-6 border-t border-border pt-3">
           <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-burgundy [&::-webkit-details-marker]:hidden">
@@ -659,6 +680,8 @@ export async function ProjectOverviewView({
           />
         </details>
       )}
+      </ProjectSectionPanel>
+      </ProjectSectionTabs>
     </div>
     </OrgBrandScope>
   );

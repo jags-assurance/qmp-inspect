@@ -377,16 +377,13 @@ export async function searchExistingPeopleAction(query: string): Promise<Existin
   const session = await requireSession();
   if (!isAdminStaff(session) || !isServiceRoleConfigured()) return [];
   const q = String(query ?? "").trim().replace(/[%_\\,()*]/g, " ").trim().slice(0, 60);
-  if (q.length < 2) return [];
   const serviceClient = createSupabaseServiceRoleClient();
-  const { data } = await serviceClient
-    .from("users")
-    .select("full_name, email")
-    .eq("is_active", true)
-    .eq("is_jags_staff", false)
-    .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+  // An empty query lists people alphabetically, so the list is useful the moment the box is clicked.
+  let people = serviceClient.from("users").select("full_name, email").eq("is_active", true).eq("is_jags_staff", false);
+  if (q.length > 0) people = people.or(`full_name.ilike.%${q}%,email.ilike.%${q}%`);
+  const { data } = await people
     .order("full_name", { ascending: true })
-    .limit(8)
+    .limit(10)
     .returns<{ full_name: string | null; email: string | null }[]>();
   return (data ?? []).filter((u) => u.email).map((u) => ({ name: u.full_name?.trim() || u.email!, email: u.email! }));
 }

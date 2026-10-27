@@ -49,25 +49,32 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   if (!userId) return null;
   const user = { id: userId };
 
-  const [{ data: profile, error: profileError }, { data: grants, error: grantsError }] = await Promise.all([
-    supabase
-      .from("users")
-      .select("id, email, full_name, is_jags_staff, staff_role, is_active")
-      .eq("id", user.id)
-      .single<{
-        id: string;
-        email: string;
-        full_name: string;
-        is_jags_staff: boolean;
-        staff_role: StaffRole;
-        is_active: boolean | null;
-      }>(),
-    supabase
-      .from("access_grants")
-      .select("scope_type, organization_id, project_id, role")
-      .eq("user_id", user.id)
-      .returns<AccessGrant[]>(),
-  ]);
+  const loadAccount = () =>
+    Promise.all([
+      supabase
+        .from("users")
+        .select("id, email, full_name, is_jags_staff, staff_role, is_active")
+        .eq("id", user.id)
+        .single<{
+          id: string;
+          email: string;
+          full_name: string;
+          is_jags_staff: boolean;
+          staff_role: StaffRole;
+          is_active: boolean | null;
+        }>(),
+      supabase
+        .from("access_grants")
+        .select("scope_type, organization_id, project_id, role")
+        .eq("user_id", user.id)
+        .returns<AccessGrant[]>(),
+    ]);
+  let [{ data: profile, error: profileError }, { data: grants, error: grantsError }] = await loadAccount();
+  // One quick retry: a single slow or dropped read must not turn into "Something went wrong" on every page.
+  if ((profileError && profileError.code !== "PGRST116") || grantsError) {
+    await new Promise((r) => setTimeout(r, 400));
+    [{ data: profile, error: profileError }, { data: grants, error: grantsError }] = await loadAccount();
+  }
 
   // A failed read is not "signed out": returning null here sent valid users to
   // /login?error=session_ended whenever the database was slow (seen on dev under load), and an empty

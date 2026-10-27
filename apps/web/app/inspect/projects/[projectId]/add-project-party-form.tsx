@@ -7,6 +7,7 @@ import { provisionPartyLoginAction, searchExistingPeopleAction, type ExistingPer
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Tx } from "@/components/domain/tx";
+import { Typeahead } from "@/components/ui/typeahead";
 import { useTranslate } from "@/lib/i18n/locale-context";
 import { useAvailability } from "@/lib/hooks/use-availability";
 import { useKeepFormValues } from "@/lib/hooks/use-keep-form-values";
@@ -35,6 +36,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
   const [search, setSearch] = useState("");
   const [matches, setMatches] = useState<ExistingPersonMatch[]>([]);
   const [picked, setPicked] = useState(false);
+  const [reuseQuery, setReuseQuery] = useState("");
   const [grantNow, setGrantNow] = useState(false);
   const [grantResult, setGrantResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [, startTransition] = useTransition();
@@ -54,13 +56,13 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
   }, [projectId, state.partyId]);
 
   // Type-ahead over people who already have an account (Admin only; two characters minimum).
-  const searchActive = canGrantAccess && !picked && search.trim().length >= 2;
+  const searchActive = canGrantAccess && !picked;
   const visibleMatches = searchActive ? matches : [];
   useEffect(() => {
     if (!searchActive) return;
     const timer = setTimeout(() => {
       searchExistingPeopleAction(search).then(setMatches).catch(() => setMatches([]));
-    }, 250);
+    }, 150);
     return () => clearTimeout(timer);
   }, [search, searchActive]);
 
@@ -87,6 +89,7 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
     setContactName("");
     setContactEmail("");
     setSearch("");
+    setReuseQuery("");
     setPicked(false);
     setGrantNow(false);
   }, [state.partyId, grantNow, picked, contactEmail]);
@@ -97,31 +100,34 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {reusable.length > 0 && (
           <div className="sm:col-span-2">
-            <label htmlFor="reuse_party" className="block text-xs font-medium text-ink">
-              <Tx>Already used in this organisation? Reuse a party</Tx> <span className="font-normal text-muted"><Tx>(fills in the details below)</Tx></span>
-            </label>
-            <select
-              id="reuse_party"
-              value=""
-              onChange={(e) => {
-                const p = reusable[Number(e.target.value)];
+            <Typeahead
+              label={<Tx>Already used in this organisation? Search a party</Tx>}
+              hint={<Tx>(fills in the details below)</Tx>}
+              value={reuseQuery}
+              onChange={setReuseQuery}
+              placeholder={tl("Type a company name")}
+              emptyText={tl("No party with that name on this organisation's other projects.")}
+              options={reusable
+                .map((p, i) => ({ p, i }))
+                .filter(({ p }) => !reuseQuery.trim() || p.name.toLowerCase().includes(reuseQuery.trim().toLowerCase()))
+                .slice(0, 12)
+                .map(({ p, i }) => ({
+                  key: String(i),
+                  title: p.name,
+                  detail: `${PARTY_TYPE_OPTIONS.find((o) => o.value === p.partyType)?.label ?? p.partyType} · ${p.projectCount} ${p.projectCount === 1 ? "project" : "projects"}`,
+                }))}
+              onPick={(k) => {
+                const p = reusable[Number(k)];
                 if (!p) return;
                 setPartyType(p.partyType);
                 setPartyName(p.name);
                 setContactName(p.contactName ?? "");
                 setContactEmail(p.contactEmail ?? "");
+                setReuseQuery(p.name);
                 setPicked(false);
                 setGrantNow(false);
               }}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
-            >
-              <option value="">{tl("Choose a party from this organisation's other projects…")}</option>
-              {reusable.map((p, i) => (
-                <option key={`${p.partyType}-${p.name}`} value={i}>
-                  {`${p.name} - ${PARTY_TYPE_OPTIONS.find((o) => o.value === p.partyType)?.label ?? p.partyType} (${p.projectCount} ${p.projectCount === 1 ? "project" : "projects"})`}
-                </option>
-              ))}
-            </select>
+            />
           </div>
         )}
         <div>
@@ -154,46 +160,29 @@ export function AddProjectPartyForm({ projectId, canGrantAccess = false }: { pro
           </FormField>
         </div>
         {canGrantAccess && (
-          <div className="relative sm:col-span-2">
-            <label htmlFor="existing_person" className="block text-xs font-medium text-ink">
-              <Tx>Already on another project? Find the person</Tx> <span className="font-normal text-muted"><Tx>(optional: name or email)</Tx></span>
-            </label>
-            <input
-              id="existing_person"
-              type="search"
-              autoComplete="off"
+          <div className="sm:col-span-2">
+            <Typeahead
+              label={<Tx>Already on another project? Find the person</Tx>}
+              hint={<Tx>(optional: name or email)</Tx>}
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
+              onChange={(v) => {
+                setSearch(v);
                 setPicked(false);
               }}
               placeholder={tl("Start typing a name or email")}
-              className="mt-1 w-full rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
+              emptyText={tl("No one with an account matches. Add the contact below to create a login later.")}
+              options={visibleMatches.map((m) => ({ key: m.email, title: m.name, detail: m.email }))}
+              onPick={(email) => {
+                const m = visibleMatches.find((x) => x.email === email);
+                if (!m) return;
+                setContactName(m.name);
+                setContactEmail(m.email);
+                setSearch(`${m.name} (${m.email})`);
+                setPicked(true);
+                setGrantNow(true);
+                setMatches([]);
+              }}
             />
-            {visibleMatches.length > 0 && (
-              <ul role="listbox" className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-surface shadow-md">
-                {visibleMatches.map((m) => (
-                  <li key={m.email}>
-                    <button
-                      type="button"
-                      role="option"
-                      aria-selected="false"
-                      onClick={() => {
-                        setContactName(m.name);
-                        setContactEmail(m.email);
-                        setSearch(`${m.name} (${m.email})`);
-                        setPicked(true);
-                        setGrantNow(true);
-                        setMatches([]);
-                      }}
-                      className="block min-h-11 w-full px-3 py-1.5 text-left text-sm hover:bg-surface-subtle"
-                    >
-                      <span className="font-medium text-ink">{m.name}</span> <span className="text-muted">{m.email}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
         )}
         <div>
