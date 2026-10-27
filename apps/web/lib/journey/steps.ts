@@ -26,6 +26,8 @@ export type JourneyFacts = {
   projectCompleted: boolean;
   /** Sign-offs waiting for this person (or, for staff, for JAGS) right now. */
   pendingSignoffs: number;
+  /** Opens the first activity waiting for this person, when there is one. */
+  firstSignoffHref: string | null;
   /** ITPs still in draft. */
   itpDraft: number;
   /** ITPs approved by JAGS but not yet accepted by the client. */
@@ -289,7 +291,7 @@ const signoffStep = (title: string, help: string): Def => ({
   action: "Open my sign-offs",
   optional: false,
   needsProject: true,
-  href: () => "/inspect",
+  href: (f) => f.firstSignoffHref ?? "/inspect",
   done: (f) => f.itpApproved > 0 && f.pendingSignoffs === 0,
   note: (f) => (f.pendingSignoffs ? `${plural(f.pendingSignoffs, "point")} waiting for you` : f.itpApproved ? "Nothing waiting for you" : undefined),
 });

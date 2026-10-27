@@ -5,7 +5,7 @@ const empty: JourneyFacts = {
   organisationId: null, projectId: null, hasNumbering: false, teamCount: 0, projectCount: 0, partyCount: 0,
   vaultDocCount: 0, registerCount: 0, itpTotal: 0, itpApproved: 0, firstApprovedItpId: null, inspectionCount: 0,
   openNcrCount: 0, openPunchCount: 0, irnCount: 0, dataBookStatus: "none", handoverIssued: false,
-  handoverAcknowledged: false, projectCompleted: false, pendingSignoffs: 0, itpDraft: 0, itpAwaitingClient: 0,
+  handoverAcknowledged: false, projectCompleted: false, pendingSignoffs: 0, firstSignoffHref: null, itpDraft: 0, itpAwaitingClient: 0,
   inspectionsInProgress: 0, canCreateItp: false,
 };
 
@@ -39,5 +39,10 @@ describe("buildJourney", () => {
     const eng = buildJourney({ ...empty, projectCount: 1, itpApproved: 1, pendingSignoffs: 2 }, "engineer");
     expect(eng.find((s) => s.state === "next")?.key).toBe("signoff-mine");
     expect(journeyPhases(eng)[0]).toBe("Get started");
+  });
+
+  it("opens the waiting activity directly", () => {
+    const steps = buildJourney({ ...empty, projectCount: 1, itpApproved: 1, pendingSignoffs: 1, firstSignoffHref: "/inspect/itps/x?item=y" }, "contractor");
+    expect(steps.find((s) => s.key === "signoff-mine")?.href).toBe("/inspect/itps/x?item=y");
   });
 });

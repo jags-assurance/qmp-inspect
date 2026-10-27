@@ -102,7 +102,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     pid ? n(q("itps").eq("project_id", pid).eq("status", "draft")) : 0,
     pid ? n(q("itps").eq("project_id", pid).eq("status", "approved")) : 0,
     pid ? n(q("inspection_records").eq("project_id", pid).is("overall_result", null)) : 0,
-    role === "admin" ? 0 : loadNextSteps(supabase, { partyIds, staff: session.isJagsStaff, limit: 1 }).then((r) => r.total).catch(() => 0),
+    role === "admin" ? null : loadNextSteps(supabase, { partyIds, staff: session.isJagsStaff, limit: 1 }).catch(() => null),
   ]);
   const bookRows = books.data ?? [];
   const bookStatus: JourneyFacts["dataBookStatus"] = bookRows.some((b) => b.status === "issued")
@@ -156,7 +156,8 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     handoverIssued,
     handoverAcknowledged,
     projectCompleted: project?.status === "completed",
-    pendingSignoffs: pending,
+    pendingSignoffs: pending?.total ?? 0,
+    firstSignoffHref: pending?.items[0]?.href ?? null,
     itpDraft,
     itpAwaitingClient,
     inspectionsInProgress: inProgress,
