@@ -232,16 +232,16 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
 
       <form method="get" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
         {admin && (
-        <label className="text-sm">
+        <label className="w-full min-w-0 text-sm sm:w-auto">
           <span className="mb-1 block font-medium text-ink"><Tx>Organisation</Tx></span>
-          <select name="org" defaultValue={org?.id ?? ""} className="min-h-11 rounded-md border border-control-border bg-surface px-3 text-sm">
+          <select name="org" defaultValue={org?.id ?? ""} className="min-h-11 w-full max-w-full rounded-md border border-control-border bg-surface px-3 text-sm">
             {orgList.map((o) => (<option key={o.id} value={o.id}>{o.name}</option>))}
           </select>
         </label>
         )}
-        <label className="text-sm">
+        <label className="w-full min-w-0 text-sm sm:w-auto">
           <span className="mb-1 block font-medium text-ink"><Tx>Project</Tx></span>
-          <select name="project" defaultValue={pid ?? ""} className="min-h-11 rounded-md border border-control-border bg-surface px-3 text-sm">
+          <select name="project" defaultValue={pid ?? ""} className="min-h-11 w-full max-w-full rounded-md border border-control-border bg-surface px-3 text-sm">
             {projectList.length === 0 && <option value="">{tl("(none yet)")}</option>}
             {projectList.map((p) => (<option key={p.id} value={p.id}>{p.project_number} — {p.name}</option>))}
           </select>
