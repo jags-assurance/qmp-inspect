@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TERMINOLOGY_CACHE_TAG } from "./load";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
@@ -69,6 +70,7 @@ export async function saveTermAction(_prev: TermState, formData: FormData): Prom
   });
 
   // The labels show on every page (nav, dashboards, registers), so refresh the whole app tree.
+  revalidateTag(TERMINOLOGY_CACHE_TAG, { expire: 0 });
   revalidatePath("/inspect", "layout");
   return { error: null, success: forms ? "Saved." : "Reset to default." };
 }
