@@ -21,17 +21,22 @@ export interface ItpChecklistPreviewItem {
  * approval there is nothing to look at; this returns what each activity's checklist is built from,
  * and after approval the real checklist items. RLS-scoped through the caller's client.
  */
-export async function loadItpChecklistPreview(supabase: SupabaseClient, itpId: string): Promise<ItpChecklistPreviewItem[]> {
-  const { data: sections } = await supabase
+type PreviewSection = {
+  section_number: string | number;
+  itp_items: { id: string; item_number: string | number; activity: string; acceptance_criteria: string | null; evidence_type: number | null; sort_order: number }[] | null;
+};
+
+export async function loadItpChecklistPreview(
+  supabase: SupabaseClient,
+  itpId: string,
+  /** The caller already read the sections (same shape): skips the repeat query. */
+  knownSections?: PreviewSection[]
+): Promise<ItpChecklistPreviewItem[]> {
+  const sections: PreviewSection[] | null = knownSections ?? (await supabase
     .from("itp_sections")
     .select("section_number, itp_items(id, item_number, activity, acceptance_criteria, evidence_type, sort_order)")
     .eq("itp_id", itpId)
-    .returns<
-      {
-        section_number: string | number;
-        itp_items: { id: string; item_number: string | number; activity: string; acceptance_criteria: string | null; evidence_type: number | null; sort_order: number }[] | null;
-      }[]
-    >();
+    .returns<PreviewSection[]>()).data;
 
   const items = (sections ?? [])
     .slice()

@@ -333,6 +333,9 @@ async function ItpDetailBodyOnce({ id, embedded = false, view = "list" }: ItpDet
     { data: levelTypes },
     { data: aiDraftReview },
     { data: revisions },
+    executingPartyTypes,
+    reviewSteps,
+    canApproveItp,
   ] = await Promise.all([
       // getLatestItpPdf opens its own Supabase client and issues its own query — independent of
       // everything else below, so it runs concurrently instead of blocking the rest of the page
@@ -416,6 +419,15 @@ async function ItpDetailBodyOnce({ id, embedded = false, view = "list" }: ItpDet
         .eq("itp_id", itp.id)
         .order("revision", { ascending: false })
         .returns<(ItpRevisionRow & { users: { full_name: string } | null })[]>(),
+          // None of these need the activity ids, so they run in this first wave instead of waiting for the second.
+      getExecutingPartyTypes(supabase, itp.projects?.id ?? ""),
+      itp.status === "under_review" ? getItpReviewProgress(supabase, itp.id) : Promise.resolve([]),
+      // S2-11: plain JAGS staff may approve unless ITP_REQUIRE_APPROVE_PERMISSION=1 (then approve_itp is needed too).
+      session.isJagsStaff && !approvePermissionStrict()
+        ? Promise.resolve(true)
+        : isAdminStaff(session)
+          ? Promise.resolve(true)
+          : hasPermission(session.userId, "approve_itp", itp.projects?.id),
     ]);
 
   // R54-R56 expected records: fetched separately from the Promise.all above since it needs the
@@ -468,9 +480,6 @@ async function ItpDetailBodyOnce({ id, embedded = false, view = "list" }: ItpDet
     { data: expectedRecords },
     { data: measurements },
     { data: evidenceDocuments },
-    executingPartyTypes,
-    reviewSteps,
-    canApproveItp,
     checklistPreview,
   ] = await Promise.all([
     noItems
@@ -524,15 +533,8 @@ async function ItpDetailBodyOnce({ id, embedded = false, view = "list" }: ItpDet
           .in("itp_item_id", allItemIds)
           .order("created_at")
           .returns<EvidenceDocRow[]>(),
-    getExecutingPartyTypes(supabase, itp.projects?.id ?? ""),
-    itp.status === "under_review" ? getItpReviewProgress(supabase, itp.id) : Promise.resolve([]),
-    // S2-11: plain JAGS staff may approve unless ITP_REQUIRE_APPROVE_PERMISSION=1 (then approve_itp is needed too).
-    session.isJagsStaff && !approvePermissionStrict()
-      ? Promise.resolve(true)
-      : isAdminStaff(session)
-        ? Promise.resolve(true)
-        : hasPermission(session.userId, "approve_itp", itp.projects?.id),
-    loadItpChecklistPreview(supabase, itp.id),
+    // Reuses the sections already read above (saves a query and a round trip).
+    loadItpChecklistPreview(supabase, itp.id, sections ?? undefined),
   ]);
 
   // A failed read must not render as an empty H/W/R/S grid or sign-off state.
