@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
 import { buildJourney, journeyProgress, JOURNEY_PHASES, type JourneyFacts } from "@/lib/journey/steps";
+import { getTranslator } from "@/lib/i18n/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -28,6 +29,7 @@ async function n(q: CountResult): Promise<number> {
 }
 
 export default async function JourneyPage({ searchParams }: { searchParams: Promise<{ org?: string; project?: string }> }) {
+  const tl = await getTranslator();
   const session = await requireSession();
   if (!session.isJagsStaff) redirect("/inspect");
   const sp = await searchParams;
@@ -156,8 +158,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
         <label className="text-sm">
           <span className="mb-1 block font-medium text-ink"><Tx>Project</Tx></span>
           <select name="project" defaultValue={pid ?? ""} className="min-h-11 rounded-md border border-control-border bg-surface px-3 text-sm">
-            {projectList.length === 0 && {/* eslint-disable-next-line i18next/no-literal-string */}
-            <option value="">(none yet)</option>}
+            {projectList.length === 0 && <option value="">{tl("(none yet)")}</option>}
             {projectList.map((p) => (<option key={p.id} value={p.id}>{p.project_number} — {p.name}</option>))}
           </select>
         </label>
