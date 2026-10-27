@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useState } from "react";
 import { startInspectionAction, type StartInspectionState } from "@/lib/checklists/actions";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export function StartInspectionForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(startInspectionAction, initialState);
+  const captureForm = useRestoreOnError(state);
   // One location at a time: either a live GPS reading (latitude/longitude only) or one of this
   // project's own locations. Choosing one replaces the other — they are never combined.
   const [source, setSource] = useState<"none" | "gps" | "preset">("none");
@@ -119,7 +121,10 @@ export function StartInspectionForm({
   const geofence = source === "gps" ? evaluateGeofence(siteGeofence, parseCoordinates(value), accuracy) : null;
 
   return (
-    <form action={formAction} onSubmit={onSubmit} className="rounded-lg border border-border bg-surface p-6">
+    <form action={formAction} onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (onSubmit)(e);
+      }} className="rounded-lg border border-border bg-surface p-6">
       <input type="hidden" name="template_id" value={templateId} />
       <input type="hidden" name="itp_item_id" value={itpItemId} />
       <input type="hidden" name="project_id" value={projectId} />

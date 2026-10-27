@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { StickyActionBar } from "@/components/ui/sticky-action-bar";
 import { formatLocationForDisplay } from "@/lib/checklists/location";
 import { useActionState, useRef, useState, type FormEvent } from "react";
@@ -51,6 +52,7 @@ export function CompileDataBookForm({
 }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(compileDataBookAction, initialState);
+  const captureForm = useRestoreOnError(state);
   const [useOverride, setUseOverride] = useState(false);
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -77,7 +79,10 @@ export function CompileDataBookForm({
 
   return (
     <>
-    <form ref={formRef} action={formAction} onSubmit={onSubmit} className="flex flex-col gap-2">
+    <form ref={formRef} action={formAction} onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (onSubmit)(e);
+      }} className="flex flex-col gap-2">
       <input type="hidden" name="data_book_id" value={dataBookId} />
       <input type="hidden" name="project_id" value={projectId} />
       <input type="hidden" name="override" value={useOverride ? "true" : "false"} />

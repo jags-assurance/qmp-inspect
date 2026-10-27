@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState, useRef, useState, useTransition } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { linkInspectionEvidenceDocumentAction, type LinkInspectionEvidenceDocumentState } from "@/lib/checklists/actions";
@@ -174,6 +175,7 @@ function VaultLinkForm({
     if (!r.error) onDone();
     return r;
   }, initial);
+  const captureForm = useRestoreOnError(state);
   const [queuedCount, setQueuedCount] = useState(0);
   const [queueError, setQueueError] = useState<string | null>(null);
 
@@ -202,7 +204,10 @@ function VaultLinkForm({
     return <p className="text-sm text-muted"><Tx>No approved files in the Document Vault are available to link. Use &ldquo;Upload new&rdquo; instead.</Tx></p>;
   }
   return (
-    <form action={action} onSubmit={onSubmit} className="space-y-2">
+    <form action={action} onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return (onSubmit)(e);
+      }} className="space-y-2">
       <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
       <input type="hidden" name="checklist_item_id" value={checklistItemId} />
       <VaultFilePicker documents={available} projectId={projectId} folders={folders} allowUpload allowPendingUploads />

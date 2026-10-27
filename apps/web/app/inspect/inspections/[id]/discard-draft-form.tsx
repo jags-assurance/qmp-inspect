@@ -1,5 +1,6 @@
 "use client";
 
+import { useRestoreOnError } from "@/lib/hooks/use-keep-form-values";
 import { useActionState } from "react";
 import { discardInspectionDraftAction, type DiscardDraftState } from "@/lib/checklists/lifecycle-actions";
 import { Button } from "@/components/ui/button";
@@ -13,14 +14,18 @@ const initialState: DiscardDraftState = { error: null };
 export function DiscardDraftForm({ inspectionRecordId }: { inspectionRecordId: string }) {
   const tl = useTranslate();
   const [state, formAction, pending] = useActionState(discardInspectionDraftAction, initialState);
+  const captureForm = useRestoreOnError(state);
   return (
     <Disclosure variant="inline" summary={<><Tx>Discard this draft…</Tx></>} className="text-sm">
       <form
         action={formAction}
         className="mt-2 space-y-2"
         onSubmit={(e) => {
+        captureForm(e.currentTarget);
+        return ((e) => {
           if (!window.confirm(tl("Discard this draft inspection? Its answers and photos will be deleted. This cannot be undone."))) e.preventDefault();
-        }}
+        })(e);
+      }}
       >
         <input type="hidden" name="inspection_record_id" value={inspectionRecordId} />
         <p className="text-xs text-muted">
