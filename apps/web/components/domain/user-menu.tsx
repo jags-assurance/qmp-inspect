@@ -17,12 +17,15 @@ import { PopoverPanel } from "@/components/ui/popover-panel";
 export function UserMenu({
   userName,
   userRole,
+  userEmail,
   signOutAction,
   links = [],
   needsTerms = false,
 }: {
   userName: string;
   userRole: string;
+  /** Shown under the name so people with several accounts can see which one is signed in. */
+  userEmail?: string;
   signOutAction: () => Promise<void>;
   links?: { label: string; href: string }[];
   /** True until the signed-in user has accepted the current terms (dot on the avatar + accept entry). */
@@ -66,7 +69,7 @@ export function UserMenu({
       <button
         ref={buttonRef}
         type="button"
-        title={`${userName} (${userRole})`}
+        title={`${userName}${userEmail ? ` <${userEmail}>` : ""} (${userRole})`}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown" && !open) {
@@ -76,15 +79,16 @@ export function UserMenu({
         }}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${userName} (${userRole})`}
+        aria-label={`${userName}${userEmail ? `, ${userEmail}` : ""} (${userRole})`}
         className="flex h-11 items-center gap-2 rounded-full py-1 ps-1 pe-1 hover:bg-surface-subtle lg:pe-3"
       >
         <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-burgundy text-xs font-semibold text-white">
           {initials}
           {termsPending && <span aria-label={tl("Terms of use to accept")} className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-surface bg-danger" />}
         </span>
-        <span className="hidden max-w-[9rem] text-start leading-tight xl:block">
+        <span className="hidden max-w-[12rem] text-start leading-tight xl:block">
           <span className="block truncate whitespace-nowrap text-sm font-medium text-ink" title={userName}>{userName}</span>
+          {userEmail && <span className="block truncate whitespace-nowrap text-xs text-muted" title={userEmail}>{userEmail}</span>}
           <span className="block truncate whitespace-nowrap text-xs text-muted" title={userRole}>{userRole}</span>
         </span>
         <span aria-hidden="true" className="hidden text-xs text-muted xl:inline">
@@ -97,6 +101,7 @@ export function UserMenu({
         <div role="none">
           <div role="none" className="border-b border-border px-4 py-3">
             <p className="truncate text-sm font-medium text-ink" title={userName}>{userName}</p>
+            {userEmail && <p className="truncate text-xs text-muted" title={userEmail}>{userEmail}</p>}
             <p className="text-xs text-muted">{userRole}</p>
           </div>
           {termsPending && <TermsMenuSection onAccepted={() => setTermsPending(false)} />}

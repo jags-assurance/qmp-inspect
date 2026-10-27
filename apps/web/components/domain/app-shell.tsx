@@ -1,3 +1,4 @@
+import { JourneyReturnBar } from "@/components/domain/journey-return-bar";
 import { Suspense, type ReactNode } from "react";
 import { cookies } from "next/headers";
 import { signOutAction } from "@/lib/auth/actions";
@@ -74,6 +75,7 @@ export async function AppShell({
   userId,
   userName,
   userRole,
+  userEmail,
   breadcrumb,
   orgBranding = null,
   userMenuLinks = [],
@@ -86,6 +88,7 @@ export async function AppShell({
   userId: string;
   userName: string;
   userRole: string;
+  userEmail?: string;
   breadcrumb: string;
   orgBranding?: OrgBrandingInfo | null;
   /** Extra entries for the top-right account menu (Sign out is always last). */
@@ -139,11 +142,12 @@ export async function AppShell({
                 <Suspense fallback={<NotificationsBell userId={userId} initialNotifications={[]} />}>
                   <NotificationsBellLoader userId={userId} />
                 </Suspense>
-                <UserMenu userName={userName} userRole={userRole} signOutAction={signOutAction} links={userMenuLinks} needsTerms={showTermsBanner} />
+                <UserMenu userName={userName} userRole={userRole} userEmail={userEmail} signOutAction={signOutAction} links={userMenuLinks} needsTerms={showTermsBanner} />
               </div>
             </div>
           </header>
           <OfflineBanner />
+          <JourneyReturnBar />
           {/* Page container: padding steps 12 / 24 / 32 px by breakpoint; content never wider than --content-max (1440px). */}
           <main
             id="main-content"

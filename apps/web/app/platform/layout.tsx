@@ -13,6 +13,7 @@ export default async function PlatformLayout({ children }: { children: React.Rea
       navItems={NAV_ITEMS}
       userId={session.userId}
       userName={session.fullName}
+      userEmail={session.email}
       userRole="JAGS Admin"
       breadcrumb="JAGS Assurance"
     >
