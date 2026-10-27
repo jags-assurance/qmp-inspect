@@ -32,6 +32,17 @@ function applyTermsToNav(items: NavItem[], overrides: TermOverrides): NavItem[] 
   }));
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  client: "Client",
+  main_contractor: "Main contractor",
+  subcontractor: "Subcontractor",
+  tpi_lab: "TPI / lab",
+};
+function roleLabel(role: string | undefined): string {
+  if (!role) return "Member";
+  return ROLE_LABELS[role] ?? role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ");
+}
+
 export default async function InspectLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const supabase = await createSupabaseServerClient();
@@ -288,7 +299,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
     ? isAdminStaff(session)
       ? "JAGS Admin"
       : "JAGS Field Engineer"
-    : (grant?.role ?? "Member");
+    : roleLabel(grant?.role);
 
   const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);
   const orgNames = (await orgNamesPromise)?.data ?? [];

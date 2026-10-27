@@ -80,7 +80,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
 
   const [
     numbering, teams, parties, vault, calib, mat, weld, pers, itps, approved, inspections, ncrs, punch, irns, books,
-    itpDraft, itpAwaitingClient, inProgress, passed, checklists, noLogin, signoffAll, signoffOpen, pending,
+    itpDraft, itpAwaitingClient, inProgress, passed, checklists, noLogin, signoffAll, signoffOpen, activities, pending,
   ] = await Promise.all([
     admin && org ? n(untypedFrom(supabase, "numbering_configs").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
     admin && org ? n(untypedFrom(supabase, "teams").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
@@ -107,6 +107,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     pid ? n(q("project_parties").eq("project_id", pid).is("user_id", null)) : 0,
     pid ? n(untypedFrom(supabase, "activity_signoff_progress").select("id, itp_items!inner(itp_sections!inner(itps!inner(project_id)))", head).eq("itp_items.itp_sections.itps.project_id", pid)) : 0,
     pid ? n(untypedFrom(supabase, "activity_signoff_progress").select("id, itp_items!inner(itp_sections!inner(itps!inner(project_id)))", head).eq("itp_items.itp_sections.itps.project_id", pid).in("status", ["pending", "notified"])) : 0,
+    pid ? n(untypedFrom(supabase, "itp_items").select("id, itp_sections!inner(itps!inner(project_id))", head).eq("itp_sections.itps.project_id", pid)) : 0,
     role === "admin" ? null : loadNextSteps(supabase, { partyIds, staff: session.isJagsStaff, limit: 1 }).catch(() => null),
   ]);
   const bookRows = books.data ?? [];
@@ -151,6 +152,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     vaultDocCount: vault,
     registerCount: calib + mat + weld + pers,
     itpTotal: itps,
+    itpActivityCount: activities,
     itpApproved: approved,
     firstApprovedItpId,
     inspectionCount: inspections,

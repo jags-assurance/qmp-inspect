@@ -14,6 +14,8 @@ export type JourneyFacts = {
   vaultDocCount: number;
   registerCount: number;
   itpTotal: number;
+  /** Activities across the project's ITPs (an ITP with none is not a plan yet). */
+  itpActivityCount: number;
   itpApproved: number;
   firstApprovedItpId: string | null;
   inspectionCount: number;
@@ -196,8 +198,8 @@ const ADMIN_DEFS: Def[] = [
     optional: false,
     needsProject: true,
     href: () => "/inspect/itps/new",
-    done: (f) => f.itpTotal > 0,
-    note: (f) => (f.itpTotal ? plural(f.itpTotal, "ITP") : undefined),
+    done: (f) => f.itpTotal > 0 && f.itpActivityCount > 0,
+    note: (f) => (f.itpTotal ? `${plural(f.itpTotal, "ITP")}${f.itpActivityCount ? "" : ", no activities yet"}` : undefined),
   },
   {
     key: "approve",

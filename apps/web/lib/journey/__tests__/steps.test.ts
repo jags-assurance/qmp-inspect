@@ -3,7 +3,7 @@ import { buildJourney, journeyPhases, journeyProgress, type JourneyFacts } from 
 
 const empty: JourneyFacts = {
   organisationId: null, projectId: null, hasNumbering: false, teamCount: 0, projectCount: 0, partyCount: 0,
-  vaultDocCount: 0, registerCount: 0, itpTotal: 0, itpApproved: 0, firstApprovedItpId: null, inspectionCount: 0, inspectionsPassed: 0, checklistTotal: 0, partiesWithoutLogin: 0, signoffTotal: 0, signoffOutstanding: 0,
+  vaultDocCount: 0, registerCount: 0, itpTotal: 0, itpActivityCount: 0, itpApproved: 0, firstApprovedItpId: null, inspectionCount: 0, inspectionsPassed: 0, checklistTotal: 0, partiesWithoutLogin: 0, signoffTotal: 0, signoffOutstanding: 0,
   openNcrCount: 0, openPunchCount: 0, irnCount: 0, dataBookStatus: "none", handoverIssued: false,
   handoverAcknowledged: false, projectCompleted: false, pendingSignoffs: 0, firstSignoffHref: null, itpDraft: 0, itpAwaitingClient: 0,
   inspectionsInProgress: 0, canCreateItp: false,
@@ -57,5 +57,10 @@ describe("buildJourney", () => {
     expect(buildJourney({ ...empty, partyCount: 4, partiesWithoutLogin: 4 }).find((s) => s.key === "parties")?.state).not.toBe("done");
     expect(buildJourney({ ...empty, signoffTotal: 4, signoffOutstanding: 1 }).find((s) => s.key === "signoff")?.state).not.toBe("done");
     expect(buildJourney({ ...empty, signoffTotal: 4, signoffOutstanding: 0 }).find((s) => s.key === "signoff")?.state).toBe("done");
+  });
+
+  it("does not call an empty ITP a plan", () => {
+    expect(buildJourney({ ...empty, itpTotal: 1, itpActivityCount: 0 }).find((s) => s.key === "itp")?.state).not.toBe("done");
+    expect(buildJourney({ ...empty, itpTotal: 1, itpActivityCount: 3 }).find((s) => s.key === "itp")?.state).toBe("done");
   });
 });
