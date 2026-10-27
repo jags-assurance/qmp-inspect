@@ -80,12 +80,12 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
 
   const [
     numbering, teams, parties, vault, calib, mat, weld, pers, itps, approved, inspections, ncrs, punch, irns, books,
-    itpDraft, itpAwaitingClient, inProgress, pending,
+    itpDraft, itpAwaitingClient, inProgress, passed, checklists, noLogin, signoffAll, signoffOpen, pending,
   ] = await Promise.all([
     admin && org ? n(untypedFrom(supabase, "numbering_configs").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
     admin && org ? n(untypedFrom(supabase, "teams").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
     pid ? n(q("project_parties").eq("project_id", pid)) : 0,
-    pid ? n(q("vault_documents").eq("project_id", pid)) : 0,
+    pid ? n(untypedFrom(supabase, "vault_documents").select("id, vault_folders!inner(project_id)", head).eq("vault_folders.project_id", pid)) : 0,
     pid ? n(q("calibration_register").eq("project_id", pid)) : 0,
     pid ? n(q("material_register").eq("project_id", pid)) : 0,
     pid ? n(q("welder_qualification_register").eq("project_id", pid)) : 0,
@@ -102,6 +102,11 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     pid ? n(q("itps").eq("project_id", pid).eq("status", "draft")) : 0,
     pid ? n(q("itps").eq("project_id", pid).eq("status", "approved")) : 0,
     pid ? n(q("inspection_records").eq("project_id", pid).is("overall_result", null)) : 0,
+    pid ? n(q("inspection_records").eq("project_id", pid).eq("overall_result", "pass")) : 0,
+    pid ? n(untypedFrom(supabase, "checklist_templates").select("id, itp_items!inner(itp_sections!inner(itps!inner(project_id)))", head).eq("itp_items.itp_sections.itps.project_id", pid)) : 0,
+    pid ? n(q("project_parties").eq("project_id", pid).is("user_id", null)) : 0,
+    pid ? n(untypedFrom(supabase, "activity_signoff_progress").select("id, itp_items!inner(itp_sections!inner(itps!inner(project_id)))", head).eq("itp_items.itp_sections.itps.project_id", pid)) : 0,
+    pid ? n(untypedFrom(supabase, "activity_signoff_progress").select("id, itp_items!inner(itp_sections!inner(itps!inner(project_id)))", head).eq("itp_items.itp_sections.itps.project_id", pid).in("status", ["pending", "notified"])) : 0,
     role === "admin" ? null : loadNextSteps(supabase, { partyIds, staff: session.isJagsStaff, limit: 1 }).catch(() => null),
   ]);
   const bookRows = books.data ?? [];
@@ -156,6 +161,11 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     handoverIssued,
     handoverAcknowledged,
     projectCompleted: project?.status === "completed",
+    inspectionsPassed: passed,
+    checklistTotal: checklists,
+    partiesWithoutLogin: noLogin,
+    signoffTotal: signoffAll,
+    signoffOutstanding: signoffOpen,
     pendingSignoffs: pending?.total ?? 0,
     firstSignoffHref: pending?.items[0]?.href ?? null,
     itpDraft,

@@ -17,6 +17,15 @@ export type JourneyFacts = {
   itpApproved: number;
   firstApprovedItpId: string | null;
   inspectionCount: number;
+  /** Inspections that passed (each needs an IRN). */
+  inspectionsPassed: number;
+  /** Checklists generated from approved ITPs (one per activity that needs one). */
+  checklistTotal: number;
+  /** Companies added without a login yet. */
+  partiesWithoutLogin: number;
+  /** Sign-off cells in total, and how many are still waiting (pending or notified). */
+  signoffTotal: number;
+  signoffOutstanding: number;
   openNcrCount: number;
   openPunchCount: number;
   irnCount: number;
@@ -87,6 +96,12 @@ type Def = Omit<JourneyStep, "state" | "href" | "note" | "needsProject"> & {
   needsProject?: boolean;
 };
 
+const inspectionsDone = (f: JourneyFacts) => (f.checklistTotal > 0 ? f.inspectionCount >= f.checklistTotal : f.inspectionCount > 0);
+const inspectionNote = (f: JourneyFacts) =>
+  f.inspectionCount ? (f.checklistTotal ? `${f.inspectionCount} of ${plural(f.checklistTotal, "checklist")} inspected` : plural(f.inspectionCount, "inspection")) : undefined;
+const irnsDone = (f: JourneyFacts) => f.inspectionsPassed > 0 && f.irnCount >= f.inspectionsPassed;
+const irnNote = (f: JourneyFacts) => (f.inspectionsPassed ? `${f.irnCount} of ${plural(f.inspectionsPassed, "passed inspection")} released` : undefined);
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const proj = (f: JourneyFacts, path: string) => (f.projectId ? `/inspect/projects/${f.projectId}${path}` : "/inspect/projects");
 const withProject = (base: string, f: JourneyFacts) => (f.projectId ? `${base}?project=${f.projectId}` : base);
@@ -144,8 +159,9 @@ const ADMIN_DEFS: Def[] = [
     optional: false,
     needsProject: true,
     href: (f) => proj(f, ""),
-    done: (f) => f.partyCount > 0,
-    note: (f) => (f.partyCount ? plural(f.partyCount, "company", "companies") : undefined),
+    done: (f) => f.partyCount > 0 && f.partiesWithoutLogin === 0,
+    note: (f) =>
+      f.partyCount ? `${plural(f.partyCount, "company", "companies")}${f.partiesWithoutLogin ? `, ${f.partiesWithoutLogin} without a login yet` : ""}` : undefined,
   },
   {
     key: "vault",
@@ -204,7 +220,8 @@ const ADMIN_DEFS: Def[] = [
     optional: false,
     needsProject: true,
     href: (f) => (f.firstApprovedItpId ? `/inspect/itps/${f.firstApprovedItpId}` : "/inspect/itps"),
-    done: (f) => f.inspectionCount > 0,
+    done: (f) => f.signoffTotal > 0 && f.signoffOutstanding === 0,
+    note: (f) => (f.signoffTotal ? `${f.signoffTotal - f.signoffOutstanding} of ${plural(f.signoffTotal, "sign-off")} done` : undefined),
   },
   {
     key: "inspect",
@@ -215,8 +232,8 @@ const ADMIN_DEFS: Def[] = [
     optional: false,
     needsProject: true,
     href: () => "/inspect/start-work",
-    done: (f) => f.inspectionCount > 0,
-    note: (f) => (f.inspectionCount ? plural(f.inspectionCount, "inspection") : undefined),
+    done: inspectionsDone,
+    note: inspectionNote,
   },
   {
     key: "problems",
@@ -240,8 +257,8 @@ const ADMIN_DEFS: Def[] = [
     optional: false,
     needsProject: true,
     href: () => "/inspect/inspections",
-    done: (f) => f.irnCount > 0,
-    note: (f) => (f.irnCount ? plural(f.irnCount, "IRN") : undefined),
+    done: irnsDone,
+    note: irnNote,
   },
   {
     key: "databook",
@@ -355,8 +372,8 @@ const ROLE_DEFS: Record<Exclude<JourneyRole, "admin">, Def[]> = {
       action: "Start work",
       optional: false,
       href: () => "/inspect/start-work",
-      done: (f) => f.inspectionCount > 0,
-      note: (f) => (f.inspectionCount ? plural(f.inspectionCount, "inspection") : undefined),
+      done: inspectionsDone,
+      note: inspectionNote,
     },
     {
       key: "drafts",
@@ -366,7 +383,7 @@ const ROLE_DEFS: Record<Exclude<JourneyRole, "admin">, Def[]> = {
       action: "Open inspections",
       optional: false,
       href: () => "/inspect/inspections",
-      done: (f) => f.inspectionCount > 0 && f.inspectionsInProgress === 0,
+      done: (f) => inspectionsDone(f) && f.inspectionsInProgress === 0,
       note: (f) => (f.inspectionsInProgress ? `${plural(f.inspectionsInProgress, "inspection")} still open` : undefined),
     },
     {
@@ -388,8 +405,8 @@ const ROLE_DEFS: Record<Exclude<JourneyRole, "admin">, Def[]> = {
       action: "Open inspections",
       optional: true,
       href: () => "/inspect/inspections",
-      done: (f) => f.irnCount > 0,
-      note: (f) => (f.irnCount ? plural(f.irnCount, "IRN") : undefined),
+      done: irnsDone,
+      note: irnNote,
     },
   ],
   contractor: [
