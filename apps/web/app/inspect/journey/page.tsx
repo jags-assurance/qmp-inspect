@@ -19,11 +19,13 @@ export const maxDuration = 300;
 
 type CountResult = PromiseLike<{ count: number | null; error: unknown }>;
 /** A count that never breaks the page: a failed query reads as 0 and the step simply shows as not done. */
-async function n(q: CountResult): Promise<number> {
+async function nCount(q: CountResult, miss: { count: number }): Promise<number> {
   try {
     const r = await q;
+    if (r.error) miss.count++;
     return r.error ? 0 : (r.count ?? 0);
   } catch {
+    miss.count++;
     return 0;
   }
 }
@@ -84,6 +86,9 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
   const activeId = await getActiveProjectId();
   const project = projectList.find((p) => p.id === sp.project) ?? projectList.find((p) => p.id === activeId) ?? projectList[0] ?? null;
   const pid = project?.id ?? null;
+  // Reads that failed (a slow database) read as 0; count them so the page can say so instead of showing a step as not done.
+  const miss = { count: 0 };
+  const n = (q: CountResult) => nCount(q, miss);
   const none = Promise.resolve({ count: 0, error: null });
   const head = { count: "exact", head: true } as const;
   const q = (table: string) => untypedFrom(supabase, table).select("id", head);
@@ -91,7 +96,9 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
   // One database call for all the counts when the function exists (migration 20261214000100); otherwise the
   // separate count queries below do the same job.
   const rpcRes = org || pid ? await untypedRpc(supabase, "journey_facts", { p_org_id: org?.id ?? null, p_project_id: pid }) : null;
-  const jf = rpcRes && !rpcRes.error && rpcRes.data && typeof rpcRes.data === "object" ? (rpcRes.data as Record<string, number>) : null;
+  const jfRaw = rpcRes && !rpcRes.error && rpcRes.data && typeof rpcRes.data === "object" ? (rpcRes.data as Record<string, number>) : null;
+  // Only trust the function when it counts inspections per checklist (version 2); older copies over-count re-inspections.
+  const jf = jfRaw && jfRaw.v === 2 ? jfRaw : null;
   const booksQuery = pid
     ? supabase.from("data_books").select("id, status").eq("project_id", pid).returns<{ id: string; status: string }[]>()
     : Promise.resolve({ data: [] as { id: string; status: string }[] });
@@ -118,7 +125,15 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     pid ? n(q("personnel_certifications").eq("project_id", pid)) : 0,
     pid ? n(q("itps").eq("project_id", pid)) : 0,
     pid ? n(q("itps").eq("project_id", pid).in("status", ["approved", "client_accepted"])) : 0,
-    pid ? n(q("inspection_records").eq("project_id", pid).not("overall_result", "is", null)) : 0,
+    pid
+      ? Promise.resolve(untypedFrom(supabase, "inspection_records").select("itp_item_id").eq("project_id", pid).not("overall_result", "is", null).limit(5000)).then((r) => {
+          if (r.error) {
+            miss.count++;
+            return 0;
+          }
+          return new Set(((r.data ?? []) as { itp_item_id: string }[]).map((x) => x.itp_item_id)).size;
+        })
+      : 0,
     pid ? n(q("ncrs").eq("project_id", pid).neq("status", "closed")) : 0,
     pid ? n(q("punch_list_items").eq("project_id", pid).eq("status", "open")) : 0,
     pid ? n(untypedFrom(supabase, "irns").select("id, inspection_records!inner(project_id)", head).eq("inspection_records.project_id", pid)) : 0,
@@ -238,6 +253,12 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
       <div className="h-2 overflow-hidden rounded-full bg-surface-subtle" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done}>
         <div className="h-full bg-success" style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }} />
       </div>
+
+      {miss.count > 0 && (
+        <p role="alert" className="rounded-lg border border-warning/60 bg-warning/10 p-3 text-sm text-ink">
+          <Tx>Some progress numbers could not be loaded just now (the database was slow), so a step may look unfinished. Reload the page in a moment.</Tx>
+        </p>
+      )}
 
       {next && (
         <section aria-label="Do this next" className="rounded-lg border-2 border-success/60 bg-success/5 p-5">
