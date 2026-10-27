@@ -272,6 +272,7 @@ const ADMIN_DEFS: Def[] = [
     needsProject: true,
     href: (f) => proj(f, "/data-book"),
     done: (f) => f.dataBookStatus !== "none",
+    note: (f) => (f.dataBookStatus !== "none" ? "Data Book created" : undefined),
   },
   {
     key: "compile",
@@ -283,6 +284,7 @@ const ADMIN_DEFS: Def[] = [
     needsProject: true,
     href: (f) => proj(f, "/data-book"),
     done: (f) => f.dataBookStatus === "compiled" || f.dataBookStatus === "issued",
+    note: (f) => (f.dataBookStatus === "issued" ? "Data Book issued" : f.dataBookStatus === "compiled" ? "Data Book compiled" : f.dataBookStatus === "draft" ? "Data Book still a draft" : undefined),
   },
   {
     key: "handover",
