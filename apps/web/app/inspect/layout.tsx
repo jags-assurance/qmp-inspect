@@ -148,7 +148,7 @@ export default async function InspectLayout({ children }: { children: React.Reac
         { label: "Inspections list", href: "/inspect/inspections" },
       ],
     },
-    ...(session.isJagsStaff ? [{ label: "Workflow", href: "/inspect/journey", group: "Plan" }] : []),
+    { label: "Workflow", href: "/inspect/journey", group: "Plan" },
     { label: "Projects", href: "/inspect/projects", group: "Plan" },
     ...(isLicensed("itps") ? [{ label: "ITPs", href: "/inspect/itps", group: "Plan" }] : []),
     // Site work: for JAGS staff, Start work, Inspections and Standalone assignments are ONE sidebar entry

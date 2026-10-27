@@ -24,6 +24,26 @@ export type JourneyFacts = {
   handoverIssued: boolean;
   handoverAcknowledged: boolean;
   projectCompleted: boolean;
+  /** Sign-offs waiting for this person (or, for staff, for JAGS) right now. */
+  pendingSignoffs: number;
+  /** ITPs still in draft. */
+  itpDraft: number;
+  /** ITPs approved by JAGS but not yet accepted by the client. */
+  itpAwaitingClient: number;
+  /** Inspections started but not completed. */
+  inspectionsInProgress: number;
+  /** The project allows this person's company to write ITPs. */
+  canCreateItp: boolean;
+};
+
+export type JourneyRole = "admin" | "engineer" | "contractor" | "client" | "tpi";
+
+export const ROLE_TITLE: Record<JourneyRole, string> = {
+  admin: "JAGS Admin: from a new organisation to handover",
+  engineer: "Field Engineer: your steps on a project",
+  contractor: "Contractor: your steps on a project",
+  client: "Client: your steps on a project",
+  tpi: "TPI / lab: your steps on a project",
 };
 
 export type JourneyStepState = "done" | "next" | "todo";
@@ -45,6 +65,11 @@ export type JourneyStep = {
   needsProject?: boolean;
 };
 
+/** The phases in the order a role meets them (admin has all five; other roles meet fewer). */
+export function journeyPhases(steps: JourneyStep[]): string[] {
+  return [...new Set(steps.map((s) => s.phase))];
+}
+
 export const JOURNEY_PHASES = [
   "Set up the organisation",
   "Set up the project",
@@ -64,7 +89,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 const proj = (f: JourneyFacts, path: string) => (f.projectId ? `/inspect/projects/${f.projectId}${path}` : "/inspect/projects");
 const withProject = (base: string, f: JourneyFacts) => (f.projectId ? `${base}?project=${f.projectId}` : base);
 
-const DEFS: Def[] = [
+const ADMIN_DEFS: Def[] = [
   {
     key: "org",
     phase: JOURNEY_PHASES[0],
@@ -252,10 +277,209 @@ const DEFS: Def[] = [
   },
 ];
 
+
+const WORK = "Your work";
+const WRAP = "Wrap up";
+
+const signoffStep = (title: string, help: string): Def => ({
+  key: "signoff-mine",
+  phase: WORK,
+  title,
+  help,
+  action: "Open my sign-offs",
+  optional: false,
+  needsProject: true,
+  href: () => "/inspect",
+  done: (f) => f.itpApproved > 0 && f.pendingSignoffs === 0,
+  note: (f) => (f.pendingSignoffs ? `${plural(f.pendingSignoffs, "point")} waiting for you` : f.itpApproved ? "Nothing waiting for you" : undefined),
+});
+
+const projectStep: Def = {
+  key: "project-open",
+  phase: "Get started",
+  title: "Open your project",
+  help: "Choose the project at the top of the page. Everything you see belongs to it.",
+  action: "Open projects",
+  optional: false,
+  href: () => "/inspect/projects",
+  done: (f) => f.projectCount > 0,
+  note: (f) => (f.projectCount ? plural(f.projectCount, "project") : undefined),
+};
+
+const resultsStep: Def = {
+  key: "results",
+  phase: WORK,
+  title: "Check inspection results",
+  help: "See which inspections passed, which failed, and what was raised because of them.",
+  action: "Open inspections",
+  optional: true,
+  href: () => "/inspect/inspections",
+  done: (f) => f.inspectionCount > 0,
+  note: (f) => (f.inspectionCount ? plural(f.inspectionCount, "inspection") : undefined),
+};
+
+const handoverView = (title: string, help: string, action: string): Def => ({
+  key: "handover-view",
+  phase: WRAP,
+  title,
+  help,
+  action,
+  optional: false,
+  href: () => "/inspect/handover",
+  done: (f) => f.handoverAcknowledged,
+  note: (f) => (f.handoverAcknowledged ? "Acknowledged" : f.handoverIssued ? "Waiting for the client" : undefined),
+});
+
+const ROLE_DEFS: Record<Exclude<JourneyRole, "admin">, Def[]> = {
+  engineer: [
+    projectStep,
+    {
+      key: "itp-ready",
+      phase: "Get started",
+      title: "Check the plan is approved",
+      help: "You can only inspect against an approved ITP. If it is still draft or under review, ask the Admin.",
+      action: "Open ITPs",
+      optional: false,
+      href: () => "/inspect/itps",
+      done: (f) => f.itpApproved > 0,
+      note: (f) => (f.itpApproved ? `${plural(f.itpApproved, "ITP")} approved` : f.itpTotal ? `${plural(f.itpTotal, "ITP")}, none approved yet` : undefined),
+    },
+    signoffStep("Sign the JAGS points that are waiting", "Hold and Witness points given to JAGS show here. Open one and press Sign off."),
+    {
+      key: "inspect",
+      phase: WORK,
+      title: "Carry out the inspections",
+      help: "Open a checklist, choose the location, answer every item, attach photos, sign and complete.",
+      action: "Start work",
+      optional: false,
+      href: () => "/inspect/start-work",
+      done: (f) => f.inspectionCount > 0,
+      note: (f) => (f.inspectionCount ? plural(f.inspectionCount, "inspection") : undefined),
+    },
+    {
+      key: "drafts",
+      phase: WORK,
+      title: "Finish any inspection you started",
+      help: "A started inspection stays open until you complete and sign it.",
+      action: "Open inspections",
+      optional: false,
+      href: () => "/inspect/inspections",
+      done: (f) => f.inspectionCount > 0 && f.inspectionsInProgress === 0,
+      note: (f) => (f.inspectionsInProgress ? `${plural(f.inspectionsInProgress, "inspection")} still open` : undefined),
+    },
+    {
+      key: "problems",
+      phase: WORK,
+      title: "Follow up failures and NCRs",
+      help: "A failed inspection opens a punch item. Re-inspect once it is fixed; raise an NCR for anything serious.",
+      action: "Open NCRs",
+      optional: false,
+      href: () => "/inspect/ncrs",
+      done: (f) => f.inspectionCount > 0 && f.openNcrCount === 0 && f.openPunchCount === 0,
+      note: (f) => (f.openNcrCount || f.openPunchCount ? `${plural(f.openNcrCount, "open NCR")}, ${plural(f.openPunchCount, "open punch item")}` : undefined),
+    },
+    {
+      key: "irn",
+      phase: WRAP,
+      title: "Release passed inspections (IRN)",
+      help: "Issue a release note for each inspection that passed, if your role allows it.",
+      action: "Open inspections",
+      optional: true,
+      href: () => "/inspect/inspections",
+      done: (f) => f.irnCount > 0,
+      note: (f) => (f.irnCount ? plural(f.irnCount, "IRN") : undefined),
+    },
+  ],
+  contractor: [
+    projectStep,
+    {
+      key: "vault",
+      phase: "Get started",
+      title: "Upload your documents",
+      help: "Method statements, certificates and drawings go in the Document Vault so the plan can refer to them.",
+      action: "Open Document Vault",
+      optional: true,
+      href: (f) => withProject("/inspect/vault", f),
+      done: (f) => f.vaultDocCount > 0,
+      note: (f) => (f.vaultDocCount ? plural(f.vaultDocCount, "document") : undefined),
+    },
+    {
+      key: "itp",
+      phase: "Plan the work",
+      title: "Write the inspection plan (ITP) and send it for review",
+      help: "If the project lets your company write ITPs: list the activities and who signs each, then Submit for review. Otherwise JAGS writes it.",
+      action: "Open ITPs",
+      optional: true,
+      href: (f) => (f.canCreateItp ? "/inspect/itps/new" : "/inspect/itps"),
+      done: (f) => f.itpTotal > 0 && f.itpDraft === 0,
+      note: (f) => (f.itpDraft ? `${plural(f.itpDraft, "ITP")} still draft` : f.itpTotal ? plural(f.itpTotal, "ITP") : undefined),
+    },
+    signoffStep("Sign the points that are waiting for you", "Open the ITP, check the work, and press Sign off. A Hold must be signed before work goes on."),
+    resultsStep,
+    {
+      key: "ncr",
+      phase: WORK,
+      title: "Respond to NCRs and punch items",
+      help: "Fix what was raised, add evidence, and ask for it to be closed.",
+      action: "Open NCRs",
+      optional: false,
+      href: () => "/inspect/ncrs",
+      done: (f) => f.inspectionCount > 0 && f.openNcrCount === 0 && f.openPunchCount === 0,
+      note: (f) => (f.openNcrCount || f.openPunchCount ? `${plural(f.openNcrCount, "open NCR")}, ${plural(f.openPunchCount, "open punch item")}` : undefined),
+    },
+    handoverView("See the handover package", "When JAGS issues the Data Book you can read it here. The client acknowledges it.", "Open Handover"),
+  ],
+  tpi: [
+    projectStep,
+    {
+      key: "certs",
+      phase: "Get started",
+      title: "Attach your certificates and reports",
+      help: "Test reports and certificates go in the Document Vault, then on the activity they belong to.",
+      action: "Open Document Vault",
+      optional: true,
+      href: (f) => withProject("/inspect/vault", f),
+      done: (f) => f.vaultDocCount > 0,
+      note: (f) => (f.vaultDocCount ? plural(f.vaultDocCount, "document") : undefined),
+    },
+    signoffStep("Sign the points that are waiting for you", "A Hold stops work until you sign, so do those first. Open the ITP and press Sign off."),
+    resultsStep,
+  ],
+  client: [
+    projectStep,
+    {
+      key: "accept",
+      phase: "Plan the work",
+      title: "Accept the approved plan (ITP)",
+      help: "After JAGS approves an ITP, read the checklist that goes with it, tick the box and press Accept ITP.",
+      action: "Open ITPs",
+      optional: false,
+      href: () => "/inspect/itps",
+      done: (f) => f.itpApproved > 0 && f.itpAwaitingClient === 0,
+      note: (f) => (f.itpAwaitingClient ? `${plural(f.itpAwaitingClient, "ITP")} waiting for your acceptance` : undefined),
+    },
+    signoffStep("Sign the points that are waiting for you", "You may be asked to witness a test or approve a Hold. Open the ITP and press Sign off."),
+    resultsStep,
+    {
+      key: "ncr",
+      phase: WORK,
+      title: "Follow open NCRs",
+      help: "See what was raised and whether it has been closed. Some need your acceptance.",
+      action: "Open NCRs",
+      optional: true,
+      href: () => "/inspect/ncrs",
+      done: (f) => f.inspectionCount > 0 && f.openNcrCount === 0,
+      note: (f) => (f.openNcrCount ? plural(f.openNcrCount, "open NCR") : undefined),
+    },
+    handoverView("Receive the handover", "When the Data Book is issued, open the certificate and Acknowledge receipt, or Reject with a reason.", "Open Handover"),
+  ],
+};
+
 /** Marks each step done / next / todo. The first required step that is not done is "next". */
-export function buildJourney(f: JourneyFacts): JourneyStep[] {
+export function buildJourney(f: JourneyFacts, role: JourneyRole = "admin"): JourneyStep[] {
   let nextTaken = false;
-  return DEFS.map((d) => {
+  const defs = role === "admin" ? ADMIN_DEFS : ROLE_DEFS[role];
+  return defs.map((d) => {
     const done = d.done(f);
     let state: JourneyStepState = "todo";
     if (done) state = "done";

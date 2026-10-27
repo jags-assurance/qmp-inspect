@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth/session";
+import { requireSession, isAdminStaff } from "@/lib/auth/session";
+import { loadNextSteps } from "@/lib/dashboard/next-steps";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { untypedFrom } from "@/lib/supabase/untyped";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
-import { buildJourney, journeyProgress, JOURNEY_PHASES, type JourneyFacts } from "@/lib/journey/steps";
+import { buildJourney, journeyProgress, journeyPhases, ROLE_TITLE, type JourneyFacts, type JourneyRole } from "@/lib/journey/steps";
 import { getTranslator } from "@/lib/i18n/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -31,30 +31,46 @@ async function n(q: CountResult): Promise<number> {
 export default async function JourneyPage({ searchParams }: { searchParams: Promise<{ org?: string; project?: string }> }) {
   const tl = await getTranslator();
   const session = await requireSession();
-  if (!session.isJagsStaff) redirect("/inspect");
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
 
-  const { data: orgs } = await supabase
-    .from("organizations")
-    .select("id, name")
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(200)
-    .returns<{ id: string; name: string }[]>();
+  const admin = isAdminStaff(session);
+  const { data: orgs } = admin
+    ? await supabase
+        .from("organizations")
+        .select("id, name")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(200)
+        .returns<{ id: string; name: string }[]>()
+    : { data: [] as { id: string; name: string }[] };
   const orgList = orgs ?? [];
   const org = orgList.find((o) => o.id === sp.org) ?? orgList[0] ?? null;
 
-  const { data: projs } = org
-    ? await supabase
-        .from("projects")
-        .select("id, project_number, name, status")
-        .eq("organization_id", org.id)
-        .order("created_at", { ascending: false })
-        .limit(200)
-        .returns<{ id: string; project_number: string; name: string; status: string }[]>()
-    : { data: [] as { id: string; project_number: string; name: string; status: string }[] };
+  type ProjRow = { id: string; project_number: string; name: string; status: string; allow_contractor_itp_creation: boolean; allow_client_itp_creation: boolean };
+  let projQuery = supabase
+    .from("projects")
+    .select("id, project_number, name, status, allow_contractor_itp_creation, allow_client_itp_creation")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (admin && org) projQuery = projQuery.eq("organization_id", org.id);
+  const { data: projs } = admin && !org ? { data: [] as ProjRow[] } : await projQuery.returns<ProjRow[]>();
   const projectList = projs ?? [];
+
+  // Which journey this login follows.
+  const { data: ownParties } = admin
+    ? { data: [] as { id: string; party_type: string }[] }
+    : await supabase.from("project_parties").select("id, party_type").eq("user_id", session.userId).returns<{ id: string; party_type: string }[]>();
+  const partyIds = (ownParties ?? []).map((p) => p.id);
+  const role: JourneyRole = admin
+    ? "admin"
+    : session.isJagsStaff
+      ? "engineer"
+      : session.grants.some((g) => g.role === "client")
+        ? "client"
+        : ownParties?.[0]?.party_type === "tpi_lab"
+          ? "tpi"
+          : "contractor";
   const activeId = await getActiveProjectId();
   const project = projectList.find((p) => p.id === sp.project) ?? projectList.find((p) => p.id === activeId) ?? projectList[0] ?? null;
   const pid = project?.id ?? null;
@@ -64,9 +80,10 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
 
   const [
     numbering, teams, parties, vault, calib, mat, weld, pers, itps, approved, inspections, ncrs, punch, irns, books,
+    itpDraft, itpAwaitingClient, inProgress, pending,
   ] = await Promise.all([
-    org ? n(untypedFrom(supabase, "numbering_configs").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
-    org ? n(untypedFrom(supabase, "teams").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
+    admin && org ? n(untypedFrom(supabase, "numbering_configs").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
+    admin && org ? n(untypedFrom(supabase, "teams").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
     pid ? n(q("project_parties").eq("project_id", pid)) : 0,
     pid ? n(q("vault_documents").eq("project_id", pid)) : 0,
     pid ? n(q("calibration_register").eq("project_id", pid)) : 0,
@@ -82,6 +99,10 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     pid
       ? supabase.from("data_books").select("id, status").eq("project_id", pid).returns<{ id: string; status: string }[]>()
       : Promise.resolve({ data: [] as { id: string; status: string }[] }),
+    pid ? n(q("itps").eq("project_id", pid).eq("status", "draft")) : 0,
+    pid ? n(q("itps").eq("project_id", pid).eq("status", "approved")) : 0,
+    pid ? n(q("inspection_records").eq("project_id", pid).is("overall_result", null)) : 0,
+    role === "admin" ? 0 : loadNextSteps(supabase, { partyIds, staff: session.isJagsStaff, limit: 1 }).then((r) => r.total).catch(() => 0),
   ]);
   const bookRows = books.data ?? [];
   const bookStatus: JourneyFacts["dataBookStatus"] = bookRows.some((b) => b.status === "issued")
@@ -135,8 +156,14 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     handoverIssued,
     handoverAcknowledged,
     projectCompleted: project?.status === "completed",
+    pendingSignoffs: pending,
+    itpDraft,
+    itpAwaitingClient,
+    inspectionsInProgress: inProgress,
+    canCreateItp: role === "client" ? !!project?.allow_client_itp_creation : !!project?.allow_contractor_itp_creation,
   };
-  const steps = buildJourney(facts);
+  const steps = buildJourney(facts, role);
+  const phases = journeyPhases(steps);
   const progress = journeyProgress(steps);
   const next = steps.find((s) => s.state === "next") ?? null;
   const ctx = JSON.stringify({ org: org?.id ?? null, project: pid });
@@ -145,16 +172,18 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     <div className="space-y-6">
       <PageHeader
         title={<Tx>Workflow</Tx>}
-        subtitle={<Tx>Every step from a new organisation to handover, in order. Open a step, finish it, and come back here.</Tx>}
+        subtitle={<Tx>{`${ROLE_TITLE[role]}. Open a step, finish it, and come back here.`}</Tx>}
       />
 
       <form method="get" className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-surface p-4">
+        {admin && (
         <label className="text-sm">
           <span className="mb-1 block font-medium text-ink"><Tx>Organisation</Tx></span>
           <select name="org" defaultValue={org?.id ?? ""} className="min-h-11 rounded-md border border-control-border bg-surface px-3 text-sm">
             {orgList.map((o) => (<option key={o.id} value={o.id}>{o.name}</option>))}
           </select>
         </label>
+        )}
         <label className="text-sm">
           <span className="mb-1 block font-medium text-ink"><Tx>Project</Tx></span>
           <select name="project" defaultValue={pid ?? ""} className="min-h-11 rounded-md border border-control-border bg-surface px-3 text-sm">
@@ -187,7 +216,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
         <p className="rounded-lg border border-success/60 bg-success/5 p-4 text-sm text-ink"><Tx>All required steps are done. The project is handed over.</Tx></p>
       )}
 
-      {JOURNEY_PHASES.map((phase, i) => {
+      {phases.map((phase, i) => {
         const items = steps.filter((s) => s.phase === phase);
         return (
           <section key={phase} className="space-y-2">
