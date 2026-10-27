@@ -24,6 +24,10 @@ export async function createTeamAction(_prev: TeamActionState, formData: FormDat
   if (!name) return { error: "A team name is required.", fieldErrors: { name: "Enter a team name." } };
 
   const supabase = await createSupabaseServerClient();
+  const { data: existing } = await supabase.from("teams").select("id").ilike("name", name.replace(/[%_]/g, (c) => `\\${c}`)).limit(1);
+  if (existing && existing.length > 0) {
+    return { error: "A team with that name already exists.", fieldErrors: { name: "A team with that name already exists." } };
+  }
   const { data: team, error } = await supabase.from("teams").insert({ name }).select("id").single<{ id: string }>();
   if (error || !team) return { error: "Could not create the team. Check you have permission and try again." };
 

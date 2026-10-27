@@ -46,6 +46,13 @@ export async function createCustomRoleAction(_prev: RbacActionState, formData: F
   }
 
   const supabase = await createSupabaseServerClient();
+  const escaped = name.replace(/[%_]/g, (c) => `\\${c}`);
+  const sameName = supabase.from(CUSTOM_ROLES_TABLE).select("id").ilike("name", escaped).limit(1);
+  const { data: existingRole } = await (organizationId ? sameName.eq("organization_id", organizationId) : sameName.is("organization_id", null));
+  if (existingRole && existingRole.length > 0) {
+    const msg = "A role with that name already exists in this scope.";
+    return { error: msg, fieldErrors: { name: msg } };
+  }
   const { data: role, error } = await supabase
     .from(CUSTOM_ROLES_TABLE)
     .insert({

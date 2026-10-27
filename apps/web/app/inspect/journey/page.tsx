@@ -35,7 +35,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
   const supabase = await createSupabaseServerClient();
 
   const admin = isAdminStaff(session);
-  const { data: orgs } = admin
+  const { data: orgs, error: orgsError } = admin
     ? await supabase
         .from("organizations")
         .select("id, name")
@@ -45,6 +45,16 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
         .returns<{ id: string; name: string }[]>()
     : { data: [] as { id: string; name: string }[] };
   const orgList = orgs ?? [];
+  if (admin && orgsError) {
+    return (
+      <div className="space-y-3" role="alert">
+        <PageHeader title={<Tx>Workflow</Tx>} />
+        <p className="rounded-lg border border-warning/60 bg-warning/10 p-4 text-sm text-ink">
+          <Tx>The workflow could not be loaded just now (the database was slow). Reload the page in a moment.</Tx>
+        </p>
+      </div>
+    );
+  }
   const org = orgList.find((o) => o.id === sp.org) ?? orgList[0] ?? null;
 
   type ProjRow = { id: string; project_number: string; name: string; status: string; allow_contractor_itp_creation: boolean; allow_client_itp_creation: boolean };
@@ -83,7 +93,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     itpDraft, itpAwaitingClient, inProgress, passed, checklists, noLogin, signoffAll, signoffOpen, activities, pending,
   ] = await Promise.all([
     admin && org ? n(untypedFrom(supabase, "numbering_configs").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
-    admin && org ? n(untypedFrom(supabase, "teams").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
+    admin ? n(untypedFrom(supabase, "teams").select("id", head)) : 0,
     pid ? n(q("project_parties").eq("project_id", pid)) : 0,
     pid ? n(untypedFrom(supabase, "vault_documents").select("id, vault_folders!inner(project_id)", head).eq("vault_folders.project_id", pid)) : 0,
     pid ? n(q("calibration_register").eq("project_id", pid)) : 0,
