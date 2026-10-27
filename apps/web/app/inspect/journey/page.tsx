@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireSession, isAdminStaff } from "@/lib/auth/session";
 import { loadNextSteps } from "@/lib/dashboard/next-steps";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { untypedFrom } from "@/lib/supabase/untyped";
+import { untypedFrom, untypedRpc } from "@/lib/supabase/untyped";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
 import { buildJourney, journeyProgress, journeyPhases, ROLE_TITLE, type JourneyFacts, type JourneyRole } from "@/lib/journey/steps";
 import { getTranslator } from "@/lib/i18n/server";
@@ -88,10 +88,26 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
   const head = { count: "exact", head: true } as const;
   const q = (table: string) => untypedFrom(supabase, table).select("id", head);
 
+  // One database call for all the counts when the function exists (migration 20261214000100); otherwise the
+  // separate count queries below do the same job.
+  const rpcRes = org || pid ? await untypedRpc(supabase, "journey_facts", { p_org_id: org?.id ?? null, p_project_id: pid }) : null;
+  const jf = rpcRes && !rpcRes.error && rpcRes.data && typeof rpcRes.data === "object" ? (rpcRes.data as Record<string, number>) : null;
+  const booksQuery = pid
+    ? supabase.from("data_books").select("id, status").eq("project_id", pid).returns<{ id: string; status: string }[]>()
+    : Promise.resolve({ data: [] as { id: string; status: string }[] });
+  const pendingQuery = role === "admin" ? null : loadNextSteps(supabase, { partyIds, staff: session.isJagsStaff, limit: 1 }).catch(() => null);
+
   const [
     numbering, teams, parties, vault, calib, mat, weld, pers, itps, approved, inspections, ncrs, punch, irns, books,
     itpDraft, itpAwaitingClient, inProgress, passed, checklists, noLogin, signoffAll, signoffOpen, activities, pending,
-  ] = await Promise.all([
+  ] = jf
+    ? await Promise.all([
+        jf.numbering ?? 0, jf.teams ?? 0, jf.parties ?? 0, jf.vault ?? 0, jf.calibration ?? 0, jf.material ?? 0, jf.welder ?? 0, jf.personnel ?? 0,
+        jf.itps ?? 0, jf.itps_approved ?? 0, jf.inspections_done ?? 0, jf.ncrs_open ?? 0, jf.punch_open ?? 0, jf.irns ?? 0, booksQuery,
+        jf.itps_draft ?? 0, jf.itps_awaiting_client ?? 0, jf.inspections_open ?? 0, jf.inspections_pass ?? 0, jf.checklists ?? 0,
+        jf.parties_no_login ?? 0, jf.signoff_total ?? 0, jf.signoff_open ?? 0, jf.activities ?? 0, pendingQuery,
+      ])
+    : await Promise.all([
     admin && org ? n(untypedFrom(supabase, "numbering_configs").select("id", head).eq("organization_id", org.id)) : none.then((r) => r.count),
     admin ? n(untypedFrom(supabase, "teams").select("id", head)) : 0,
     pid ? n(q("project_parties").eq("project_id", pid)) : 0,

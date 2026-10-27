@@ -158,9 +158,12 @@ async function ItpDetailBody(props: ItpDetailBodyProps) {
   } catch (error) {
     const digest = (error as { digest?: unknown } | null)?.digest;
     if (typeof digest === "string" && digest.startsWith("NEXT_")) throw error;
-    console.error("[itp-detail] first attempt failed, retrying once:", error);
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    console.error("[itp-detail] first attempt failed:", error);
+    // A timeout means the database is already struggling; running all the reads again would only add to it.
+    const timedOut = /timeout|statement|canceling/i.test(error instanceof Error ? error.message : String(error));
+    if (!timedOut) await new Promise((resolve) => setTimeout(resolve, 400));
     try {
+      if (timedOut) throw error;
       return await ItpDetailBodyOnce(props);
     } catch (second) {
       const digest2 = (second as { digest?: unknown } | null)?.digest;
@@ -418,6 +421,8 @@ async function ItpDetailBodyOnce({ id, embedded = false, view = "list" }: ItpDet
         .select("id, itp_id, revision, title, scope, applicable_standard, sections_snapshot, reason, created_by, created_at, users(full_name)")
         .eq("itp_id", itp.id)
         .order("revision", { ascending: false })
+        // Each row carries a full snapshot, so cap the history; the page stays the same size as revisions pile up.
+        .limit(10)
         .returns<(ItpRevisionRow & { users: { full_name: string } | null })[]>(),
           // None of these need the activity ids, so they run in this first wave instead of waiting for the second.
       getExecutingPartyTypes(supabase, itp.projects?.id ?? ""),
