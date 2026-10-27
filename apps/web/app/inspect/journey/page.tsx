@@ -212,7 +212,8 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     pendingSignoffs: pending?.total ?? 0,
     firstSignoffHref: pending?.items[0]?.href ?? null,
     itpDraft,
-    itpAwaitingClient,
+    // A completed project is closed to changes, so nothing is waiting for acceptance any more.
+    itpAwaitingClient: project?.status === "completed" ? 0 : itpAwaitingClient,
     inspectionsInProgress: inProgress,
     canCreateItp: role === "client" ? !!project?.allow_client_itp_creation : !!project?.allow_contractor_itp_creation,
   };
