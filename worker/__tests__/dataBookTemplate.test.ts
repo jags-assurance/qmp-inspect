@@ -77,7 +77,8 @@ describe("buildDataBookPdfHtml", () => {
   it("builds a draft revision book including the issue manifest", () => {
     const html = buildDataBookPdfHtml(sample());
     expect(html).toContain("Issue manifest and transmittal");
-    expect(html).toContain("Revision");
+    expect(html).toContain("Rev 0 of this book");
+    expect(html).not.toContain("Revision Rev");
   });
   it("builds with no records and no earlier attempts", () => {
     const html = buildDataBookPdfHtml(sample({ itps: [], earlierAttempts: [] }));

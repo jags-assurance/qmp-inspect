@@ -965,7 +965,7 @@ export function buildDataBookPdfHtml(data: DataBookPdfData, pageMap: Record<stri
         ["Issue date", issueDate],
         ["Recipients", data.parties.map((p) => `${escapeHtml(p.name)} (${escapeHtml(p.partyType.replace(/_/g, " "))})`).join("; ") || "&mdash;"],
         ["Volume and pages", "Volume 1 of 1"],
-        ["Superseded issue", data.bookRevision && data.bookRevision > 0 ? `Revision ${formatBookRevision(data.bookRevision - 1)} of this book` : "None"],
+        ["Superseded issue", data.bookRevision && data.bookRevision > 0 ? `${formatBookRevision(data.bookRevision - 1)} of this book` : "None"],
         ["Access and retention", "Project distribution; retained under the agreed project retention policy"],
       ],
       ["30%", "70%"]
