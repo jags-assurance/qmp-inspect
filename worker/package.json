@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && puppeteer browsers install chrome",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "node ../apps/web/node_modules/vitest/vitest.mjs run --root . --config vitest.config.mjs"
