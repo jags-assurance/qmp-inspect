@@ -21,6 +21,7 @@ import { BackNavigation } from "./back-navigation";
 import { SiteLinks } from "./site-links";
 import { NoticeStack } from "./notice-stack";
 import { SavedToast } from "./saved-toast";
+import { SpellcheckDefaults } from "./spellcheck-defaults";
 import { AccessDeniedNotice } from "./access-denied-notice";
 import { RelatedPages } from "./related-pages";
 import { HeaderContext, HeaderContextSkeleton } from "./header-context";
@@ -164,6 +165,7 @@ export async function AppShell({
           </main>
           <NoticeStack />
           <SavedToast />
+          <SpellcheckDefaults />
           <footer className="no-print border-t border-border bg-surface px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 lg:px-8">
             <SiteLinks signedIn />
           </footer>
