@@ -22,6 +22,9 @@ describe("spellAttrsFor", () => {
   it("underlines names but never auto-rewrites them", () => {
     expect(spellAttrsFor(el("INPUT", { type: "text", name: "party_name" }))).toEqual({ spellcheck: "true", autocorrect: "off", autocapitalize: "words" });
   });
+  it("underlines but never rewrites a list of zone names", () => {
+    expect(spellAttrsFor(el("TEXTAREA", { name: "locations" }))).toEqual({ spellcheck: "true", autocorrect: "off", autocapitalize: "words" });
+  });
   it("respects an explicit opt-out", () => {
     expect(spellAttrsFor(el("TEXTAREA", { dataset: { noSpell: "" } }))).toBeNull();
   });
