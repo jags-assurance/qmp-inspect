@@ -62,6 +62,16 @@ export async function createOrganizationAction(
   }
 
   const supabase = await createSupabaseServerClient();
+  // Two organisations with the same display name look identical in every picker, so refuse it (case-insensitive).
+  const { data: sameName } = await supabase
+    .from("organizations")
+    .select("id")
+    .ilike("name", name.replace(/[\\%_]/g, "\\$&"))
+    .limit(1);
+  if (sameName && sameName.length > 0) {
+    const msg = `An organisation named "${name}" already exists — use a different name (for example add the city or division).`;
+    return { error: msg, fieldErrors: { name: msg } };
+  }
   const { data: organization, error } = await supabase
     .from("organizations")
     .insert({

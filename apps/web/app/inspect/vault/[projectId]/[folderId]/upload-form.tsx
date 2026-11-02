@@ -385,7 +385,7 @@ export function VaultUploadForm({
         );
         const notesField = (
           <div>
-            <FormField label={<>{prefill ? "Change note (what changed in this revision)" : "Notes"}</>}>
+            <FormField required={!!prefill} label={<>{prefill ? "Change note (what changed in this revision)" : "Notes"}</>}>
               <textarea name="notes" rows={2} required={!!prefill} className={fieldCls} />
             </FormField>
           </div>
