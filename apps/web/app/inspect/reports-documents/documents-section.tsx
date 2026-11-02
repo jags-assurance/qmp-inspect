@@ -221,10 +221,10 @@ export function DocumentsSection({
               </select>
             </FilterField>
             <FilterField label={<T>From date</T>}>
-              <input type="date" name="from" defaultValue={sp.from ?? ""} className={FILTER_CONTROL_CLASS} />
+              <input type="date" max="9999-12-31" name="from" defaultValue={sp.from ?? ""} className={FILTER_CONTROL_CLASS} />
             </FilterField>
             <FilterField label={<T>To date</T>}>
-              <input type="date" name="to" defaultValue={sp.to ?? ""} className={FILTER_CONTROL_CLASS} />
+              <input type="date" max="9999-12-31" name="to" defaultValue={sp.to ?? ""} className={FILTER_CONTROL_CLASS} />
             </FilterField>
             <Button type="submit" variant="outline">
               <T>Apply filters</T>

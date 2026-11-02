@@ -83,7 +83,7 @@ export function AddWelderQualificationForm({ projectId }: { projectId: string })
 
       <div className="w-36">
         <FormField label="Expiry date">
-          <input name="expiry_date" type="date" required className={inputClass} />
+          <input name="expiry_date" type="date" max="9999-12-31" required className={inputClass} />
         </FormField>
       </div>
 

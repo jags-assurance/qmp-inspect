@@ -152,13 +152,13 @@ export function NewProjectForm({
         </div>
         <div>
           <FormField label="Start date (optional)">
-            <input name="start_date" type="date" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
+            <input name="start_date" type="date" max="9999-12-31" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
           <TodayButton name="start_date" />
         </div>
         <div>
           <FormField label="End date (optional)" error={state.fieldErrors?.end_date}>
-            <input name="end_date" type="date" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
+            <input name="end_date" type="date" max="9999-12-31" className="mt-1 w-full min-h-11 rounded-md border border-control-border bg-surface px-3 py-2 text-base outline-none focus:border-burgundy focus:ring-2 focus:ring-burgundy/30 sm:text-sm" />
           </FormField>
         </div>
         <div>

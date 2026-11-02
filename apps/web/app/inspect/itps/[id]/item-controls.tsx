@@ -183,7 +183,7 @@ export function ItemControls({
         </label>
         <label className="block text-sm font-medium text-ink">
           <Tx>Planned date</Tx>
-          <input name="planned_date" type="date" defaultValue={plannedDate ?? ""} className={fld + " mt-1 font-normal"} />
+          <input name="planned_date" type="date" max="9999-12-31" defaultValue={plannedDate ?? ""} className={fld + " mt-1 font-normal"} />
         </label>
         <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:col-span-2">
           <legend className="mb-1 text-sm text-muted"><Tx>Registers this activity needs (leave all unticked to let the system infer it)</Tx></legend>

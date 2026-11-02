@@ -77,12 +77,12 @@ export function EditProjectDetailsForm({ project }: { project: EditableProject }
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm text-ink">
               <Tx>Start date</Tx>
-              <input type="date" name="start_date" defaultValue={project.start_date ?? ""} className={inputClass} />
+              <input type="date" max="9999-12-31" name="start_date" defaultValue={project.start_date ?? ""} className={inputClass} />
               <TodayButton name="start_date" />
             </label>
             <label className="text-sm text-ink">
               <Tx>End date</Tx>
-              <input type="date" name="end_date" defaultValue={project.end_date ?? ""} aria-invalid={state.fieldErrors?.end_date ? true : undefined} className={inputClass} />
+              <input type="date" max="9999-12-31" name="end_date" defaultValue={project.end_date ?? ""} aria-invalid={state.fieldErrors?.end_date ? true : undefined} className={inputClass} />
               <FieldError message={state.fieldErrors?.end_date} />
             </label>
           </div>

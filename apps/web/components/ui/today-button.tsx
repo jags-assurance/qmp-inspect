@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Tx } from "@/components/domain/tx";
 
-/** Local calendar date as yyyy-mm-dd (what <input type="date"> expects), not the UTC date. */
+/** Local calendar date as yyyy-mm-dd (what <input type="date" max="9999-12-31"> expects), not the UTC date. */
 function localToday(): string {
   const d = new Date();
   const m = String(d.getMonth() + 1).padStart(2, "0");

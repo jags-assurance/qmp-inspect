@@ -49,7 +49,7 @@ export function EditPunchItemForm({
       </label>
       <label className="text-xs font-medium text-ink">
         <Tx>Due date</Tx>
-        <input name="due_date" type="date" defaultValue={current.due_date ?? ""} className={field} />
+        <input name="due_date" type="date" max="9999-12-31" defaultValue={current.due_date ?? ""} className={field} />
       </label>
       <label className="text-xs font-medium text-ink">
         <Tx>Priority</Tx>

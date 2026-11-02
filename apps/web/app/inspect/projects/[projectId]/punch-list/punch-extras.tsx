@@ -78,7 +78,7 @@ export function BulkPunchBar({
       </label>
       <label>
         <Tx>Due date</Tx>
-        <input name="due_date" type="date" className={`mt-1 block ${input}`} />
+        <input name="due_date" type="date" max="9999-12-31" className={`mt-1 block ${input}`} />
       </label>
       <label>
         <Tx>Priority</Tx>

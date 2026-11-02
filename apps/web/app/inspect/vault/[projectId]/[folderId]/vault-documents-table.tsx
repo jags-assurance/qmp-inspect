@@ -324,11 +324,11 @@ export function VaultDocumentsTable({
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted">
           <label className="inline-flex items-center gap-1">
             <Tx>From</Tx>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={fieldCls} />
+            <input type="date" max="9999-12-31" value={from} onChange={(e) => setFrom(e.target.value)} className={fieldCls} />
           </label>
           <label className="inline-flex items-center gap-1">
             <Tx>To</Tx>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={fieldCls} />
+            <input type="date" max="9999-12-31" value={to} onChange={(e) => setTo(e.target.value)} className={fieldCls} />
           </label>
           <label className="inline-flex min-h-11 items-center gap-1.5 sm:min-h-0">
             <input type="checkbox" checked={showSuperseded} onChange={(e) => setShowSuperseded(e.target.checked)} />

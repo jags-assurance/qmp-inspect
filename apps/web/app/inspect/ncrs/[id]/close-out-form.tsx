@@ -145,7 +145,7 @@ export function CloseOutForm({
           <FormField label="Due date">
             <input
             name="due_date"
-            type="date"
+            type="date" max="9999-12-31"
             required
             defaultValue={dueDate ?? ""}
             disabled={isClosed || !canAssign}

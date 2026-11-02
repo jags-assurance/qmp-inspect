@@ -111,7 +111,7 @@ export function AddPersonnelCertificationForm({
         <FormField label="Issued date">
           <input
           name="issued_date"
-          type="date"
+          type="date" max="9999-12-31"
           value={issuedDate}
           onChange={(e) => setIssuedDate(e.target.value)}
           className={inputClass}
@@ -121,7 +121,7 @@ export function AddPersonnelCertificationForm({
 
       <div className="w-36">
         <FormField label="Expiry date">
-          <input name="expiry_date" type="date" required min={issuedDate || undefined} className={inputClass} />
+          <input name="expiry_date" type="date" max="9999-12-31" required min={issuedDate || undefined} className={inputClass} />
         </FormField>
       </div>
 
