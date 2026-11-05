@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Renders the printable HTML for a FAT / Standalone Assignment Report (R14) — the client
 // deliverable for a Factory Acceptance Test, witness inspection, specific test or pre-shipment
 // check run without a full ITP. Puppeteer renders this to portrait A4 PDF in
@@ -81,8 +82,8 @@ const ASSIGNMENT_TYPE_LABEL: Record<string, string> = {
   pre_shipment: "Pre-Shipment Inspection",
 };
 
-const FAT_JAGS_BRAND_BLOCK = `<div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>`;
+const FAT_JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}
+      <div class="wordmark"><small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>`;
 
 function renderFatBrandBlock(data: FatReportData): string {
   const mode = data.branding?.engagementMode ?? "jags_led";

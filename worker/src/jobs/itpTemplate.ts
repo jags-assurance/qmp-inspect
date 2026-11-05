@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Renders the printable HTML for an ITP (Inspection & Test Plan) — the controlled document JAGS
 // issues to a project, prepared/reviewed/approved by JAGS staff then accepted by the client
 // (Reqs R66-R81). Puppeteer renders this to landscape A4 PDF in renderItpPdf.ts; this module only
@@ -352,7 +353,7 @@ function renderIdentityLine(data: ItpTemplateData): string {
 }
 
 const JAGS_BRAND_BLOCK =
-  '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE&nbsp;&nbsp;/&nbsp;&nbsp;QMP INSPECT</div>';
+  `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 /**
  * The letterhead's brand mark, driven by engagement_mode (Reqs R113-R118 — same semantic split as

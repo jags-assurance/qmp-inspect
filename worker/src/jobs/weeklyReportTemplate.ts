@@ -8,6 +8,7 @@ import { brandColorStyle } from "./orgBranding";
 // that's the part that was genuinely generic over any date range.
 
 import type { MonthlyReportProjectRow } from "./monthlyReportTemplate";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 
 export interface WeeklyReportTemplateData {
   /** Organisation brand colours (co-branded / white-label only) — see orgBranding.ts. */
@@ -295,8 +296,8 @@ export function buildWeeklyReportHtml(data: WeeklyReportTemplateData): string {
 ${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
-      <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
+      ${JAGS_LOGO_IMG}
+      <div class="wordmark"><small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>

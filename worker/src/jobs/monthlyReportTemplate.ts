@@ -1,4 +1,5 @@
 import { brandColorStyle } from "./orgBranding";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Renders the printable HTML for the monthly client report pack (R109) — one organisation, one
 // calendar month, aggregated across ALL of that organisation's projects: first-time pass rate,
 // inspections completed, NCR summary, and ITP completion %. Mirrors itpTemplate.ts's structure and
@@ -304,8 +305,8 @@ export function buildMonthlyReportHtml(data: MonthlyReportTemplateData): string 
 ${brandColorStyle(data.branding)}
   <div class="letterhead">
     <div class="brand">
-      <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
+      ${JAGS_LOGO_IMG}
+      <div class="wordmark"><small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>

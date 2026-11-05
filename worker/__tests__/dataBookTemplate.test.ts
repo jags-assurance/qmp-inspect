@@ -80,6 +80,12 @@ describe("buildDataBookPdfHtml", () => {
     expect(html).toContain("Rev 0 of this book");
     expect(html).not.toContain("Revision Rev");
   });
+  it("shows the JAGS logo in the letterhead, not the old JA badge", () => {
+    const html = buildDataBookPdfHtml(sample());
+    expect(html).toContain("data:image/png;base64,");
+    expect(html).toContain('alt="JAGS Assurance"');
+    expect(html).not.toContain('class="brand-mark">JA<');
+  });
   it("builds with no records and no earlier attempts", () => {
     const html = buildDataBookPdfHtml(sample({ itps: [], earlierAttempts: [] }));
     expect(html).toContain("No records on this project.");

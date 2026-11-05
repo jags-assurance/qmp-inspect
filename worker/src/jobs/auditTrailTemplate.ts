@@ -4,6 +4,7 @@
 // block (an export is a record of the trail, not a controlled, revisioned document).
 
 import { brandColorStyle } from "./orgBranding";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 
 export interface AuditTrailPdfRow {
   createdAt: string;
@@ -58,7 +59,7 @@ export function renderAuditRowHtml(r: AuditTrailPdfRow): string {
   return `<tr><td class="nowrap">${escapeHtml(formatUtc(r.createdAt))}</td><td>${actor}</td><td>${escapeHtml(humanize(r.entityType))}</td><td>${escapeHtml(humanize(r.action))}</td><td>${escapeHtml(r.summary)}</td></tr>`;
 }
 
-const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+const JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 function renderBrandBlock(data: AuditTrailPdfData): string {
   const mode = data.branding?.engagementMode ?? "jags_led";

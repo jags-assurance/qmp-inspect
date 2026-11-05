@@ -1,4 +1,5 @@
 // Renders the printable HTML for the one-click "Export portfolio summary (PDF)" report — a single
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // JAGS-internal document covering EVERY project across EVERY organisation (unlike
 // monthlyReportTemplate.ts, which is scoped to one organisation and one calendar month). Mirrors
 // that file's structure and burgundy/gold branding so the two documents read as one family of
@@ -277,8 +278,8 @@ export function buildPortfolioSummaryHtml(data: PortfolioSummaryTemplateData): s
 <body>
   <div class="letterhead">
     <div class="brand">
-      <div class="brand-mark">JA</div>
-      <div class="wordmark">JAGS Assurance<small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
+      ${JAGS_LOGO_IMG}
+      <div class="wordmark"><small>QUALITY MANAGEMENT &amp; INSPECTION</small></div>
     </div>
     <div class="doc-control">
       <div class="doc-control-title">DOCUMENT CONTROL</div>

@@ -1,5 +1,6 @@
 import { brandColorStyle } from "./orgBranding";
 import { verifyBlockHtml } from "./verification";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Printable HTML for the Handover Certificate — the one-page A4 record that a Data Book was issued
 // for handover, who issued it, the SHA-256 of the certified package, whether it was a conditional
 // handover, and (when it exists) the client's formal acknowledgement. Rendered to PDF by
@@ -40,7 +41,7 @@ function esc(value: string): string {
 }
 const cell = (v: string | null | undefined): string => (v ? esc(v) : "&mdash;");
 
-const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+const JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 function brandBlock(d: HandoverCertificatePdfData): string {
   const mode = d.branding?.engagementMode ?? "jags_led";

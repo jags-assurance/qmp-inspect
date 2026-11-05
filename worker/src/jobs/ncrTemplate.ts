@@ -1,5 +1,6 @@
 import { brandColorStyle } from "./orgBranding";
 import { NCR_APPROVALS_CSS, renderNcrApprovalsHtml, type NcrApprovalBox } from "./ncrApprovals";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Renders the printable HTML for a single NCR (Non-Conformance Report) — the branded A4 dossier
 // page a client receives for one finding and its human close-out, matching the client's sample
 // dossier format ("4 / NCR and human close-out"). Puppeteer renders this to portrait A4 PDF in
@@ -101,7 +102,7 @@ function buildInitialHoldState(status: NcrPdfStatus): string {
   return status === "open" ? "NOT_RELEASED" : status.toUpperCase();
 }
 
-const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+const JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 /** See itpTemplate.ts's renderBrandBlock — identical semantics, duplicated rather than shared since
  *  the two templates don't share a lib (same convention as elsewhere in this file). */

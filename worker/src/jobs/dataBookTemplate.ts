@@ -282,6 +282,7 @@ function cell(value: string | number | null | undefined): string {
 }
 
 import { fmtDmy } from "./registerStatus";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 
 function fmtDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -345,7 +346,7 @@ function distinct(values: Array<string | null | undefined>): string | null {
   return v.length ? v.join(", ") : null;
 }
 
-const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+const JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 /** See ncrTemplate.ts's renderBrandBlock — identical semantics. */
 function renderBrandBlock(data: DataBookPdfData): string {

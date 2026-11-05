@@ -4,6 +4,7 @@
 // renderInspectionReportPdf.ts; this module only builds the markup.
 
 import type { InspectionReportLinkedDocument } from "./linkedDocuments";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 
 export interface InspectionReportResult {
   itemNumber: string;
@@ -352,7 +353,7 @@ function renderPhotos(photos: InspectionReportPhoto[], skipped: string[] = []): 
 }
 
 const JAGS_BRAND_BLOCK =
-  '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE&nbsp;&nbsp;/&nbsp;&nbsp;QMP INSPECT</div>';
+  `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 /** See itpTemplate.ts's renderBrandBlock — identical semantics, duplicated rather than shared since
  *  the two templates don't share a lib (same convention as PARTY_TYPE_LABEL there). */

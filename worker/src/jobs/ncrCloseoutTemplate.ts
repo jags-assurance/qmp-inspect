@@ -1,5 +1,6 @@
 import { brandColorStyle } from "./orgBranding";
 import { NCR_APPROVALS_CSS, renderNcrApprovalsHtml, type NcrApprovalBox } from "./ncrApprovals";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Renders the printable HTML for a single NCR close-out CERTIFICATE (R83) — the branded A4 document
 // that attests an NCR has actually been closed: root cause, corrective action, responsible party
 // (when set) and who closed it, when. Puppeteer renders this to portrait A4 PDF in
@@ -84,7 +85,7 @@ function renderFieldValueTable(title: string, rows: [string, string | null][]): 
     </div>`;
 }
 
-const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+const JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 /** See ncrTemplate.ts's renderBrandBlock — identical semantics, duplicated rather than shared since
  *  the templates don't share a lib (same convention as elsewhere in this file). */

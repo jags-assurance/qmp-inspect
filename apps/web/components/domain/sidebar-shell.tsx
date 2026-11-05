@@ -196,18 +196,21 @@ export function SidebarShell({
             />
           ) : (
             <>
+              {/* The JAGS logo sits on a white chip so its burgundy shield stays visible on the burgundy sidebar. A
+                  brand-colour ring (Organisation -> Branding) is drawn around the chip when the organisation set one. */}
               <div
-                className={
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold" +
-                  (brandCombo ? " p-[3px]" : " border-2 border-gold")
-                }
+                className={"flex shrink-0 items-center rounded-md bg-white " + (brandCombo ? "p-[2px]" : "px-1.5 py-1")}
                 style={brandCombo ? { background: `conic-gradient(${brandCombo.join(", ")}, ${brandCombo[0]})` } : undefined}
               >
-                <span className={brandCombo ? "flex h-full w-full items-center justify-center rounded-full bg-burgundy" : "contents"}>
-                  <Tx>JA</Tx>
+                <span className={brandCombo ? "flex items-center rounded-[4px] bg-white px-1.5 py-1" : "contents"}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- small static brand asset */}
+                  <img src="/jags-logo.png" alt={tl("JAGS Assurance")} className={"h-8 w-auto object-contain " + rp("lg:max-desk:hidden")} />
+                  {railPref && (
+                    // eslint-disable-next-line @next/next/no-img-element -- small static brand asset
+                    <img src="/jags-mark.png" alt={tl("JAGS Assurance")} className="hidden h-8 w-8 object-contain lg:max-desk:block" />
+                  )}
                 </span>
               </div>
-              <span className={"truncate text-[0.95rem] font-semibold tracking-wide " + rp("lg:max-desk:hidden")}><Tx>JAGS Assurance</Tx></span>
             </>
           )}
           {isCoBranded && (

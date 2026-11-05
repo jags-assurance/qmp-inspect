@@ -1,5 +1,6 @@
 import { brandColorStyle } from "./orgBranding";
 import { verifyBlockHtml } from "./verification";
+import { JAGS_LOGO_IMG } from "./jagsLogo";
 // Renders the printable HTML for a single IRN (Inspection Release Note) certificate — the branded
 // A4 document that confirms an activity has passed inspection and its hold has been released.
 // Puppeteer renders this to portrait A4 PDF in renderIrnPdf.ts; this module only builds the markup.
@@ -112,7 +113,7 @@ function renderFieldValueTable(title: string, rows: [string, string | null][]): 
     </div>`;
 }
 
-const JAGS_BRAND_BLOCK = '<div class="brand-mark">JA</div><div class="wordmark">JAGS ASSURANCE<small>QMP INSPECT</small></div>';
+const JAGS_BRAND_BLOCK = `${JAGS_LOGO_IMG}<div class="wordmark"><small>QMP INSPECT</small></div>`;
 
 /** See ncrTemplate.ts's renderBrandBlock — identical semantics, duplicated rather than shared since
  *  the templates don't share a lib (same convention as elsewhere in this file). */
