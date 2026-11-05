@@ -88,7 +88,7 @@ export function WeeklyReportPackForm({ organizationId, initialPacks, projects = 
           <FormField label="Week starting">
             <input
             name="week_start"
-            type="date"
+            type="date" max="9999-12-31"
             defaultValue={defaultWeekStart()}
             className="mt-1 w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-burgundy"
           />

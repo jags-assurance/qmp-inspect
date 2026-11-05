@@ -160,7 +160,7 @@ export function AddItemForm({
         <FormField label="Planned date">
           <input
           name="planned_date"
-          type="date"
+          type="date" max="9999-12-31"
           className="mt-1 rounded-md border border-border bg-surface px-2.5 py-2 text-sm outline-none focus:border-burgundy"
         />
         </FormField>

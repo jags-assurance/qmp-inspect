@@ -85,11 +85,11 @@ export function RegisterLifecycleActions({
             <div className="grid grid-cols-2 gap-2">
               <label className="block text-xs font-medium text-ink">
                 <Tx>Calibrated</Tx>
-                <input name="cal_date" type="date" required className={INPUT} />
+                <input name="cal_date" type="date" max="9999-12-31" required className={INPUT} />
               </label>
               <label className="block text-xs font-medium text-ink">
                 <Tx>Next due</Tx>
-                <input name="due_date" type="date" required className={INPUT} />
+                <input name="due_date" type="date" max="9999-12-31" required className={INPUT} />
               </label>
             </div>
             <label className="block text-xs font-medium text-ink">

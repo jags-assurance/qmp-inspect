@@ -379,13 +379,13 @@ export function VaultUploadForm({
         const dateField = (
           <div>
             <FormField label="Document date">
-              <input name="document_date" type="date" className={`${fieldCls} max-w-xs`} />
+              <input name="document_date" type="date" max="9999-12-31" className={`${fieldCls} max-w-xs`} />
             </FormField>
           </div>
         );
         const notesField = (
           <div>
-            <FormField label={<>{prefill ? "Change note (what changed in this revision)" : "Notes"}</>}>
+            <FormField required={!!prefill} label={<>{prefill ? "Change note (what changed in this revision)" : "Notes"}</>}>
               <textarea name="notes" rows={2} required={!!prefill} className={fieldCls} />
             </FormField>
           </div>

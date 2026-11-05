@@ -74,7 +74,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
         <FormField label="Cal. date">
           <input
           name="cal_date"
-          type="date"
+          type="date" max="9999-12-31"
           value={calDate}
           onChange={(e) => setCalDate(e.target.value)}
           className={inputClass}
@@ -85,7 +85,7 @@ export function AddCalibrationForm({ projectId }: { projectId: string }) {
 
       <div className="w-36">
         <FormField label="Due date">
-          <input name="due_date" type="date" required min={calDate || undefined} className={inputClass} />
+          <input name="due_date" type="date" max="9999-12-31" required min={calDate || undefined} className={inputClass} />
         </FormField>
       </div>
 

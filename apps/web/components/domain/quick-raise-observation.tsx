@@ -163,7 +163,7 @@ export function QuickRaiseObservation() {
             <input
               id="qr-due"
               name="due_date"
-              type="date"
+              type="date" max="9999-12-31"
               required
               defaultValue={defaultDueDate()}
               className="mt-1 min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-burgundy"

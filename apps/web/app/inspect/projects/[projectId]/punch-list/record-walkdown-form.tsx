@@ -109,7 +109,7 @@ export function RecordWalkdownForm({
       <div className="mt-4 grid grid-cols-1 gap-3 rounded-md border border-border bg-surface p-3 sm:grid-cols-4">
         <label className="text-xs font-medium text-ink">
           <Tx>Walk-down date</Tx>
-          <input name="walked_on" type="date" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
+          <input name="walked_on" type="date" max="9999-12-31" className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy" />
           <TodayButton name="walked_on" fillOnLoad />
         </label>
         <label className="text-xs font-medium text-ink">
@@ -210,7 +210,7 @@ export function RecordWalkdownForm({
               <input
                 id={`walkdown-due-${rowId}`}
                 name="due_date"
-                type="date"
+                type="date" max="9999-12-31"
                 className="mt-1 w-full rounded-md border border-border bg-off-white px-2 py-1.5 text-sm outline-none focus:border-burgundy"
               />
             </div>

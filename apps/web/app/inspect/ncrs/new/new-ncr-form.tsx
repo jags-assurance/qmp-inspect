@@ -334,7 +334,7 @@ export function NewNcrForm({
             <FormField required label="Due date" error={state.fieldErrors?.due_date}>
               <input
               name="due_date"
-              type="date"
+              type="date" max="9999-12-31"
               required
               value={dueDate}
               onChange={(e) => {

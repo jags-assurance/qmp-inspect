@@ -65,7 +65,7 @@ export function EditMetadataForm({
       </label>
       <label className="block text-xs text-muted">
         <Tx>Document date</Tx>
-        <input name="document_date" type="date" defaultValue={documentDate} className={cls} />
+        <input name="document_date" type="date" max="9999-12-31" defaultValue={documentDate} className={cls} />
       </label>
       <label className="block text-xs text-muted sm:col-span-2">
         <Tx>Notes</Tx>
