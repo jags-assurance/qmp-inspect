@@ -22,6 +22,8 @@ import { PageGuide } from "@/components/domain/page-guide";
 import { getTranslator } from "@/lib/i18n/server";
 import { Button } from "@/components/ui/button";
 
+export const maxDuration = 300;
+
 interface HandoverRow {
   id: string;
   data_book_id: string;

@@ -58,6 +58,8 @@ import { DescriptionList } from "@/components/ui/description-list";
 import { Disclosure } from "@/components/ui/disclosure";
 import { formatDate, formatDateTime } from "@/lib/dates/format";
 
+export const maxDuration = 300;
+
 const RESULT_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
   pass: "success",
   fail: "danger",

@@ -16,6 +16,8 @@ import { OrgFilter } from "./org-filter";
 import { orgFilterOptionsFrom } from "@/lib/projects/open-counts";
 import { getTranslator } from "@/lib/i18n/server";
 
+export const maxDuration = 300;
+
 export default async function ProjectsPage({
   searchParams,
 }: {

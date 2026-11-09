@@ -18,6 +18,8 @@ import { StatTile, StatGrid } from "@/components/ui/stat-tile";
 import { FilterBar } from "@/components/ui/toolbar";
 import { EmptyState } from "@/components/ui/empty-state";
 
+export const maxDuration = 300;
+
 interface DocSummary {
   id: string;
   folder_id: string;

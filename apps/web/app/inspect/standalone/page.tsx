@@ -17,6 +17,8 @@ import { getTranslator } from "@/lib/i18n/server";
 import { withActiveProject } from "@/lib/projects/active-project";
 import { getActiveProjectId } from "@/lib/projects/active-project-server";
 
+export const maxDuration = 300;
+
 export default async function StandaloneAssignmentsPage({
   searchParams,
 }: {

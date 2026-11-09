@@ -22,6 +22,8 @@ import { fetchAll } from "@/lib/supabase/fetch-all";
 import { countOpenNcrs, countPunchByStatus } from "@/lib/projects/open-counts";
 import { WorkspaceSkeleton, WorkspaceTabs, type WorkspaceTab, type WorkspaceTabKey } from "./workspace/workspace-tabs";
 
+export const maxDuration = 300;
+
 const STATUS_TONE: Record<string, "success" | "warning" | "neutral" | "danger"> = {
   active: "success",
   draft: "neutral",

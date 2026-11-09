@@ -32,6 +32,8 @@ import { T } from "@/components/domain/t";
 import { MoreDetails } from "@/components/domain/more-details";
 import { getTranslator } from "@/lib/i18n/server";
 
+export const maxDuration = 300;
+
 interface AssignmentDetail {
   id: string;
   project_id: string;

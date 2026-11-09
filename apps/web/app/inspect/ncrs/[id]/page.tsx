@@ -35,6 +35,8 @@ import { Section } from "@/components/ui/section";
 import { DescriptionList } from "@/components/ui/description-list";
 import { Disclosure } from "@/components/ui/disclosure";
 
+export const maxDuration = 300;
+
 export default async function NcrDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ warning?: string }> }) {
   const tl = await getTranslator();
   const { id } = await params;

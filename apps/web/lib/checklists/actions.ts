@@ -1,5 +1,6 @@
 "use server";
 
+import { createSupabaseServiceRoleClient, isServiceRoleConfigured } from "@/lib/supabase/service";
 import { normaliseBulkIds, toBulkItem, type BulkIrnItemResult, type BulkIrnResult } from "./bulk-irn";
 import { notifyAfterIrnIssued, notifyAfterIrnVoided } from "./irn-notifications";
 import { unnotifiedNonBlockingLevels } from "./notice-waiver";
@@ -1413,7 +1414,10 @@ export async function completeInspectionCore(formData: FormData): Promise<Comple
       // Under database load one attempt can fail silently and leave a stale open item that blocks the Data Book,
       // so retry once before giving up.
       for (let attempt = 0; attempt < 2; attempt++) {
-        const { error: supersedeError } = await supabase
+        // Run with the server's own access (ids come from records this user could already read) and verify
+        // rows changed; a row-level rule can otherwise update nothing without any error.
+        const writer = isServiceRoleConfigured() ? createSupabaseServiceRoleClient() : supabase;
+        const { error: supersedeError } = await writer
           .from(PUNCH_LIST_ITEMS_TABLE)
           .update({ status: "closed", closing_evidence: note, verification_notes: note, withdrawn_at: now, withdrawn_by: signer?.id ?? null, withdrawn_reason: note, closed_by: signer?.id ?? null, closed_at: now })
           .in("source_inspection_record_id", supersededRecordIds)

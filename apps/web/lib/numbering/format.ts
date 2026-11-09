@@ -20,7 +20,7 @@ export function formatDocumentNumber(
   const seq = String(parts.seq).padStart(config.sequencePadding, "0");
   // Fixed order, not configurable: client, originator, doc type, [discipline], [year], sequence —
   // discipline lands "right after the doc-type segment" as specified, ahead of the optional year.
-  const segments = [parts.clientCode, parts.originatorCode, parts.docType.toUpperCase()];
+  const segments = [parts.clientCode, parts.originatorCode, parts.docType.toUpperCase().replace(/_/g, "-")];
   if (config.includeDiscipline && parts.disciplineCode) segments.push(parts.disciplineCode.toUpperCase());
   if (config.includeYear) segments.push(String(new Date().getFullYear()));
   segments.push(seq);

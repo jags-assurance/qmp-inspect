@@ -138,8 +138,7 @@ const ADMIN_DEFS: Def[] = [
     action: "Open staff access",
     optional: true,
     href: () => "/inspect/settings?section=staff-access",
-    done: (f) => f.teamCount > 0,
-    note: (f) => (f.teamCount ? plural(f.teamCount, "team") : undefined),
+    done: () => false,
   },
   {
     key: "project",
