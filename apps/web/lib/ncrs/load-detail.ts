@@ -141,8 +141,10 @@ export async function loadNcrDetail(id: string): Promise<NcrDetailData | null> {
   if (ncrError) throw new Error(`Could not load this NCR: ${ncrError.message}`);
   if (!ncr) return null;
 
-  const latestNcrPdf = await getLatestNcrPdf(id);
-  const latestCloseoutCertificate = ncr.status === "closed" ? await getLatestNcrCloseoutCertificate(id, ncr.closed_at) : null;
+  const [latestNcrPdf, latestCloseoutCertificate] = await Promise.all([
+    getLatestNcrPdf(id),
+    ncr.status === "closed" ? getLatestNcrCloseoutCertificate(id, ncr.closed_at) : Promise.resolve(null),
+  ]);
 
   // Related context — each query is non-fatal: a failure just yields an empty list / null.
   const [punchItems, history, inspectionRecord, otherNcrs] = await Promise.all([
