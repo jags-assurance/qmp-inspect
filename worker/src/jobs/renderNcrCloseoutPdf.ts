@@ -118,6 +118,11 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
 
   const projectName = project ? `${project.project_number} · ${project.name}` : "";
 
+  const { data: extra } = await supabase
+    .from("ncrs" as never)
+    .select("root_cause_category, disposition")
+    .eq("id", ncr.id)
+    .maybeSingle<{ root_cause_category: string | null; disposition: string | null }>();
   const closeoutRevision = await resolveNextRevision(supabase, ncr.project_id, "certificates", `${ncr.ncr_number}-closeout`);
   const templateData: NcrCloseoutPdfData = {
     ncrNumber: ncr.ncr_number,
@@ -126,6 +131,8 @@ export async function renderNcrCloseoutPdf(payload: RenderNcrCloseoutCertificate
     organizationName: project?.organizations?.name ?? null,
     description: ncr.description,
     rootCause: ncr.root_cause,
+    rootCauseCategory: extra?.root_cause_category ?? null,
+    disposition: extra?.disposition ?? null,
     correctiveAction: ncr.corrective_action,
     preventiveAction: ncr.preventive_action,
     verificationNotes: ncr.verification_notes,

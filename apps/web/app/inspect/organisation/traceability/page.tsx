@@ -181,7 +181,7 @@ export async function DocumentTraceabilityView({
   }
 
   return (
-    <div>
+    <div className="print-area">
       <SettingsBackLink embedded={embedded} href="/inspect/settings?section=insights" />
       <PageHeader
         className="mt-2"

@@ -134,6 +134,8 @@ export function AssignmentWorkspace({
   const [activeTab, setActiveTab] = useState<TabKey>("measurements");
   const isDraft = assignment.status === "draft";
   const isConditionalOpen = assignment.status === "conditional_open";
+  const ownOpenPunchCount = punchItems.filter((p) => p.status === "open").length;
+  const clearanceBlockedCount = linkedOpenPunchCount + ownOpenPunchCount;
   // Distinct from isDraft: isDraft is about the assignment's actual state (still correct to show
   // as "Draft" to anyone), canEdit is about whether THIS viewer may mutate it. Every action this
   // gates is permission-checked server-side (lib/standalone/actions.ts) — this just stops the
@@ -181,12 +183,12 @@ export function AssignmentWorkspace({
           <div className="min-w-0">
             <p className="text-base font-semibold text-warning">
               {linkedTotalPunchCount - linkedOpenPunchCount} <Tx>of</Tx> {linkedTotalPunchCount} <Tx>linked punch items closed</Tx>
-              {linkedOpenPunchCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
+              {clearanceBlockedCount > 0 ? " — clearance blocked" : " — ready to issue clearance"}
             </p>
             <MoreDetails label="Details">
               <p>
-                {linkedOpenPunchCount > 0
-                  ? "This assignment stays conditionally open until every linked punch item on the project punch list is closed."
+                {clearanceBlockedCount > 0
+                  ? `This assignment stays conditionally open until every linked punch item on the project punch list${ownOpenPunchCount > 0 ? ` and the ${ownOpenPunchCount} open item(s) on this assignment's own Punch List tab` : ""} is closed.`
                   : "All linked punch items are closed. Issue clearance below to complete this assignment."}
               </p>
             </MoreDetails>
@@ -417,7 +419,7 @@ export function AssignmentWorkspace({
       )}
       {isConditionalOpen && canManage && canClose && (
         <div className="mt-6">
-          <IssueClearanceForm assignmentId={assignment.id} canClear={linkedOpenPunchCount === 0} />
+          <IssueClearanceForm assignmentId={assignment.id} canClear={clearanceBlockedCount === 0} />
         </div>
       )}
       {isConditionalOpen && !(canManage && canClose) && (

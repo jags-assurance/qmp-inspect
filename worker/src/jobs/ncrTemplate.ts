@@ -28,6 +28,8 @@ export interface NcrPdfData {
 
   // Close-out
   rootCause: string | null;
+  rootCauseCategory?: string | null;
+  disposition?: string | null;
   correctiveAction: string | null;
   preventiveAction: string | null;
   verificationNotes: string | null;
@@ -94,7 +96,7 @@ function buildOwnerDue(assigneeName: string | null, dueDate: string | null): str
 }
 
 function buildHoldRelease(closedByName: string | null, closedAt: string | null): string {
-  if (closedByName && closedAt) return `${closedByName} at ${closedAt}`;
+  if (closedByName && closedAt) return `${closedByName} on ${closedAt.replace("T", " ").slice(0, 16)} UTC`;
   return "Pending";
 }
 
@@ -139,7 +141,9 @@ export function buildNcrPdfHtml(data: NcrPdfData): string {
   ];
 
   const closeOutRows: [string, string | null][] = [
+    ["Root cause category", data.rootCauseCategory ?? null],
     ["Root cause", data.rootCause],
+    ["Disposition", data.disposition ?? null],
     ["Correction", data.correctiveAction],
     ["Corrective/preventive", data.preventiveAction],
     ["Verification", data.verificationNotes],

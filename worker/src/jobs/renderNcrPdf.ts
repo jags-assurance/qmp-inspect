@@ -88,8 +88,17 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     "JAGS Assurance"
   );
 
-  const evidenceItems = (photoRows ?? []).map((p) => p.caption || p.storage_path.split("/").pop() || p.storage_path);
-  const evidence = evidenceItems.length > 0 ? evidenceItems.join(", ") : null;
+  const photoCaptions = (photoRows ?? []).map((p) => p.caption?.trim()).filter((c): c is string => Boolean(c));
+  const photoTotal = (photoRows ?? []).length;
+  const evidence =
+    photoTotal > 0
+      ? `${photoTotal} photo${photoTotal === 1 ? "" : "s"} attached${photoCaptions.length ? `: ${photoCaptions.join("; ")}` : ""}`
+      : null;
+  const { data: extra } = await supabase
+    .from("ncrs" as never)
+    .select("root_cause_category, disposition")
+    .eq("id", ncr.id)
+    .maybeSingle<{ root_cause_category: string | null; disposition: string | null }>();
 
   const projectName = project ? `${project.project_number} · ${project.name}` : "";
 
@@ -105,6 +114,8 @@ export async function renderNcrPdf(payload: RenderNcrPdfPayload): Promise<{ resu
     assigneeName: assignee?.full_name ?? null,
     dueDate: ncr.due_date,
     rootCause: ncr.root_cause,
+    rootCauseCategory: extra?.root_cause_category ?? null,
+    disposition: extra?.disposition ?? null,
     correctiveAction: ncr.corrective_action,
     preventiveAction: ncr.preventive_action,
     verificationNotes: ncr.verification_notes,

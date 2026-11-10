@@ -20,6 +20,8 @@ export interface NcrCloseoutPdfData {
   description: string;
 
   rootCause: string;
+  rootCauseCategory?: string | null;
+  disposition?: string | null;
   correctiveAction: string;
   preventiveAction: string | null;
   verificationNotes: string;
@@ -121,7 +123,9 @@ export function buildNcrCloseoutPdfHtml(data: NcrCloseoutPdfData): string {
   ];
 
   const closeOutRows: [string, string | null][] = [
+    ["Root cause category", data.rootCauseCategory ?? null],
     ["Root cause", data.rootCause],
+    ["Disposition", data.disposition ?? null],
     ["Corrective action", data.correctiveAction],
     ["Preventive action", data.preventiveAction],
     ["Verification", data.verificationNotes],

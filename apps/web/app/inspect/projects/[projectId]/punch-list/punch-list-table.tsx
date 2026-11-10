@@ -401,10 +401,10 @@ export function PunchListTable({
                   <p className="mt-0.5 text-sm text-ink">{openRow.closing_evidence || "—"}</p>
                 </div>
                 {canVerifyClose ? (
-                  <>
+                  <div className="space-y-3">
                     <VerifyClosePunchItemForm projectId={projectId} punchItemId={openRow.id} isAdmin={isAdmin} />
                     <ReopenPunchItemForm projectId={projectId} punchItemId={openRow.id} label="Reject fix - send back to open" />
-                  </>
+                  </div>
                 ) : (
                   <p className="text-xs text-muted"><Tx>Awaiting verification by a JAGS Admin or someone granted the close punch item permission (not the person who resolved it).</Tx></p>
                 )}
